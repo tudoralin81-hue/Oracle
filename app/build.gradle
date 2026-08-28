@@ -4,7 +4,7 @@ plugins {
 }
 
 android { namespace 'ro.alintudor.oracle'; compileSdk 35
-    defaultConfig { applicationId 'ro.alintudor.oracle'; minSdk 26; targetSdk 35; versionCode 5; versionName '2.0.0' }
+    defaultConfig { applicationId 'ro.alintudor.oracle'; minSdk 26; targetSdk 35; versionCode 6; versionName '2.1.0' }
     buildTypes {
         release {
             signingConfig signingConfigs.debug
