@@ -1,13 +1,12 @@
 package ro.alintudor.oracle
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
-import ro.alintudor.oracle.core.OracleModuleData
+import ro.alintudor.oracle.core.OracleRepository
+import ro.alintudor.oracle.core.snapshot
 
 /** Compatibility store backed by the same local data schema as OracleRepository. */
 class OracleStore(context: Context) {
-    private val repository = ro.alintudor.oracle.core.OracleRepository(context)
+    private val repository = OracleRepository(context)
 
     fun load(): OracleModuleState = repository.snapshot()
 
