@@ -4,10 +4,9 @@ plugins {
 }
 
 android { namespace 'ro.alintudor.oracle'; compileSdk 35
-    defaultConfig { applicationId 'ro.alintudor.oracle'; minSdk 26; targetSdk 35; versionCode 3; versionName '1.1.1' }
+    defaultConfig { applicationId 'ro.alintudor.oracle'; minSdk 26; targetSdk 35; versionCode 4; versionName '1.2.0' }
     buildTypes {
         release {
-            // Produce an installable APK for direct device testing.
             signingConfig signingConfigs.debug
             minifyEnabled false
         }
