@@ -1,21 +1,10 @@
 package ro.alintudor.oracle
 
-import ro.alintudor.oracle.core.OracleAction
-import ro.alintudor.oracle.core.OracleAlert
-import ro.alintudor.oracle.core.OracleHistoryPoint
-import ro.alintudor.oracle.core.OracleKnowledgeItem
-import ro.alintudor.oracle.core.OracleModuleData
-import ro.alintudor.oracle.core.OracleNews
-import ro.alintudor.oracle.core.OraclePosition
-
-/**
- * Compatibility aliases for the original root-package API.
- * The core package is now the single source of truth for Oracle domain models.
- */
-typealias OraclePosition = OraclePosition
-typealias OracleAlert = OracleAlert
-typealias OracleNews = OracleNews
-typealias OracleHistoricalPoint = OracleHistoryPoint
-typealias OracleAction = OracleAction
-typealias OracleKnowledgeItem = OracleKnowledgeItem
-typealias OracleModuleState = OracleModuleData
+/** Compatibility aliases. Core is the single source of truth for domain models. */
+typealias OraclePosition = ro.alintudor.oracle.core.OraclePosition
+typealias OracleAlert = ro.alintudor.oracle.core.OracleAlert
+typealias OracleNews = ro.alintudor.oracle.core.OracleNews
+typealias OracleHistoricalPoint = ro.alintudor.oracle.core.OracleHistoryPoint
+typealias OracleAction = ro.alintudor.oracle.core.OracleAction
+typealias OracleKnowledgeItem = ro.alintudor.oracle.core.OracleKnowledgeItem
+typealias OracleModuleState = ro.alintudor.oracle.core.OracleModuleData
