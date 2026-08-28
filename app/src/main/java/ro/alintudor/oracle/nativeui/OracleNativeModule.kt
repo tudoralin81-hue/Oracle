@@ -4,13 +4,14 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
 import android.widget.*
-import ro.alintudor.oracle.core.*
 
-/** Native module container: no WordPress page/WebView is used for module rendering. */
-class OracleNativeModule(private val context: Context, private val title: String) {
+/** Native module container. Refresh is delegated to the activity so the module is rebuilt from local data. */
+class OracleNativeModule(
+    private val context: Context,
+    private val title: String,
+    private val onRefresh: () -> Unit = {}
+) {
     val root: LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(2,4,10))
@@ -27,14 +28,17 @@ class OracleNativeModule(private val context: Context, private val title: String
         val label = TextView(context).apply {
             text="ORACLE  •  $title"; textSize=18f; typeface=Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); gravity=Gravity.CENTER
         }
-        val refresh = Button(context).apply { text="↻"; textSize=22f; setOnClickListener { render() } }
-        header.addView(home, LinearLayout.LayoutParams(52,52)); header.addView(label, LinearLayout.LayoutParams(0,52,1f)); header.addView(refresh, LinearLayout.LayoutParams(52,52))
-        root.addView(header); root.addView(ScrollView(context).apply { addView(content) }, LinearLayout.LayoutParams(-1,0,1f))
+        val refresh = Button(context).apply { text="↻"; textSize=22f; contentDescription="Refresh $title"; setOnClickListener { onRefresh() } }
+        header.addView(home, LinearLayout.LayoutParams(52,52))
+        header.addView(label, LinearLayout.LayoutParams(0,52,1f))
+        header.addView(refresh, LinearLayout.LayoutParams(52,52))
+        root.addView(header)
+        root.addView(ScrollView(context).apply { addView(content) }, LinearLayout.LayoutParams(-1,0,1f))
     }
 
     fun render() {
         content.removeAllViews()
-        addCard("$title", "Modul Oracle nativ")
+        addCard(title, "Modul Oracle nativ")
     }
     fun addCard(heading:String, body:String) {
         val card=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; setPadding(18,16,18,16); setBackgroundColor(Color.rgb(9,13,26)) }
