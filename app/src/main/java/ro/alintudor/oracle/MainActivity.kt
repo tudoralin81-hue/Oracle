@@ -5,8 +5,8 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.*
+import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
-import ro.alintudor.oracle.core.snapshot
 import ro.alintudor.oracle.nativeui.*
 
 class MainActivity : Activity() {
@@ -61,14 +61,16 @@ class MainActivity : Activity() {
 
     private fun openModule(key: String) {
         currentModule = key
-        renderModule(key)
+        renderModule(key, refresh = true)
     }
 
-    private fun renderModule(key: String) {
+    private fun renderModule(key: String, refresh: Boolean = false) {
         root.removeAllViews()
-        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) { renderModule(key) }
+        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) {
+            renderModule(key, refresh = true)
+        }
         root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
-        val data = repository.snapshot()
+        val data = if (refresh) OracleLocalProcessor.refresh(repository) else repository.snapshot()
         when (key) {
             "portfolio" -> OraclePortfolioModule(host).render(data.positions)
             "alerts" -> OracleAlertsModule(host).render(data.alerts)
