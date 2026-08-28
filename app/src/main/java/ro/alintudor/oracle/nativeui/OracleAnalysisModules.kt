@@ -61,9 +61,21 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun renderActions(actions: List<OracleAction>) {
-        host.addCard("ACTIONS", "Semnale calculate local pe poziții + istoric")
+        host.addCard("ACTIONS", "Motor local de semnale — prioritizare după scor")
         if (actions.isEmpty()) return emptyState()
-        actions.sortedByDescending { abs(it.score) }.forEach { addItem("${it.action} • ${it.ticker}", "Scor ${fmt(it.score)}\n${it.reason}") }
+        val buys = actions.count { it.action.equals("BUY", true) }
+        val sells = actions.count { it.action.equals("SELL", true) }
+        val holds = actions.size - buys - sells
+        host.addCard("SIGNAL SUMMARY", "BUY $buys  •  HOLD $holds  •  SELL $sells\nTotal semnale ${actions.size}")
+        actions.sortedByDescending { abs(it.score) }.take(50).forEachIndexed { index, a ->
+            val strength = when {
+                abs(a.score) >= 80 -> "VERY STRONG"
+                abs(a.score) >= 60 -> "STRONG"
+                abs(a.score) >= 35 -> "MODERATE"
+                else -> "WEAK"
+            }
+            addItem("${index + 1}. ${a.action} • ${a.ticker}", "Scor ${fmt(a.score)}  •  $strength\n${a.reason}")
+        }
     }
 
     private fun addItem(title: String, body: String) {
