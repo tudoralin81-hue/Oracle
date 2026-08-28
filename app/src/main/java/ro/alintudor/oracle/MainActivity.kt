@@ -21,13 +21,23 @@ class MainActivity : Activity() {
     private fun showHub() {
         currentModule=null; root.removeAllViews(); val scroll=ScrollView(this)
         val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(20,28,20,28) }
-        box.addView(TextView(this).apply { text="ORACLE"; textSize=32f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setPadding(0,12,0,28) })
-        titles.forEach { (key,label) -> box.addView(Button(this).apply { text=label; textSize=18f; isAllCaps=false; setOnClickListener { openModule(key) } }, LinearLayout.LayoutParams(-1,64).apply { setMargins(0,0,0,12) }) }
+        val title=TextView(this).apply { text="ORACLE"; textSize=32f; gravity=Gravity.CENTER; setTextColor(Color.WHITE); setPadding(0,12,0,28); alpha=0f }
+        box.addView(title); title.animate().alpha(1f).setDuration(500).start()
+        titles.forEach { (key,label) ->
+            val button=Button(this).apply { text=label; textSize=18f; isAllCaps=false; alpha=0f; setOnClickListener { openModule(key) } }
+            box.addView(button, LinearLayout.LayoutParams(-1,64).apply { setMargins(0,0,0,12) }); button.animate().alpha(1f).setDuration(350).setStartDelay((box.childCount*60).toLong()).start()
+        }
         scroll.addView(box); root.addView(scroll, FrameLayout.LayoutParams(-1,-1))
     }
     private fun openModule(key:String) {
         currentModule=key; root.removeAllViews(); val host=OracleNativeModule(this,titles[key] ?: key.uppercase()); root.addView(host.root,FrameLayout.LayoutParams(-1,-1))
-        when(key) { "portfolio" -> OraclePortfolioModule(host).render(repository.cachedPositions()); "alerts" -> OracleAlertsModule(host).render(repository.cachedAlerts()); "news" -> OracleNewsModule(host).render(emptyList()); else -> OracleSimpleModule(host,titles[key] ?: key.uppercase()).render() }
+        val positions = repository.cachedPositions()
+        when(key) {
+            "portfolio" -> OraclePortfolioModule(host).render(positions)
+            "alerts" -> OracleAlertsModule(host).render(repository.cachedAlerts())
+            "news" -> OracleNewsModule(host).render(emptyList())
+            else -> OracleSimpleModule(host,titles[key] ?: key.uppercase()).render(positions=positions)
+        }
     }
     override fun onBackPressed() { if(currentModule!=null) showHub() else super.onBackPressed() }
 }
