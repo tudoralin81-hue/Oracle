@@ -11,7 +11,7 @@ object OracleDecisionEngine {
             marketValue = OracleCalculations.marketValue(it.shares, it.currentPrice)
         ) })
         val trends = OracleTrendEngine.analyze(history)
-        val baseActions = OracleAnalytics.actions(normalized)
+        val baseActions = OracleAnalytics.actions(normalized, history)
         val generatedAlerts = OracleAlertEngine.generate(normalized, baseActions)
         val alerts = (previousAlerts + generatedAlerts).distinctBy { "${it.ticker}:${it.title}:${it.timestamp}" }
         val signals = OracleSignalFusion.fuse(normalized, trends, alerts)
