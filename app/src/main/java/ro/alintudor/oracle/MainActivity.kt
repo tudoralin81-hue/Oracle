@@ -82,6 +82,10 @@ class MainActivity : Activity() {
                     openModule(key)
                     return true
                 }
+                if (uri == "app://back") {
+                    showHub()
+                    return true
+                }
                 return false
             }
 
@@ -136,7 +140,7 @@ class MainActivity : Activity() {
                 var style=document.getElementById('oracle-app-style');
                 if(!style){
                   style=document.createElement('style');style.id='oracle-app-style';
-                  style.textContent=`html,body{background:#02040a!important;color:#eef2ff!important}body{padding-top:58px!important}.site-header,header.site-header,.site-footer,footer.site-footer,.entry-header,.wp-block-post-title,.entry-title{display:none!important}.oracle-app-content{min-height:100vh;background:#02040a!important}`;
+                  style.textContent=`html,body{background:#02040a!important;color:#eef2ff!important}body{padding-top:58px!important}.site-header,header.site-header,.site-footer,footer.site-footer,.entry-header,.wp-block-post-title,.entry-title{display:none!important}`;
                   document.head.appendChild(style);
                 }
                 var bar=document.createElement('div');bar.id='oracle-app-shell';
@@ -146,16 +150,12 @@ class MainActivity : Activity() {
                 var t=bar.querySelector('.oracle-app-title');t.style.cssText='margin-left:12px;font-weight:800;font-size:17px;letter-spacing:.4px;color:#eef2ff;white-space:nowrap;';
                 var s=bar.querySelector('.oracle-app-title span');s.style.cssText='color:#8b6cff;margin:0 5px;';
                 document.body.appendChild(bar);
-                b.onclick=function(){AndroidBackBridge();};
+                b.onclick=function(){window.location='app://back';};
                 document.documentElement.scrollTop=0;
               }catch(e){}
             })();
         """.trimIndent()
         web.evaluateJavascript("javascript:$script", null)
-    }
-
-    private fun AndroidBackBridge() {
-        showHub()
     }
 
     override fun onBackPressed() {
