@@ -14,5 +14,7 @@ fun OracleRepository.snapshot(): OracleModuleData = OracleModuleData(
     positions = cachedPositions(),
     alerts = cachedAlerts(),
     news = cachedNews(),
-    history = cachedHistory()
+    history = cachedHistory(),
+    actions = cachedActions(),
+    knowledge = cachedKnowledge()
 )
