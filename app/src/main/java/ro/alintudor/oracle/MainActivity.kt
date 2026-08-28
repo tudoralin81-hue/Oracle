@@ -41,20 +41,16 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             setPadding(0, 12, 0, 28)
-            alpha = 0f
         }
         box.addView(title)
-        title.animate().alpha(1f).setDuration(500).start()
         titles.forEach { (key, label) ->
             val button = Button(this).apply {
                 text = label
                 textSize = 18f
                 isAllCaps = false
-                alpha = 0f
                 setOnClickListener { openModule(key) }
             }
             box.addView(button, LinearLayout.LayoutParams(-1, 64).apply { setMargins(0, 0, 0, 12) })
-            button.animate().alpha(1f).setDuration(350).setStartDelay((box.childCount * 60).toLong()).start()
         }
         scroll.addView(box)
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
@@ -62,13 +58,23 @@ class MainActivity : Activity() {
 
     private fun openModule(key: String) {
         currentModule = key
-        renderModule(key, refresh = true)
+        renderModule(key)
+        // Never block the UI with local recalculation. Render persisted data first,
+        // then refresh on a worker and replace the module when the new snapshot is ready.
+        Thread {
+            runCatching { OracleLocalProcessor.refresh(repository) }
+                .onSuccess {
+                    runOnUiThread {
+                        if (currentModule == key && !isFinishing) renderModule(key, refresh = false)
+                    }
+                }
+        }.start()
     }
 
     private fun renderModule(key: String, refresh: Boolean = false) {
         root.removeAllViews()
         val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) {
-            renderModule(key, refresh = true)
+            openModule(key)
         }
         root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
         val data = if (refresh) OracleLocalProcessor.refresh(repository) else repository.snapshot()
