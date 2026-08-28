@@ -3,14 +3,10 @@ package ro.alintudor.oracle.core
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
 
-/** Native data layer. WordPress is a data source, never the app UI. */
+/** Fully local native data layer. No WordPress/API dependency. */
 class OracleRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("oracle_data", Context.MODE_PRIVATE)
-    private val executor = Executors.newSingleThreadExecutor()
     fun cachedPositions(): List<OraclePosition> = parsePositions(prefs.getString("positions", "[]") ?: "[]")
     fun cachedAlerts(): List<OracleAlert> = parseAlerts(prefs.getString("alerts", "[]") ?: "[]")
     fun cachedNews(): List<OracleNews> = parseNews(prefs.getString("news", "[]") ?: "[]")
@@ -23,19 +19,6 @@ class OracleRepository(private val context: Context) {
     fun saveHistory(items: List<OracleHistoryPoint>) = prefs.edit().putString("history", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveActions(items: List<OracleAction>) = prefs.edit().putString("actions", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveKnowledge(items: List<OracleKnowledgeItem>) = prefs.edit().putString("knowledge", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
-
-    fun getJson(url: String, timeoutMs: Int = 12000): String? = runCatching {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = timeoutMs; c.readTimeout = timeoutMs; c.requestMethod = "GET"
-        c.setRequestProperty("Accept", "application/json"); c.setRequestProperty("User-Agent", "AIStockOracleApp/2.0")
-        if (c.responseCode !in 200..299) return null
-        c.inputStream.bufferedReader().use { it.readText() }
-    }.getOrNull()
-
-    /** Non-blocking refresh hook. Endpoint mapping is intentionally supplied by the caller. */
-    fun refreshJson(url: String, onResult: (String?) -> Unit) {
-        executor.execute { onResult(getJson(url)) }
-    }
 
     private fun parsePositions(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->positionFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
     private fun parseAlerts(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->alertFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
