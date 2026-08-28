@@ -35,7 +35,7 @@ class MainActivity : Activity() {
         when(key) {
             "portfolio" -> OraclePortfolioModule(host).render(positions)
             "alerts" -> OracleAlertsModule(host).render(repository.cachedAlerts())
-            "news" -> OracleNewsModule(host).render(emptyList())
+            "news" -> OracleNewsModule(host).render(repository.cachedNews())
             else -> OracleSimpleModule(host,titles[key] ?: key.uppercase()).render(positions=positions)
         }
     }
