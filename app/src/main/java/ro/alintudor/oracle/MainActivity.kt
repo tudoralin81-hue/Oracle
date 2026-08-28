@@ -61,8 +61,12 @@ class MainActivity : Activity() {
 
     private fun openModule(key: String) {
         currentModule = key
+        renderModule(key)
+    }
+
+    private fun renderModule(key: String) {
         root.removeAllViews()
-        val host = OracleNativeModule(this, titles[key] ?: key.uppercase())
+        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) { renderModule(key) }
         root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
         val data = repository.snapshot()
         when (key) {
