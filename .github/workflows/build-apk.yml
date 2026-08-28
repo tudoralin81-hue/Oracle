@@ -16,14 +16,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
-      - name: Build release APK
+      - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
-      - name: Upload APKs
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
+          name: Oracle-APK-installable
+          path: app/build/outputs/apk/release/*.apk
