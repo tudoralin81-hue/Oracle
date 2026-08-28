@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.widget.*
 import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
+import ro.alintudor.oracle.core.snapshot
 import ro.alintudor.oracle.nativeui.*
 
 class MainActivity : Activity() {
