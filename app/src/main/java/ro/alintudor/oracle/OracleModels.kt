@@ -1,37 +1,21 @@
 package ro.alintudor.oracle
 
-/** Native domain model used by Oracle modules. */
-data class OraclePosition(
-    val ticker: String,
-    val shares: Double,
-    val avgCost: Double,
-    val currentPrice: Double = 0.0,
-    val pnl: Double = 0.0,
-    val pnlPct: Double = 0.0,
-    val status: String = "ACTIVE"
-)
+import ro.alintudor.oracle.core.OracleAction
+import ro.alintudor.oracle.core.OracleAlert
+import ro.alintudor.oracle.core.OracleHistoryPoint
+import ro.alintudor.oracle.core.OracleKnowledgeItem
+import ro.alintudor.oracle.core.OracleModuleData
+import ro.alintudor.oracle.core.OracleNews
+import ro.alintudor.oracle.core.OraclePosition
 
-data class OracleAlert(
-    val ticker: String,
-    val type: String,
-    val message: String,
-    val timestamp: Long
-)
-
-data class OracleNews(
-    val ticker: String,
-    val title: String,
-    val source: String,
-    val timestamp: Long,
-    val breaking: Boolean = false
-)
-
-data class OracleHistoricalPoint(val timestamp: Long, val value: Double)
-
-data class OracleModuleState(
-    val positions: List<OraclePosition> = emptyList(),
-    val alerts: List<OracleAlert> = emptyList(),
-    val news: List<OracleNews> = emptyList(),
-    val history: List<OracleHistoricalPoint> = emptyList(),
-    val lastSync: Long = 0L
-)
+/**
+ * Compatibility aliases for the original root-package API.
+ * The core package is now the single source of truth for Oracle domain models.
+ */
+typealias OraclePosition = OraclePosition
+typealias OracleAlert = OracleAlert
+typealias OracleNews = OracleNews
+typealias OracleHistoricalPoint = OracleHistoryPoint
+typealias OracleAction = OracleAction
+typealias OracleKnowledgeItem = OracleKnowledgeItem
+typealias OracleModuleState = OracleModuleData
