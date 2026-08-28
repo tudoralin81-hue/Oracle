@@ -14,7 +14,7 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var repository: OracleRepository
     private var currentModule: String? = null
-    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST")
+    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "JURNAL ACTIVITATE")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,11 +76,13 @@ class MainActivity : Activity() {
             "portfolio" -> OraclePortfolioModule(host).render(data.positions)
             "alerts" -> OracleAlertsModule(host).render(data.alerts)
             "news" -> OracleNewsModule(host).render(data.news)
+            "journal" -> OracleJournalModule(host).render(data.journal, data.history, data.alerts)
             "growth", "analysis", "watchlist", "knowledge" ->
                 OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(
                     actions = data.actions,
                     knowledge = data.knowledge,
-                    positions = data.positions
+                    positions = data.positions,
+                    history = data.history
                 )
         }
     }
