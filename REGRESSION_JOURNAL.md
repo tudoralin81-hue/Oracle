@@ -20,3 +20,9 @@ When a new version regresses a previously working screen:
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
 - Do not modify the restored shell until the startup/module behavior is confirmed.
+
+## Automated regression cycle — 2026-08-29
+- Build 95 candidate was rolled back to controlled UI commit `db09cda53312ee746f3f3d441b10926deebe2a3a` after the generated candidate contained invalid/truncated Kotlin.
+- The rollback deliberately restores the last controlled Start implementation; no core, repository, Growth, or native shell changes are retained.
+- CI was re-enabled for `ui/**` branches so every subsequent Start change is compiled before promotion.
+- Current branch head: `d6c75b06cf78fbf56663b7385c1ce0afc4f2d589`.
