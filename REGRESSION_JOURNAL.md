@@ -52,10 +52,19 @@ When a new version regresses a previously working screen:
 - This is a shared-shell fix and therefore applies to Portfolio, Alerts, News, Growth, Knowledge, Analysis, Watchlist and Journal.
 - Do not reimplement per-module safe-area offsets unless a future device-specific regression proves it necessary.
 
+## Rule 008 — Growth must mirror the supplied Web Oracle structure without client-side formula invention
+- Growth keeps the Web visual hierarchy: snapshot/anchor, parameters, SHORT/MEDIUM/LONG sections, recommendation header, score/signal/risk/allocation, forecast, momentum, 12-weight grid, news/catalyst and Growth history.
+- The daily anchor is fixed at `16:00 Europe/Bucharest`; refresh must not move T0.
+- Android displays cached Oracle Growth snapshots and does not invent forecast, score, risk or horizon weights.
+- The 12-parameter grid uses the profile supplied by Oracle; missing ADX is shown as `—`, never as a fabricated score.
+- Growth must remain responsive on phone/tablet and inherit the shared Android safe-area shell.
+- Growth history is append-only: forecast changes must not overwrite the original T0 snapshot.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
 - Portfolio functional baseline includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
 - Latest Portfolio V12 fixes preserve the canonical Oracle recommendations and technical indicators, use current-price fallback for missing support/resistance, and put the total portfolio return prominently in XLSX/PDF exports with active/sold status.
 - Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
-- Do not modify the restored shell until startup/module behavior is confirmed.
+- Growth now has a dedicated native module backed by persisted Oracle Growth snapshots and the supplied WordPress reference values.
+- Do not modify the restored shared shell while validating Growth unless a real device regression is demonstrated.
