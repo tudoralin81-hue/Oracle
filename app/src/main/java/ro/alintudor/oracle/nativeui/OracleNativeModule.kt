@@ -1,13 +1,10 @@
 package ro.alintudor.oracle.nativeui
 
-import android.app.Activity
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.View
-import android.view.WindowInsets
 import android.widget.*
 
 class OracleNativeModule(
@@ -20,13 +17,6 @@ class OracleNativeModule(
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(1,3,8))
         setPadding(dp(10),dp(6),dp(10),dp(0))
-        setOnApplyWindowInsetsListener { view, insets ->
-            val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
-            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else insets.systemWindowInsetBottom
-            view.setPadding(dp(10), dp(6) + top, dp(10), dp(10) + bottom)
-            insets
-        }
-        post { requestApplyInsets() }
     }
     val content = LinearLayout(context).apply {
         orientation=LinearLayout.VERTICAL
@@ -48,7 +38,7 @@ class OracleNativeModule(
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
         header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ onRefresh() },LinearLayout.LayoutParams(dp(46),dp(46)))
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
-        root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
+        root.addView(android.view.View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(ScrollView(context).apply{clipToPadding=false;addView(content)},LinearLayout.LayoutParams(-1,0,1f))
     }
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
