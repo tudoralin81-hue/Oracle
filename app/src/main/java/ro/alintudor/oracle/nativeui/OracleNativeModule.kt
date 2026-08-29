@@ -9,13 +9,21 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.widget.*
 
 class OracleNativeModule(private val context: Context, private val title: String, private val onRefresh: () -> Unit = {}) {
     val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(1,3,8))
-        setPadding(dp(10),dp(6),dp(10),0)
+        setPadding(dp(10),dp(6),dp(10),dp(0))
+        setOnApplyWindowInsetsListener { view, insets ->
+            val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
+            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else insets.systemWindowInsetBottom
+            view.setPadding(dp(10), dp(6) + top, dp(10), dp(8) + bottom)
+            insets
+        }
+        post { requestApplyInsets() }
     }
     val content = LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(2),dp(6),dp(2),dp(28)) }
     val accent = when(title.uppercase()) {
