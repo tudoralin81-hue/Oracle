@@ -30,8 +30,16 @@ When a new version regresses a previously working screen:
 - PDF must use the same columns, row order and footer semantics as the Excel model.
 - The Excel export must be a real `.xlsx` file, not a renamed CSV.
 
+## Rule 005 — Portfolio recommendations must not be recomputed from incomplete history
+- Symptom: CRM, HOOD and MELI showed `RSI 0.0`, `Momentum 0.0%` and false `SELL` signals in Portfolio while the working Oracle analysis showed `HOLD`.
+- Root cause: Portfolio recomputed technical indicators from a one-point local history and converted missing history into synthetic zeros.
+- Required behavior: use the canonical Oracle analysis snapshot for seeded positions; preserve an existing valid action during local refresh; only compute a fallback action for genuinely new positions.
+- Never turn missing technical data into a SELL signal.
+- Regression check: seeded portfolio must remain `CRM HOLD 82/100`, `HOOD HOLD 95/100`, `MELI HOLD 95/100`, with the canonical technical snapshots loaded into Portfolio.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
 - Portfolio functional baseline now includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
+- Latest fix preserves canonical Oracle recommendations and technical indicators instead of deriving false SELL signals from insufficient local history.
 - Do not modify the restored shell until the startup/module behavior is confirmed.
