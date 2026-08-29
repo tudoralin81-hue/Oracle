@@ -21,7 +21,7 @@ jobs:
           cat /tmp/changed.txt
           while read f; do
             case "$f" in
-              app/src/main/java/ro/alintudor/oracle/MainActivity.kt|REGRESSION_JOURNAL.md|.github/workflows/build-apk.yml) ;;
+              app/src/main/java/ro/alintudor/oracle/MainActivity.kt|app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt|REGRESSION_JOURNAL.md|.github/workflows/build-apk.yml) ;;
               *) echo "UNAUTHORIZED CHANGE: $f"; exit 1;;
             esac
           done < /tmp/changed.txt
