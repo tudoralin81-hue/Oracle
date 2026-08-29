@@ -13,6 +13,7 @@ class OracleRepository(private val context: Context) {
     fun cachedNews(): List<OracleNews> = parseNews(prefs.getString("news", "[]") ?: "[]")
     fun cachedHistory(): List<OracleHistoryPoint> = parseHistory(prefs.getString("history", "[]") ?: "[]")
     fun cachedActions(): List<OracleAction> = parseActions(prefs.getString("actions", "[]") ?: "[]")
+    fun cachedTechnical(): List<OracleTechnicalSnapshot> = parseTechnical(prefs.getString("technical", "[]") ?: "[]")
     fun cachedKnowledge(): List<OracleKnowledgeItem> = parseKnowledge(prefs.getString("knowledge", "[]") ?: "[]")
     fun cachedJournal(): List<OracleJournalEntry> = parseJournal(prefs.getString("journal", "[]") ?: "[]")
 
@@ -24,6 +25,7 @@ class OracleRepository(private val context: Context) {
     fun saveNews(items: List<OracleNews>) = prefs.edit().putString("news", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveHistory(items: List<OracleHistoryPoint>) = prefs.edit().putString("history", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveActions(items: List<OracleAction>) = prefs.edit().putString("actions", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
+    fun saveTechnical(items: List<OracleTechnicalSnapshot>) = prefs.edit().putString("technical", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveKnowledge(items: List<OracleKnowledgeItem>) = prefs.edit().putString("knowledge", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveJournal(items: List<OracleJournalEntry>) = prefs.edit().putString("journal", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
 
@@ -32,6 +34,7 @@ class OracleRepository(private val context: Context) {
     private fun parseNews(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->newsFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
     private fun parseHistory(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->historyFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
     private fun parseActions(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->actionFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
+    private fun parseTechnical(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->technicalFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
     private fun parseKnowledge(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->knowledgeFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
     private fun parseJournal(s: String) = runCatching { val a=JSONArray(s); List(a.length()){i->journalFromJson(a.getJSONObject(i))} }.getOrDefault(emptyList())
 
@@ -40,6 +43,7 @@ class OracleRepository(private val context: Context) {
     private fun newsFromJson(o: JSONObject) = OracleNews(o.optString("ticker"),o.optString("title"),o.optString("source"),o.optString("url"),o.optLong("publishedAt"),o.optBoolean("breaking",false))
     private fun historyFromJson(o: JSONObject) = OracleHistoryPoint(o.optString("ticker"),o.optLong("timestamp"),o.optDouble("price"),o.optDouble("value"),o.optDouble("pnl"))
     private fun actionFromJson(o: JSONObject) = OracleAction(o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optLong("timestamp"))
+    private fun technicalFromJson(o: JSONObject) = OracleTechnicalSnapshot(o.optString("ticker"),o.optDouble("rsi"),o.optDouble("sma50"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),o.optDouble("support20D"),o.optDouble("resistance20D"))
     private fun knowledgeFromJson(o: JSONObject) = OracleKnowledgeItem(o.optString("title"),o.optString("category"),o.optString("content"),o.optLong("publishedAt"))
     private fun journalFromJson(o: JSONObject) = OracleJournalEntry(o.optLong("timestamp"),o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optString("status","ACTIVE"),o.optDouble("shares"),o.optDouble("entryPrice"),o.optDouble("salePrice"),o.optDouble("salePercent"),o.optDouble("entryValue"),o.optDouble("saleValue"),o.optDouble("realizedPnl"),o.optString("positionId"))
 }
@@ -49,5 +53,6 @@ private fun OracleAlert.toJson() = JSONObject().apply { put("ticker",ticker); pu
 private fun OracleNews.toJson() = JSONObject().apply { put("ticker",ticker); put("title",title); put("source",source); put("url",url); put("publishedAt",publishedAt); put("breaking",breaking) }
 private fun OracleHistoryPoint.toJson() = JSONObject().apply { put("ticker",ticker); put("timestamp",timestamp); put("price",price); put("value",value); put("pnl",pnl) }
 private fun OracleAction.toJson() = JSONObject().apply { put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("timestamp",timestamp) }
+private fun OracleTechnicalSnapshot.toJson() = JSONObject().apply { put("ticker",ticker); put("rsi",rsi); put("sma50",sma50); put("momentum5D",momentum5D); put("momentum20D",momentum20D); put("support20D",support20D); put("resistance20D",resistance20D) }
 private fun OracleKnowledgeItem.toJson() = JSONObject().apply { put("title",title); put("category",category); put("content",content); put("publishedAt",publishedAt) }
 private fun OracleJournalEntry.toJson() = JSONObject().apply { put("timestamp",timestamp); put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("status",status); put("shares",shares); put("entryPrice",entryPrice); put("salePrice",salePrice); put("salePercent",salePercent); put("entryValue",entryValue); put("saleValue",saleValue); put("realizedPnl",realizedPnl); put("positionId",positionId) }
