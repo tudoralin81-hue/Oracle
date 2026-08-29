@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.widget.EditText
@@ -34,14 +35,16 @@ class OracleNewsModule(private val host: OracleNativeModule) {
         host.content.removeAllViews()
         addSearchBar()
         val q = query.trim().lowercase(Locale.US)
-        val clean = if (q.isBlank()) allNews else allNews.filter {
-            listOf(it.ticker, it.title, it.publisher, it.source).joinToString(" ").lowercase(Locale.US).contains(q)
-        }
+        val clean = if (q.isBlank()) allNews else allNews.filter { searchable(it).contains(q) }
         if (clean.isEmpty()) {
             host.addCard("NEWS ECONOMICE", if (q.isBlank()) "Nu există știri economice disponibile momentan." else "Nicio știre economică pentru „$query”.")
             return
         }
         host.addCard("ȘTIRI ECONOMICE • BURSE", "Piețe, acțiuni, indici, rezultate, Fed, dobânzi, M&A și catalizatori — organizate pe surse.")
+        renderGroups(clean)
+    }
+
+    private fun renderGroups(clean: List<OracleNews>) {
         val groups = clean.groupBy { sourceName(it) }
         sourceOrder.filter { groups.containsKey(it) }.forEach { source -> addSource(source, groups.getValue(source)) }
         groups.keys.filterNot { sourceOrder.contains(it) }.sorted().forEach { source -> addSource(source, groups.getValue(source)) }
@@ -51,7 +54,9 @@ class OracleNewsModule(private val host: OracleNativeModule) {
         val field = EditText(host.root.context).apply {
             hint = "Caută acțiuni, ticker, companie, Fed, bursă…"
             textSize = 14f
-            singleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT
+            maxLines = 1
+            setHorizontallyScrolling(true)
             setText(query)
             setTextColor(Color.WHITE)
             setHintTextColor(Color.rgb(125,140,165))
@@ -68,27 +73,18 @@ class OracleNewsModule(private val host: OracleNativeModule) {
     }
 
     private fun refreshResultsOnly() {
-        val current = search?.text?.toString().orEmpty()
-        query = current
-        // Avoid recreating the EditText while typing; rebuild the result area below it.
+        query = search?.text?.toString().orEmpty()
         host.content.removeViews(1, (host.content.childCount - 1).coerceAtLeast(0))
         val q=query.trim().lowercase(Locale.US)
-        val clean=if(q.isBlank())allNews else allNews.filter{listOf(it.ticker,it.title,it.publisher,it.source).joinToString(" ").lowercase(Locale.US).contains(q)}
+        val clean=if(q.isBlank())allNews else allNews.filter{searchable(it).contains(q)}
         if(clean.isEmpty()){host.addCard("NEWS ECONOMICE","Nicio știre economică pentru „$query”.");return}
         host.addCard("ȘTIRI ECONOMICE • BURSE","${clean.size} articole găsite")
-        val groups=clean.groupBy{sourceName(it)}
-        sourceOrder.filter{groups.containsKey(it)}.forEach{source->addSource(source,groups.getValue(source))}
-        groups.keys.filterNot{sourceOrder.contains(it)}.sorted().forEach{source->addSource(source,groups.getValue(source))}
+        renderGroups(clean)
     }
 
+    private fun searchable(n: OracleNews): String = listOf(n.ticker,n.title,n.publisher,n.source).joinToString(" ").lowercase(Locale.US)
     private fun dedupe(items: List<OracleNews>): List<OracleNews> = items.filter { it.title.isNotBlank() }.groupBy { key(it) }.values.mapNotNull { it.maxByOrNull { n -> n.publishedAt } }
-
-    private fun key(n: OracleNews): String {
-        val url=n.url.trim().lowercase(Locale.US).substringBefore("?").removeSuffix("/")
-        if(url.isNotBlank()) return "url:$url"
-        return "title:"+n.title.trim().lowercase(Locale.US).replace(Regex("\\s+")," ").replace(Regex("[^a-z0-9 ]"),"")
-    }
-
+    private fun key(n: OracleNews): String = "title:" + n.title.trim().lowercase(Locale.US).replace(Regex("\\s+")," ").replace(Regex("[^a-z0-9 ]"),"")
     private fun sourceName(n: OracleNews): String = n.publisher.ifBlank { n.source }.ifBlank { "Other News" }
 
     private fun isEconomic(n: OracleNews): Boolean {
