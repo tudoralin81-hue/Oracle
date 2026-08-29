@@ -15,11 +15,27 @@ android {
         versionName '2.1.2'
     }
 
+    signingConfigs {
+        release {
+            def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
+            if (storeFilePath != null && !storeFilePath.isBlank()) {
+                storeFile file(storeFilePath)
+            }
+            storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('ORACLE_KEY_ALIAS')
+            keyPassword System.getenv('ORACLE_KEY_PASSWORD')
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+    }
+
     buildTypes {
         release {
-            // Production signing must use a persistent release key.
-            // The current CI fallback is still the debug key until a release keystore is configured.
-            signingConfig signingConfigs.debug
+            // Release builds MUST use the persistent production signing key.
+            // CI supplies the keystore and credentials through GitHub Actions secrets.
+            signingConfig signingConfigs.release
             minifyEnabled false
         }
     }
