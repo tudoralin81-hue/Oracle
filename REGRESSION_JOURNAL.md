@@ -23,8 +23,15 @@ When a new version regresses a previously working screen:
 - Export files must be written to the Android Downloads/Oracle folder on current Android versions.
 - Prevention: test the portfolio interaction path after every portfolio change, not only compilation.
 
+## Rule 004 — Excel export is the canonical journal/portfolio export model
+- The supplied `AI-Stock-Oracle-Jurnal-Activitate` XLSX is the canonical export layout.
+- Keep the exact 12 columns: `Data / Ora`, `Acțiune`, `Ticker`, `Acțiuni`, `Preț intrare`, `Preț vânzare`, `% la vânzare`, `Prognoză Oracle %`, `P/L realizat $`, `Rata de succes`, `ID poziție`, `Status`.
+- Exported portfolio actions/positions are sourced from the persisted Oracle journal and current positions; never replace them with demo/static tickers.
+- PDF must use the same columns, row order and footer semantics as the Excel model.
+- The Excel export must be a real `.xlsx` file, not a renamed CSV.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
-- Portfolio functional baseline now includes explicit position summary, add-position flow, local journal view/export, CSV/Excel-compatible export and real PDF export.
+- Portfolio functional baseline now includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
 - Do not modify the restored shell until the startup/module behavior is confirmed.
