@@ -51,7 +51,6 @@ class MainActivity : Activity() {
         status.addView(TextView(this).apply{text="  ORACLE READY";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)},LinearLayout.LayoutParams(0,-2,1f))
         status.addView(TextView(this).apply{text="LOCAL INTELLIGENCE";textSize=10f;setTextColor(Color.rgb(140,150,170))})
         page.addView(status,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,dp(8),0,dp(8))})
-        page.addView(makeHomeCard(8,"JURNAL ACTIVITATE",subtitles["journal"]!!,"journal"),LinearLayout.LayoutParams(-1,dp(82)).apply{setMargins(dp(2),0,dp(2),0)})
         page.addView(TextView(this).apply{text="Atinge un modul din hartă pentru a-l deschide";textSize=11f;gravity=Gravity.CENTER;setTextColor(Color.rgb(95,105,125));setPadding(0,dp(12),0,0)})
         scroll.addView(page); root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
     }
