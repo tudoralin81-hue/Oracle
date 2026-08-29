@@ -9,21 +9,12 @@ import java.time.ZonedDateTime
 object OracleLocalProcessor {
     private val BUCHAREST = ZoneId.of("Europe/Bucharest")
 
-    /** First snapshot anchor for the current 16:00 session. */
+    /** The active Growth snapshot anchor: 16:00 on the current trading day, or the previous trading day before 16:00. */
     private fun currentGrowthAnchor(nowMillis: Long): Long {
         val z = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
         var date = if (z.hour < 16) z.toLocalDate().minusDays(1) else z.toLocalDate()
         while (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) {
-            date = date.minusDays(1)
-        }
-        return ZonedDateTime.of(date, java.time.LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
-    }
-
-    /** Next allowed 16:00 snapshot boundary after an already-created snapshot. */
-    private fun nextGrowthAnchor(snapshotTimestamp: Long): Long {
-        var date = Instant.ofEpochMilli(snapshotTimestamp).atZone(BUCHAREST).toLocalDate().plusDays(1)
-        while (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) {
-            date = date.plusDays(1)
+            date = if (date.dayOfWeek == DayOfWeek.SATURDAY) date.minusDays(1) else date.minusDays(2)
         }
         return ZonedDateTime.of(date, java.time.LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
     }
@@ -53,19 +44,17 @@ object OracleLocalProcessor {
             when { existing != null && computed?.adx != null -> existing.copy(adx = computed.adx); existing != null -> existing; else -> computed }
         }
 
-        // Growth is a frozen recommendation snapshot. Opening Growth and pressing Refresh
-        // must not rerank it until the next allowed 16:00 boundary.
-        val growthAnchor = current.growth.firstOrNull()?.referenceTimestamp?.takeIf { it > 0L }
+        // HARD RULE: Growth is a snapshot, not a live ranking.
+        // The complete recommendation set is immutable between two 16:00 trading-day anchors.
+        // Before Monday 16:00 the Friday snapshot remains active; refresh/re-entry cannot rerank it.
+        val growthAnchor = currentGrowthAnchor(now)
         val snapshotIsCurrent = current.growth.isNotEmpty() &&
-            current.growth.all { it.referenceTimestamp == growthAnchor } &&
-            growthAnchor != null && now < nextGrowthAnchor(growthAnchor)
+            current.growth.all { it.referenceTimestamp == growthAnchor }
         val growth = if (snapshotIsCurrent) {
             current.growth
         } else {
-            val anchor = currentGrowthAnchor(now)
             val generated = OracleGrowthEngine.run(current.growth)
-            if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, anchor)
-            else current.growth
+            if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor) else current.growth
         }
 
         val oldAlerts = current.alerts.filter { it.active }
