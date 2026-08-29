@@ -23,22 +23,34 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Prepare persistent release signing key
+      - name: Prepare persistent production signing key
+        shell: bash
         run: |
-          if [ -n "$ORACLE_KEYSTORE_BASE64" ]; then
-            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
-            {
-              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
-            } >> "$GITHUB_ENV"
-            echo "Persistent Oracle release signing key prepared."
-          else
-            echo "No production keystore configured; release build will use the existing fallback signing configuration."
+          set -euo pipefail
+          if [ -z "$ORACLE_KEYSTORE_BASE64" ] || [ -z "$ORACLE_KEYSTORE_PASSWORD" ] || [ -z "$ORACLE_KEY_ALIAS" ] || [ -z "$ORACLE_KEY_PASSWORD" ]; then
+            echo "ERROR: Oracle production signing secrets are not configured."
+            echo "Refusing to build a release APK with a changing debug certificate."
+            exit 1
           fi
+          echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+          {
+            echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+            echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+            echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+            echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Persistent Oracle release signing key prepared."
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
+      - name: Verify release identity and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+          echo "Release APK signature verification passed."
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
