@@ -7,6 +7,7 @@ package ro.alintudor.oracle.core
  */
 object OracleLocalProcessor {
     fun refresh(repository: OracleRepository): OracleModuleData {
+        OracleBootstrap.ensure(repository)
         val current = repository.snapshot()
         val normalized = OracleAnalytics.normalize(current.positions)
         val actions = OracleAnalytics.actions(normalized, current.history)
@@ -39,10 +40,12 @@ object OracleLocalProcessor {
             .values.sortedByDescending { it.timestamp }
             .take(100)
 
+        val journal = OracleActivityJournal.merge(current.journal, actions)
         repository.savePositions(normalized)
         repository.saveActions(actions)
         repository.saveHistory(history)
         repository.saveAlerts(alertsByTicker)
+        repository.saveJournal(journal)
 
         return repository.snapshot()
     }
