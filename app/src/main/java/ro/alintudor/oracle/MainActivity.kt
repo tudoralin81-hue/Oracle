@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.widget.*
+import ro.alintudor.oracle.core.OracleBootstrap
 import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
 import ro.alintudor.oracle.core.snapshot
@@ -27,9 +28,9 @@ class MainActivity : Activity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(2, 4, 10)) }
         setContentView(root)
 
-        // The first frame is always the native hub. No network call, refresh or
-        // calculation is allowed to block startup or leave a skeleton screen.
-        runCatching { showHub() }
+        // One-time migration of the last known standalone Oracle state.
+        // Afterwards every read/write is local only.
+        runCatching { OracleBootstrap.ensure(repository); showHub() }
             .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
     }
 
@@ -65,8 +66,6 @@ class MainActivity : Activity() {
 
     private fun openModule(key: String) {
         currentModule = key
-        // Render persisted local data immediately. A slow/failing calculation
-        // must never replace the screen with an endless loading state.
         runCatching { renderModule(key, refresh = false) }
             .onFailure { showModuleError(key, it) }
 
@@ -78,8 +77,6 @@ class MainActivity : Activity() {
                     runCatching { renderModule(key, refresh = false) }
                         .onFailure { showModuleError(key, it) }
                 }.onFailure { error ->
-                    // Keep the already-rendered cached module visible and expose
-                    // the actual refresh failure instead of showing fake loading.
                     Toast.makeText(this, "Refresh local eșuat: ${error.message ?: error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
                 }
             }
@@ -88,9 +85,7 @@ class MainActivity : Activity() {
 
     private fun renderModule(key: String, refresh: Boolean = false) {
         root.removeAllViews()
-        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) {
-            openModule(key)
-        }
+        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) { openModule(key) }
         root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
         val data = if (refresh) OracleLocalProcessor.refresh(repository) else repository.snapshot()
         when (key) {
@@ -129,14 +124,8 @@ class MainActivity : Activity() {
             setTextColor(Color.LTGRAY)
             setPadding(0, 24, 0, 24)
         })
-        box.addView(Button(this).apply {
-            text = "REÎNCEARCĂ"
-            setOnClickListener { openModule(key) }
-        })
-        box.addView(Button(this).apply {
-            text = "ÎNAPOI LA ORACLE"
-            setOnClickListener { showHub() }
-        })
+        box.addView(Button(this).apply { text = "REÎNCEARCĂ"; setOnClickListener { openModule(key) } })
+        box.addView(Button(this).apply { text = "ÎNAPOI LA ORACLE"; setOnClickListener { showHub() } })
         root.addView(box, FrameLayout.LayoutParams(-1, -1))
     }
 
