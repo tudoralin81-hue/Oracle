@@ -35,13 +35,13 @@ object OracleBootstrap {
         ))
 
         repository.saveJournal(listOf(
-            OracleJournalEntry(1787594825000L, "HOOD", "BUY / OPEN", 23.5, "Deschidere poziție", "ACTIVE", 10.0, 107.32, 0.0, 0.0, 1073.20, 0.0, "p58_6a8c884900da"),
-            OracleJournalEntry(1787664732000L, "MELI", "BUY / OPEN", 16.3, "Deschidere poziție", "CLOSED", 1.0, 1937.20, 0.0, 0.0, 1937.20, 0.0, "p58_6a8d995cb690"),
-            OracleJournalEntry(1787753433000L, "NVDA", "BUY / OPEN", 18.7, "Deschidere poziție", "ACTIVE", 5.0, 126.50, 0.0, 0.0, 632.50, 0.0, "p58_6a8f1c1e3ab2"),
-            OracleJournalEntry(1787815365000L, "CRM", "BUY / OPEN", 8.1, "Deschidere poziție", "ACTIVE", 4.0, 248.69, 0.0, 0.0, 994.76, 0.0, "p58_6a904b54d3ce"),
-            OracleJournalEntry(1787830401000L, "HOOD", "SELL (PARTIAL)", 23.5, "Vânzare parțială", "ACTIVE", 5.0, 107.32, 112.45, 50.0, 536.60, 562.25, "p58_6a8c884900da"),
-            OracleJournalEntry(1787832318000L, "MELI", "SELL (FULL)", 16.3, "Închidere poziție", "CLOSED", 1.0, 1937.20, 2005.80, 100.0, 1937.20, 2005.80, "p58_6a8d995cb690"),
-            OracleJournalEntry(1787838009000L, "NVDA", "SELL (PARTIAL)", 18.7, "Vânzare parțială", "ACTIVE", 2.0, 126.50, 131.75, 40.0, 253.00, 263.50, "p58_6a8f1c1e3ab2")
+            OracleJournalEntry(1787594825000L, "HOOD", "BUY / OPEN", 23.5, "Deschidere poziție", "ACTIVE", 10.0, 107.32, 0.0, 0.0, 1073.20, 0.0, 0.0, "p58_6a8c884900da"),
+            OracleJournalEntry(1787664732000L, "MELI", "BUY / OPEN", 16.3, "Deschidere poziție", "CLOSED", 1.0, 1937.20, 0.0, 0.0, 1937.20, 0.0, 0.0, "p58_6a8d995cb690"),
+            OracleJournalEntry(1787753433000L, "NVDA", "BUY / OPEN", 18.7, "Deschidere poziție", "ACTIVE", 5.0, 126.50, 0.0, 0.0, 632.50, 0.0, 0.0, "p58_6a8f1c1e3ab2"),
+            OracleJournalEntry(1787815365000L, "CRM", "BUY / OPEN", 8.1, "Deschidere poziție", "ACTIVE", 4.0, 248.69, 0.0, 0.0, 994.76, 0.0, 0.0, "p58_6a904b54d3ce"),
+            OracleJournalEntry(1787830401000L, "HOOD", "SELL (PARTIAL)", 23.5, "Vânzare parțială", "ACTIVE", 5.0, 107.32, 112.45, 50.0, 536.60, 562.25, 25.65, "p58_6a8c884900da"),
+            OracleJournalEntry(1787832318000L, "MELI", "SELL (FULL)", 16.3, "Închidere poziție", "CLOSED", 1.0, 1937.20, 2005.80, 100.0, 1937.20, 2005.80, 68.60, "p58_6a8d995cb690"),
+            OracleJournalEntry(1787838009000L, "NVDA", "SELL (PARTIAL)", 18.7, "Vânzare parțială", "ACTIVE", 2.0, 126.50, 131.75, 40.0, 253.00, 263.50, 10.50, "p58_6a8f1c1e3ab2")
         ))
 
         repository.markBootstrap(VERSION)
