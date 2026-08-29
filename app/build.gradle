@@ -13,4 +13,8 @@ android { namespace 'ro.alintudor.oracle'; compileSdk 35
     }
 }
 
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
 kotlin { jvmToolchain(17) }
