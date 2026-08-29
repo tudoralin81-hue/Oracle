@@ -22,8 +22,10 @@ import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
-/** Functional Portfolio module: local positions, journal and real file exports. */
+/** Functional Portfolio module: local positions, journal and model-matched file exports. */
 class OraclePortfolioModule(private val host: OracleNativeModule) {
     private val context: Context get() = host.root.context
     private val repo by lazy { OracleRepository(context) }
@@ -164,8 +166,8 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
     private fun addBottomActions(p: List<OraclePosition>, j: List<OracleJournalEntry>) {
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(host.dp(2), host.dp(3), host.dp(2), 0) }
         row.addView(btn("JURNAL ACTIVITATE", Color.rgb(55, 215, 255)) { saveJournalAndShow(j) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(0, 0, host.dp(3), 0) })
-        row.addView(btn("DESCARCĂ EXCEL", Color.rgb(65, 225, 135)) { saveExcel(p) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, host.dp(3), 0) })
-        row.addView(btn("DESCARCĂ PDF", Color.rgb(255, 205, 65)) { savePdf(p) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, 0, 0) })
+        row.addView(btn("DESCARCĂ EXCEL", Color.rgb(65, 225, 135)) { saveExcel(p, j) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, host.dp(3), 0) })
+        row.addView(btn("DESCARCĂ PDF", Color.rgb(255, 205, 65)) { savePdf(p, j) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, 0, 0) })
         host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(5), 0, host.dp(10)) })
     }
 
@@ -175,28 +177,119 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         AlertDialog.Builder(context).setTitle("JURNAL ACTIVITATE").setMessage(text.take(12000)).setPositiveButton("OK", null).show()
     }
 
-    private fun saveExcel(p: List<OraclePosition>) {
-        val csv = buildString {
-            append("Ticker,Company,Shares,Entry,Current,Value,P/L,P/L%,Weight\n")
-            p.sortedBy { it.ticker }.forEach { append("${it.ticker},\"${it.company.replace("\"", "\"\"")}\",${it.shares},${it.avgCost},${it.currentPrice},${it.marketValue},${it.pnl},${it.pnlPercent},${it.weight}\n") }
+    /** Exports the same 12-column structure as the supplied Excel model. */
+    private fun saveExcel(p: List<OraclePosition>, j: List<OracleJournalEntry>) {
+        val rows = exportRows(j, p)
+        saveDownload("AI-Stock-Oracle-Jurnal-Activitate-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") { out ->
+            ZipOutputStream(out).use { zip ->
+                zipEntry(zip, "[Content_Types].xml", contentTypesXml())
+                zipEntry(zip, "_rels/.rels", rootRelsXml())
+                zipEntry(zip, "xl/workbook.xml", workbookXml())
+                zipEntry(zip, "xl/_rels/workbook.xml.rels", workbookRelsXml())
+                zipEntry(zip, "xl/styles.xml", stylesXml())
+                zipEntry(zip, "xl/worksheets/sheet1.xml", xlsxSheetXml(rows))
+            }
         }
-        saveDownload("oracle_portfolio_${stamp()}.csv", "text/csv") { it.write(csv.toByteArray(Charsets.UTF_8)) }
     }
 
-    private fun savePdf(p: List<OraclePosition>) {
-        saveDownload("oracle_portfolio_${stamp()}.pdf", "application/pdf") { out ->
-            val doc = PdfDocument(); val page = doc.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create()); val canvas = page.canvas
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; typeface = Typeface.DEFAULT; textSize = 11f }
-            paint.typeface = Typeface.DEFAULT_BOLD; paint.textSize = 22f; canvas.drawText("AI STOCK ORACLE — PORTFOLIO", 36f, 52f, paint)
-            paint.typeface = Typeface.DEFAULT; paint.textSize = 11f; canvas.drawText("Generated ${date.format(Date())}", 36f, 75f, paint)
-            var y = 112f
-            p.sortedBy { it.ticker }.forEach {
-                paint.typeface = Typeface.DEFAULT_BOLD; paint.textSize = 14f; canvas.drawText(it.ticker, 36f, y, paint)
-                paint.typeface = Typeface.DEFAULT; paint.textSize = 11f; canvas.drawText("${it.company} • ${shares(it.shares)} acțiuni • valoare ${money(it.marketValue)} ${it.currency}", 110f, y, paint); canvas.drawText("Intrare ${money(it.avgCost)} • Curent ${money(it.currentPrice)} • P/L ${signedPct(it.pnlPercent)} • Pondere ${pct(it.weight)}", 110f, y + 18f, paint); y += 54f
+    /** PDF uses the exact same headers, rows, order and footer as the Excel export. */
+    private fun savePdf(p: List<OraclePosition>, j: List<OracleJournalEntry>) {
+        val rows = exportRows(j, p)
+        saveDownload("AI-Stock-Oracle-Jurnal-Activitate-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.pdf", "application/pdf") { out ->
+            val doc = PdfDocument()
+            val headers = listOf("Data / Ora","Acțiune","Ticker","Acțiuni","Preț intrare","Preț vânzare","% la vânzare","Prognoză Oracle %","P/L realizat $","Rata de succes","ID poziție","Status")
+            val widths = floatArrayOf(72f,62f,40f,42f,54f,54f,48f,58f,58f,52f,105f,48f)
+            val pageW = 842f; val pageH = 595f; val margin = 22f
+            var pageNo = 1; var y = 22f
+            var page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create())
+            var canvas = page.canvas
+            fun drawHeader() {
+                val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.rgb(15,23,42); typeface=Typeface.DEFAULT_BOLD; textSize=15f }
+                canvas.drawText("AI STOCK ORACLE — JURNAL ACTIVITATE", margin, y+15f, title)
+                val meta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.rgb(80,95,115); textSize=7f }
+                canvas.drawText("Data generării: ${date.format(Date())}  •  Fișier generat de AI Stock Oracle", margin, y+28f, meta)
+                y += 42f
+                val hp=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.WHITE;typeface=Typeface.DEFAULT_BOLD;textSize=5.5f}
+                val bg=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(24,49,83);style=Paint.Style.FILL}
+                var x=margin
+                headers.forEachIndexed{idx,h->canvas.drawRect(x,y,x+widths[idx],y+22f,bg);canvas.drawText(h,x+2f,y+14f,hp);x+=widths[idx]}
+                y += 22f
             }
+            drawHeader()
+            val rp=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(31,41,55);textSize=5.5f}
+            rows.forEachIndexed { index, row ->
+                if (y > pageH-46f) {
+                    doc.finishPage(page); pageNo++; y=22f
+                    page=doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(),pageH.toInt(),pageNo).create()); canvas=page.canvas; drawHeader()
+                }
+                val bg=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=if(index%2==0) Color.rgb(234,242,250) else Color.WHITE;style=Paint.Style.FILL}
+                var x=margin
+                row.forEachIndexed { c,v -> canvas.drawRect(x,y,x+widths[c],y+20f,bg); canvas.drawText(v.take(28),x+2f,y+12f,rp); x+=widths[c] }
+                y += 20f
+            }
+            val footer=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.rgb(15,23,42);textSize=7f;typeface=Typeface.DEFAULT_BOLD}
+            canvas.drawText("RATA DE SUCCES GLOBALĂ: ${successRate(rows)}", margin, pageH-18f, footer)
             doc.finishPage(page); doc.writeTo(out); doc.close()
         }
     }
+
+    private data class ExportRow(
+        val dateTime:String,val action:String,val ticker:String,val shares:String,val entry:String,val sale:String,
+        val salePct:String,val forecast:String,val realized:String,val success:String,val id:String,val status:String
+    )
+
+    /** Journal is the source of truth for the exported portfolio actions/positions. */
+    private fun exportRows(j: List<OracleJournalEntry>, p: List<OraclePosition>): List<ExportRow> {
+        val active = p.associateBy { it.ticker.uppercase(Locale.US) }
+        return j.sortedByDescending { it.timestamp }.take(500).map { e ->
+            val pos = active[e.ticker.uppercase(Locale.US)]
+            val isSell = e.action.contains("SELL", true)
+            val salePrice = if (isSell && e.salePrice != 0.0) e.salePrice else null
+            val salePct = if (isSell && e.salePercent != 0.0) e.salePercent else null
+            val sharesOut = if (e.action.contains("BUY / OPEN", true) && pos != null && e.status.equals("ACTIVE", true)) pos.shares else e.shares
+            ExportRow(
+                date.format(Date(e.timestamp)), e.action, e.ticker.uppercase(Locale.US), shares(sharesOut), money(e.entryPrice),
+                salePrice?.let { money(it) } ?: "", salePct?.let { pct(it) } ?: "—", signedPct(e.score * 100.0),
+                money(e.realizedPnl), "—", e.positionId, e.status
+            )
+        }
+    }
+
+    private fun successRate(rows: List<ExportRow>): String {
+        val closed = rows.filter { it.status.equals("CLOSED", true) }
+        if (closed.isEmpty()) return "—"
+        val wins = closed.count { !it.realized.startsWith("-") && it.realized != "0.00" && it.realized != "0.00" }
+        return String.format(Locale.US, "%.1f%%", wins.toDouble()/closed.size*100.0)
+    }
+
+    private fun xml(s:String)=s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&apos;")
+    private fun cell(value:String, style:Int, row:Int, col:Int):String {
+        val ref = "${('A'.code+col).toChar()}$row"
+        return "<c r=\"$ref\" s=\"$style\" t=\"inlineStr\"><is><t>${xml(value)}</t></is></c>"
+    }
+    private fun xlsxSheetXml(rows:List<ExportRow>):String {
+        val headers=listOf("Data / Ora","Acțiune","Ticker","Acțiuni","Preț intrare","Preț vânzare","% la vânzare","Prognoză Oracle %","P/L realizat $","Rata de succes","ID poziție","Status")
+        val sb=StringBuilder()
+        sb.append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>""")
+        val widths=listOf(21,18,12,11,14,14,14,18,16,16,26,12)
+        widths.forEachIndexed{idx,w->sb.append("<col min=\"${idx+1}\" max=\"${idx+1}\" width=\"$w\" customWidth=\"1\"/>")}
+        sb.append("</cols><sheetData>")
+        sb.append("<row r=\"1\">"); headers.forEachIndexed{i,h->sb.append(cell(h,1,1,i))}; sb.append("</row>")
+        rows.forEachIndexed{ri,r->
+            val vals=listOf(r.dateTime,r.action,r.ticker,r.shares,r.entry,r.sale,r.salePct,r.forecast,r.realized,r.success,r.id,r.status)
+            sb.append("<row r=\"${ri+2}\">"); vals.forEachIndexed{i,v->sb.append(cell(v,2,ri+2,i))}; sb.append("</row>")
+        }
+        val footerRow=rows.size+4; sb.append("<row r=\"$footerRow\">${cell("RATA DE SUCCES GLOBALĂ: ${successRate(rows)}",6,footerRow,0)}</row>")
+        val genRow=footerRow+2; sb.append("<row r=\"$genRow\">${cell("Data generării: ${date.format(Date())} | Fișier generat de AI Stock Oracle",7,genRow,0)}</row>")
+        sb.append("</sheetData><autoFilter ref=\"A1:L${rows.size+1}\"/><pageMargins left=\"0.25\" right=\"0.25\" top=\"0.4\" bottom=\"0.4\" header=\"0.2\" footer=\"0.2\"/><pageSetup orientation=\"landscape\" fitToWidth=\"1\" fitToHeight=\"0\"/></worksheet>")
+        return sb.toString()
+    }
+    private fun contentTypesXml()="""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>"""
+    private fun rootRelsXml()="""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"""
+    private fun workbookXml()="""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Jurnal activitate" sheetId="1" r:id="rId1"/></sheets></workbook>"""
+    private fun workbookRelsXml()="""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"""
+    private fun stylesXml()="""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><color rgb="FF1F2937"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FF0F172A"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF183153"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF2FA"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8"><xf xfId="0" fontId="0" fillId="0" borderId="0"/><xf xfId="0" fontId="1" fillId="2" borderId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf xfId="0" fontId="0" fillId="3" borderId="0"/><xf xfId="0" fontId="0" fillId="3" borderId="0" numFmtId="4"/><xf xfId="0" fontId="0" fillId="3" borderId="0" numFmtId="10"/><xf xfId="0" fontId="2" fillId="3" borderId="0"/><xf xfId="0" fontId="2" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="center"/></xf><xf xfId="0" fontId="2" fillId="0" borderId="0"/></cellXfs></styleSheet>"""
+    private fun zipEntry(zip:ZipOutputStream,name:String,content:String){zip.putNextEntry(ZipEntry(name));zip.write(content.toByteArray(Charsets.UTF_8));zip.closeEntry()}
 
     private fun saveDownload(fileName: String, mime: String, writer: (OutputStream) -> Unit) {
         runCatching {
