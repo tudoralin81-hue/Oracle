@@ -18,7 +18,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
+      - name: Prepare production signing key
+        env:
+          ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+          ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+          ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+          ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ORACLE_KEYSTORE_BASE64" || { echo "Missing ORACLE_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ORACLE_KEYSTORE_PASSWORD" || { echo "Missing ORACLE_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$ORACLE_KEY_ALIAS" || { echo "Missing ORACLE_KEY_ALIAS"; exit 1; }
+          test -n "$ORACLE_KEY_PASSWORD" || { echo "Missing ORACLE_KEY_PASSWORD"; exit 1; }
+          printf '%s' "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+          test -s "$RUNNER_TEMP/oracle-release.jks"
       - name: Build signed release APK
+        env:
+          ORACLE_KEYSTORE_FILE: ${{ runner.temp }}/oracle-release.jks
+          ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+          ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+          ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: gradle :app:assembleRelease --stacktrace
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
