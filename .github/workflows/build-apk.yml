@@ -1,25 +1,60 @@
 name: Build Oracle APK
 on:
   push:
+    branches: [ main, 'ui/**' ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
-  build:
+  regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard Start-only changes
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || '1e8e703d27148ef9d0cf560fc62ac22fbd220919' }}"
+          git diff --name-only "$BASE" HEAD > /tmp/changed.txt
+          cat /tmp/changed.txt
+          while read f; do
+            case "$f" in
+              app/src/main/java/ro/alintudor/oracle/MainActivity.kt|app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt|REGRESSION_JOURNAL.md|.github/workflows/build-apk.yml|tools/apply_mystic_start.py) ;;
+              *) echo "UNAUTHORIZED CHANGE: $f"; exit 1;;
+            esac
+          done < /tmp/changed.txt
+      - name: Apply deterministic mystical Start renderer
+        run: python3 tools/apply_mystic_start.py
+      - name: Validate generated source
+        run: git diff --check
+      - name: Persist renderer on branch
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet; then
+            echo "No renderer changes to commit"
+          else
+            git config user.name "oracle-ci"
+            git config user.email "oracle-ci@users.noreply.github.com"
+            git add app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+            git commit -m "feat: apply mystical Start redesign"
+            git push
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Build signed release APK
+      - name: Build release APK
         run: gradle :app:assembleRelease --stacktrace
-      - name: Upload installable APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-installable
+          name: Oracle-APK-${{ github.sha }}
           path: app/build/outputs/apk/release/*.apk

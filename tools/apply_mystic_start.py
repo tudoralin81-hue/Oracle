@@ -1,83 +1,13 @@
-package ro.alintudor.oracle
+from pathlib import Path
 
-import android.app.Activity
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Shader
-import android.graphics.Typeface
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
-import android.widget.*
-import ro.alintudor.oracle.core.OracleBootstrap
-import ro.alintudor.oracle.core.OracleLocalProcessor
-import ro.alintudor.oracle.core.OracleRepository
-import ro.alintudor.oracle.core.snapshot
-import ro.alintudor.oracle.nativeui.*
+path = Path("app/src/main/java/ro/alintudor/oracle/MainActivity.kt")
+text = path.read_text(encoding="utf-8")
+marker = "private class OracleHeroView"
+head, sep, _ = text.partition(marker)
+if not sep:
+    raise SystemExit("OracleHeroView marker not found; refusing to modify MainActivity")
 
-class MainActivity : Activity() {
-    private lateinit var root: FrameLayout
-    private lateinit var repository: OracleRepository
-    private var currentModule: String? = null
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "JURNAL ACTIVITATE")
-    private val subtitles = mapOf("portfolio" to "Poziții, P/L și alocare", "alerts" to "Semnale și alerte active", "news" to "Știri și evenimente relevante", "growth" to "Randament, trend local și contribuție", "knowledge" to "Idei, explicații și documentație", "analysis" to "Analiză și decizii Oracle", "watchlist" to "Acțiuni urmărite și oportunități", "journal" to "Istoric complet al activității")
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        repository = OracleRepository(this)
-        window.statusBarColor = Color.rgb(1,3,8); window.navigationBarColor = Color.rgb(1,3,8)
-        root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(1,3,8)) }
-        setContentView(root)
-        runCatching { OracleBootstrap.ensure(repository); showHub() }.onFailure { showFatalError("Pornirea Oracle a eșuat",it) }
-    }
-
-    private fun showHub() {
-        currentModule=null; root.removeAllViews()
-        val scroll=ScrollView(this).apply { isFillViewport=true; setBackgroundColor(Color.rgb(1,3,8)) }
-        val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(10),dp(6),dp(10),dp(24)) }
-        val hero=OracleHeroView(this){ openModule(it) }
-        // Pixel-based height fixes the previous px/dp mixing and keeps the composition stable on phones and tablets.
-        val heroHeightPx=(resources.displayMetrics.heightPixels*.68f).toInt().coerceAtLeast(dp(620))
-        page.addView(hero,LinearLayout.LayoutParams(-1,heroHeightPx))
-        val status=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(14),dp(11),dp(14),dp(11)); setBackgroundColor(Color.rgb(8,12,24)) }
-        status.addView(View(this).apply{setBackgroundColor(Color.rgb(50,220,135))},LinearLayout.LayoutParams(dp(8),dp(8)))
-        status.addView(TextView(this).apply{text="  ORACLE READY";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)},LinearLayout.LayoutParams(0,-2,1f))
-        status.addView(TextView(this).apply{text="LOCAL INTELLIGENCE";textSize=10f;setTextColor(Color.rgb(140,150,170))})
-        page.addView(status,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,dp(8),0,dp(8))})
-        page.addView(makeHomeCard(8,"JURNAL ACTIVITATE",subtitles["journal"]!!,"journal"),LinearLayout.LayoutParams(-1,dp(82)).apply{setMargins(dp(2),0,dp(2),0)})
-        page.addView(TextView(this).apply{text="Atinge un modul din hartă pentru a-l deschide";textSize=11f;gravity=Gravity.CENTER;setTextColor(Color.rgb(95,105,125));setPadding(0,dp(12),0,0)})
-        scroll.addView(page); root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
-    }
-
-    private fun makeHomeCard(number:Int,label:String,description:String,key:String)=LinearLayout(this).apply{
-        orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(16),dp(10),dp(14),dp(10));setBackgroundColor(Color.rgb(8,12,24));isClickable=true;isFocusable=true;elevation=dp(2).toFloat();setOnClickListener{openModule(key)}
-        addView(TextView(this@MainActivity).apply{text="%02d".format(number);textSize=11f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(100,155,235))},LinearLayout.LayoutParams(dp(34),-2))
-        addView(LinearLayout(this@MainActivity).apply{orientation=LinearLayout.VERTICAL;addView(TextView(this@MainActivity).apply{text=label;textSize=17f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)});addView(TextView(this@MainActivity).apply{text=description;textSize=12f;setTextColor(Color.rgb(165,172,190))})},LinearLayout.LayoutParams(0,-2,1f))
-        addView(TextView(this@MainActivity).apply{text="›";textSize=26f;gravity=Gravity.CENTER;setTextColor(Color.rgb(125,140,165))},LinearLayout.LayoutParams(dp(28),dp(40)))
-    }
-    private fun dp(v:Int)= (v*resources.displayMetrics.density).toInt()
-
-    private fun openModule(key:String){
-        currentModule=key;runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
-    }
-    private fun renderModule(key:String,refresh:Boolean=false){
-        root.removeAllViews();val host=OracleNativeModule(this,titles[key]?:key.uppercase()){showHub()};root.addView(host.root,FrameLayout.LayoutParams(-1,-1));val data=if(refresh)OracleLocalProcessor.refresh(repository)else repository.snapshot()
-        when(key){"portfolio"->OraclePortfolioModule(host).render(data.positions);"alerts"->OracleAlertsModule(host).render(data.alerts);"news"->OracleNewsModule(host).render(data.news);"journal"->OracleJournalModule(host).render(data.journal,data.history,data.alerts);"growth","analysis","watchlist","knowledge"->OracleSimpleModule(host,titles[key]?:key.uppercase()).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)}
-    }
-    private fun showModuleError(key:String,error:Throwable){root.removeAllViews();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(32),dp(32),dp(32),dp(32));setBackgroundColor(Color.rgb(2,4,10))};box.addView(TextView(this).apply{text="ORACLE  •  ${titles[key]?:key.uppercase()}";textSize=22f;gravity=Gravity.CENTER;setTextColor(Color.WHITE)});box.addView(TextView(this).apply{text="Modulul nu s-a putut încărca.\n\n${error.message?:error.javaClass.simpleName}";textSize=16f;gravity=Gravity.CENTER;setTextColor(Color.LTGRAY);setPadding(0,dp(24),0,dp(24))});box.addView(Button(this).apply{text="REÎNCEARCĂ";setOnClickListener{openModule(key)}});box.addView(Button(this).apply{text="ÎNAPOI LA ORACLE";setOnClickListener{showHub()}});root.addView(box,FrameLayout.LayoutParams(-1,-1))}
-    private fun showFatalError(title:String,error:Throwable){root.removeAllViews();root.addView(TextView(this).apply{text="$title\n\n${error.message?:error.javaClass.simpleName}\n\nAplicația nu va rămâne blocată pe loading.";textSize=17f;gravity=Gravity.CENTER;setTextColor(Color.WHITE);setPadding(dp(32),dp(32),dp(32),dp(32))},FrameLayout.LayoutParams(-1,-1))}
-    @Suppress("DEPRECATION") override fun onBackPressed(){if(currentModule!=null)showHub()else super.onBackPressed()}
-}
-
-private class OracleHeroView(context:android.content.Context,private val onModule:(String)->Unit):View(context){
+new_class = r'''private class OracleHeroView(context:android.content.Context,private val onModule:(String)->Unit):View(context){
     private val p=Paint(Paint.ANTI_ALIAS_FLAG)
     private val stars=Array(95){i -> floatArrayOf(((i*137+41)%1000)/1000f,((i*271+73)%1000)/1000f,((i%4)+1)*.7f)}
     private val nodes=listOf(
@@ -215,4 +145,6 @@ private class OracleHeroView(context:android.content.Context,private val onModul
         return true
     }
     override fun performClick():Boolean{super.performClick();return true}
-}
+}'''
+path.write_text(head + new_class + "\n",encoding="utf-8")
+print("Mystic Start applied")
