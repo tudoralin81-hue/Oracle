@@ -45,7 +45,6 @@ class OracleMysticActivity : Activity() {
         val heroHeight = (resources.displayMetrics.heightPixels * 0.70f).toInt().coerceAtLeast(dp(610))
         page.addView(hero, LinearLayout.LayoutParams(-1, heroHeight))
         page.addView(makeStatus(), LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(8), 0, dp(8)) })
-        page.addView(makeJournalCard(), LinearLayout.LayoutParams(-1, dp(92)).apply { setMargins(dp(2), 0, dp(2), 0) })
         scroll.addView(page)
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
     }
@@ -58,23 +57,6 @@ class OracleMysticActivity : Activity() {
         addView(View(this@OracleMysticActivity).apply { setBackgroundColor(Color.rgb(63, 235, 137)) }, LinearLayout.LayoutParams(dp(8), dp(8)))
         addView(TextView(this@OracleMysticActivity).apply { text = "  ORACLE READY"; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
         addView(TextView(this@OracleMysticActivity).apply { text = "LOCAL INTELLIGENCE"; textSize = 11f; setTextColor(Color.rgb(145, 154, 178)) })
-    }
-
-    private fun makeJournalCard() = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(18), dp(10), dp(14), dp(10))
-        setBackgroundColor(Color.rgb(8, 12, 25))
-        isClickable = true
-        isFocusable = true
-        setOnClickListener { openModule("journal") }
-        addView(TextView(this@OracleMysticActivity).apply { text = "08"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(100, 165, 245)) }, LinearLayout.LayoutParams(dp(48), -2))
-        addView(LinearLayout(this@OracleMysticActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(TextView(this@OracleMysticActivity).apply { text = "JURNAL ACTIVITATE"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) })
-            addView(TextView(this@OracleMysticActivity).apply { text = "Istoric complet al activității"; textSize = 13f; setTextColor(Color.rgb(165, 173, 194)) })
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        addView(TextView(this@OracleMysticActivity).apply { text = "›"; textSize = 28f; setTextColor(Color.rgb(125, 145, 175)) }, LinearLayout.LayoutParams(dp(30), -2))
     }
 
     private fun openModule(key: String) {
@@ -143,8 +125,6 @@ private class OracleMysticStartView(context: android.content.Context, private va
         val w = width.toFloat(); val h = height.toFloat(); val d = resources.displayMetrics.density
         val cx = w * .5f; val cy = h * .47f; val radius = min(w, h) * .205f; val orbit = min(w, h) * .315f; val nr = min(w, h) * .082f
         c.drawColor(Color.rgb(2, 3, 10))
-
-        // Deep-space field: tiny stars, haze and occult geometry.
         paint.style = Paint.Style.FILL
         for (i in 0 until 95) {
             val x = ((i * 193 + 41) % 997) / 997f * w
@@ -159,14 +139,11 @@ private class OracleMysticStartView(context: android.content.Context, private va
             paint.color = Color.argb(72 - i * 5, 196, 157, 62)
             c.drawCircle(cx, cy, orbit * (.55f + i * .17f), paint)
         }
-        // Four diagonal axes make the map feel like a ceremonial instrument.
         paint.strokeWidth = .55f * d; paint.color = Color.argb(80, 204, 169, 78)
         for (a in floatArrayOf(0f, 45f, 90f, 135f)) {
             val q = Math.toRadians(a.toDouble()); val dx = cos(q).toFloat() * w; val dy = sin(q).toFloat() * h
             c.drawLine(cx - dx, cy - dy, cx + dx, cy + dy, paint)
         }
-
-        // Radial connectors behind the nodes.
         centers.clear()
         for (n in nodes) {
             val a = Math.toRadians((n.angle - 90f).toDouble())
@@ -176,7 +153,6 @@ private class OracleMysticStartView(context: android.content.Context, private va
             c.drawLine(cx, cy, x, y, paint)
             c.drawCircle(x, y, 2.2f * d, paint)
         }
-
         drawSigil(c, cx, cy, radius, d)
         for (n in nodes) {
             val pos = centers[n.key]!!
@@ -187,7 +163,6 @@ private class OracleMysticStartView(context: android.content.Context, private va
 
     private fun drawSigil(c: Canvas, cx: Float, cy: Float, r: Float, d: Float) {
         paint.style = Paint.Style.STROKE; paint.strokeCap = Paint.Cap.ROUND
-        // Soft concentric aura, then the gold portal ring.
         for (i in 5 downTo 1) {
             paint.strokeWidth = (1f + i * .8f) * d
             paint.color = Color.argb(18 + i * 5, 255, 191, 50)
@@ -201,11 +176,8 @@ private class OracleMysticStartView(context: android.content.Context, private va
         c.drawCircle(cx, cy, r * 1.16f, paint)
         paint.color = Color.argb(115, 218, 173, 64); paint.strokeWidth = .7f * d
         for (i in 1..3) c.drawCircle(cx, cy, r * (1.30f + i * .13f), paint)
-
-        // Eye/sigil.
         val eye = Path(); eye.moveTo(cx - r * .28f, cy - r * .22f); eye.cubicTo(cx - r * .10f, cy - r * .43f, cx + r * .10f, cy - r * .43f, cx + r * .28f, cy - r * .22f); eye.cubicTo(cx + r * .10f, cy - r * .02f, cx - r * .10f, cy - r * .02f, cx - r * .28f, cy - r * .22f)
         paint.strokeWidth = 2f * d; paint.color = Color.rgb(255, 204, 52); c.drawPath(eye, paint); c.drawCircle(cx, cy - r * .22f, r * .075f, paint)
-        // Central title.
         paint.textAlign = Paint.Align.CENTER; paint.typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD); paint.color = Color.WHITE; paint.textSize = r * .25f
         c.drawText("ORACLE", cx, cy + r * .12f, paint)
         paint.typeface = Typeface.DEFAULT_BOLD; paint.textSize = r * .078f; paint.color = Color.rgb(255, 207, 61)
@@ -218,7 +190,6 @@ private class OracleMysticStartView(context: android.content.Context, private va
     }
 
     private fun drawNode(c: Canvas, x: Float, y: Float, r: Float, n: Node, d: Float) {
-        // Outer halo.
         paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.2f * d; paint.color = Color.argb(45, Color.red(n.color), Color.green(n.color), Color.blue(n.color)); c.drawCircle(x, y, r * 1.16f, paint)
         paint.strokeWidth = 2.4f * d; paint.color = n.color; c.drawCircle(x, y, r, paint)
         paint.style = Paint.Style.FILL; paint.color = Color.argb(242, 5, 8, 18); c.drawCircle(x, y, r * .965f, paint)
