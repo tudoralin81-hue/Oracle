@@ -43,6 +43,6 @@ android {
             minifyEnabled false
         }
     }
-
-    kotlin { jvmToolchain(17) }
 }
+
+kotlin { jvmToolchain(17) }
