@@ -15,16 +15,14 @@ import kotlin.math.abs
 
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String) {
     fun render(actions: List<OracleAction> = emptyList(), knowledge: List<OracleKnowledgeItem> = emptyList(), positions: List<OraclePosition> = emptyList(), history: List<OracleHistoryPoint> = emptyList()) {
-        host.content.removeAllViews()
-        val normalized=OracleAnalytics.normalize(positions)
-        val computed=OracleAnalytics.actions(normalized,history)
+        host.content.removeAllViews(); val normalized=OracleAnalytics.normalize(positions); val computed=OracleAnalytics.actions(normalized,history)
         when(moduleTitle){"GROWTH"->renderGrowth(normalized,history);"ANALYSIS"->renderAnalysis(normalized,history);"WATCHLIST"->renderWatchlist(normalized,history);"KNOWLEDGE"->renderKnowledge(knowledge);else->renderActions(if(computed.isNotEmpty())computed else actions)}
     }
     private fun renderGrowth(positions:List<OraclePosition>,history:List<OracleHistoryPoint>){
         if(positions.isEmpty()){host.addCard("GROWTH","Așteaptă date locale");return}
         val trends=OracleAnalytics.trends(history).associateBy{it.ticker}
-        positions.sortedByDescending{it.pnlPercent}.forEachIndexed{i,p->{val t=trends[p.ticker];growthCard(i+1,p,t?.direction ?: "FLAT",t?.changePct ?: p.pnlPercent)}}
-        val total=positions.sumOf{it.marketValue};val pnl=positions.sumOf{it.pnl};val pct=if(total-pnl!=0.0)pnl/(total-pnl)*100.0 else 0.0
+        positions.sortedByDescending{it.pnlPercent}.forEachIndexed { i,p -> val t=trends[p.ticker]; growthCard(i+1,p,t?.direction ?: "FLAT",t?.changePct ?: p.pnlPercent) }
+        val total=positions.sumOf{it.marketValue}; val pnl=positions.sumOf{it.pnl}; val pct=if(total-pnl!=0.0)pnl/(total-pnl)*100.0 else 0.0
         val totalCard=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(host.dp(14),host.dp(12),host.dp(14),host.dp(12));background=GradientDrawable().apply{setColor(Color.rgb(6,10,20));cornerRadius=host.dp(15).toFloat();setStroke(host.dp(1),Color.rgb(42,52,76))}}
         totalCard.addView(TextView(host.root.context).apply{text="◔";textSize=30f;setTextColor(Color.rgb(145,245,35));gravity=Gravity.CENTER},LinearLayout.LayoutParams(host.dp(50),host.dp(50)))
         val mid=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL};mid.addView(TextView(host.root.context).apply{text="TOTAL PORTOFOLIU (${positions.size} ACȚIUNI)";textSize=11f;setTextColor(Color.rgb(175,182,198))});mid.addView(TextView(host.root.context).apply{text=fmtMoney(total);textSize=20f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);setPadding(0,host.dp(4),0,0)});totalCard.addView(mid,LinearLayout.LayoutParams(0,-2,1f))
