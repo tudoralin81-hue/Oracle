@@ -3,8 +3,8 @@
     <application
         android:theme="@style/AppTheme"
         android:label="ORACLE"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:icon="@drawable/oracle_icon"
+        android:roundIcon="@drawable/oracle_icon"
         android:allowBackup="false"
         android:supportsRtl="true">
         <activity android:name=".OracleMysticActivity" android:screenOrientation="portrait" android:exported="true">
