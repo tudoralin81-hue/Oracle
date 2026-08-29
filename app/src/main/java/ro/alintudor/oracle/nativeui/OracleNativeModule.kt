@@ -59,6 +59,7 @@ class OracleNativeModule(
             clipToPadding=false
             isFillViewport=true
             overScrollMode=View.OVER_SCROLL_ALWAYS
+            isNestedScrollingEnabled=false
             addView(content)
             setOnScrollChangeListener { _, _, scrollY, _, _ -> scrollPositions[title] = scrollY }
         }
@@ -97,11 +98,12 @@ class OracleNativeModule(
     fun dp(v:Int)= (v*context.resources.displayMetrics.density).toInt()
     companion object{
         private val scrollPositions = mutableMapOf<String, Int>()
+        fun rememberedScroll(title:String): Int = scrollPositions[title] ?: 0
         fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}
     }
 }
 
-/** Dependency-free pull-to-refresh wrapper. It only captures a downward gesture when the child is at the top. */
+/** Dependency-free pull-to-refresh. It takes the gesture only when the list is at the top. */
 private class PullRefreshLayout(
     context: Context,
     private val refresh: () -> Unit
@@ -118,16 +120,18 @@ private class PullRefreshLayout(
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         val child = getChildAt(0)
+        if (child == null) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downY = ev.y
+                downY = ev.rawY
                 dragging = false
                 triggered = false
                 return false
             }
             MotionEvent.ACTION_MOVE -> {
-                val dy = ev.y - downY
-                if (dy > (10f * resources.displayMetrics.density) && child != null && !child.canScrollVertically(-1)) {
+                val dy = ev.rawY - downY
+                // Only intercept a clear downward pull from the very top.
+                if (dy > (12f * resources.displayMetrics.density) && !child.canScrollVertically(-1)) {
                     dragging = true
                     return true
                 }
@@ -141,7 +145,7 @@ private class PullRefreshLayout(
         val child = getChildAt(0) ?: return false
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
-                val pull = (event.y - downY).coerceAtLeast(0f)
+                val pull = (event.rawY - downY).coerceAtLeast(0f)
                 child.translationY = pull * 0.55f
                 triggered = pull >= threshold
                 return true
