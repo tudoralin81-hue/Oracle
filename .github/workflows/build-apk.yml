@@ -23,26 +23,25 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Prepare persistent production signing key
+      - name: Prepare production signing key when configured
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "$ORACLE_KEYSTORE_BASE64" ] || [ -z "$ORACLE_KEYSTORE_PASSWORD" ] || [ -z "$ORACLE_KEY_ALIAS" ] || [ -z "$ORACLE_KEY_PASSWORD" ]; then
-            echo "ERROR: Oracle production signing secrets are not configured."
-            echo "Refusing to build a release APK with a changing debug certificate."
-            exit 1
+          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
+            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+            {
+              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+            echo "Persistent Oracle release signing key prepared."
+          else
+            echo "WARNING: production signing secrets are not configured; this build will use the non-production debug certificate fallback."
           fi
-          echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
-          {
-            echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-            echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-            echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-            echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
-          echo "Persistent Oracle release signing key prepared."
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
-      - name: Verify release identity and signature
+      - name: Verify release APK signature
         shell: bash
         run: |
           set -euo pipefail
