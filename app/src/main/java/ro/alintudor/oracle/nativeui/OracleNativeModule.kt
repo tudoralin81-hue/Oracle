@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.widget.*
+import android.widget.FrameLayout
 
 /** Shared Oracle module shell. Header semantics are fixed: left=Back, right=Refresh. */
 class OracleNativeModule(
@@ -52,25 +53,15 @@ class OracleNativeModule(
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
-        val scroll = ScrollView(context).apply { clipToPadding=false; addView(content) }
-        var downY = 0f
-        var downScrollY = 0
-        scroll.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downY = event.y
-                    downScrollY = scroll.scrollY
-                }
-                MotionEvent.ACTION_UP -> {
-                    val pull = event.y - downY
-                    if (downScrollY <= 0 && pull > dp(110)) {
-                        onRefresh()
-                    }
-                }
-            }
-            false
+
+        val scroll = ScrollView(context).apply {
+            clipToPadding=false
+            isFillViewport=true
+            addView(content)
         }
-        root.addView(scroll, LinearLayout.LayoutParams(-1,0,1f))
+        val pullContainer = PullRefreshLayout(context) { onRefresh() }
+        pullContainer.addView(scroll, FrameLayout.LayoutParams(-1,-1))
+        root.addView(pullContainer, LinearLayout.LayoutParams(-1,0,1f))
         root.setOnApplyWindowInsetsListener { _, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else 0
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
@@ -94,4 +85,64 @@ class OracleNativeModule(
     fun addSectionLabel(text:String,sectionAccent:Int=accent){content.addView(TextView(context).apply{this.text=text.uppercase();textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.14f;setTextColor(sectionAccent);setPadding(dp(5),dp(8),dp(5),dp(7))})}
     fun dp(v:Int)= (v*context.resources.displayMetrics.density).toInt()
     companion object{fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}}
+}
+
+/** Dependency-free pull-to-refresh wrapper. It preserves normal ScrollView scrolling and
+ * only captures a downward gesture when the child is already at the top. */
+private class PullRefreshLayout(
+    context: Context,
+    private val refresh: () -> Unit
+) : FrameLayout(context) {
+    private var downY = 0f
+    private var dragging = false
+    private var triggered = false
+    private val threshold = (112f * resources.displayMetrics.density)
+
+    init {
+        clipChildren = false
+        setWillNotDraw(false)
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        val child = getChildAt(0)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downY = ev.y
+                dragging = false
+                triggered = false
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = ev.y - downY
+                if (dy > 8f && child != null && !child.canScrollVertically(-1)) {
+                    dragging = true
+                    return true
+                }
+            }
+        }
+        return dragging
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val child = getChildAt(0) ?: return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                val pull = (event.y - downY).coerceAtLeast(0f)
+                val eased = pull * 0.55f
+                child.translationY = eased
+                if (pull >= threshold) triggered = true
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (event.actionMasked == MotionEvent.ACTION_UP && triggered) {
+                    refresh()
+                }
+                child.animate().translationY(0f).setDuration(180L).start()
+                dragging = false
+                triggered = false
+                return true
+            }
+        }
+        return true
+    }
 }
