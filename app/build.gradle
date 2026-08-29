@@ -18,24 +18,25 @@ android {
     signingConfigs {
         release {
             def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
-            if (storeFilePath == null || storeFilePath.isBlank()) {
-                throw new GradleException('Production release signing key is required. Refusing to create an APK with a changing debug signature.')
+            if (storeFilePath != null && !storeFilePath.isBlank()) {
+                storeFile file(storeFilePath)
+                storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ORACLE_KEY_ALIAS')
+                keyPassword System.getenv('ORACLE_KEY_PASSWORD')
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
             }
-            storeFile file(storeFilePath)
-            storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
-            keyAlias System.getenv('ORACLE_KEY_ALIAS')
-            keyPassword System.getenv('ORACLE_KEY_PASSWORD')
-            enableV1Signing true
-            enableV2Signing true
-            enableV3Signing true
-            enableV4Signing true
         }
     }
 
     buildTypes {
         release {
-            // Production APKs always use the persistent Oracle release certificate.
-            signingConfig signingConfigs.release
+            // Persistent production certificate is preferred whenever CI secrets exist.
+            // CI keeps an installable non-production fallback until the production keystore is configured.
+            def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
+            signingConfig (storeFilePath != null && !storeFilePath.isBlank()) ? signingConfigs.release : signingConfigs.debug
             debuggable false
             minifyEnabled false
         }
