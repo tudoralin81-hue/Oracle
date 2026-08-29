@@ -10,7 +10,12 @@ import android.view.View
 import android.view.WindowInsets
 import android.widget.*
 
-class OracleNativeModule(private val context: Context, private val title: String, private val onRefresh: () -> Unit = {}) {
+class OracleNativeModule(
+    private val context: Context,
+    private val title: String,
+    private val onBack: () -> Unit = {},
+    private val onRefresh: () -> Unit = {}
+) {
     val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(1,3,8))
@@ -36,32 +41,15 @@ class OracleNativeModule(private val context: Context, private val title: String
     }
     init {
         val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(3),dp(2),dp(5)) }
-        header.addView(button("‹","Back",Color.rgb(255,205,45)){(context as? Activity)?.onBackPressed()},LinearLayout.LayoutParams(dp(46),dp(46)))
+        header.addView(button("‹","Back",Color.rgb(255,205,45)){ onBack() },LinearLayout.LayoutParams(dp(46),dp(46)))
         val center=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
         center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true})
         center.addView(TextView(context).apply{text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true})
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
-        header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ refreshCurrentModule() },LinearLayout.LayoutParams(dp(46),dp(46)))
+        header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ onRefresh() },LinearLayout.LayoutParams(dp(46),dp(46)))
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(ScrollView(context).apply{clipToPadding=false;addView(content)},LinearLayout.LayoutParams(-1,0,1f))
-    }
-    private fun refreshCurrentModule() {
-        val activity = context as? Activity ?: return onRefresh()
-        try {
-            val field = activity.javaClass.getDeclaredField("currentModule").apply { isAccessible = true }
-            val key = field.get(activity) as? String
-            if (key != null) {
-                val method = activity.javaClass.getDeclaredMethod("renderModule", String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
-                Thread {
-                    try {
-                        activity.runOnUiThread { method.invoke(activity, key, true) }
-                    } catch (_: Throwable) {
-                        activity.runOnUiThread { onRefresh() }
-                    }
-                }.start()
-            } else onRefresh()
-        } catch (_: Throwable) { onRefresh() }
     }
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
         text=symbol;textSize=30f;gravity=Gravity.CENTER;contentDescription=desc;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)
