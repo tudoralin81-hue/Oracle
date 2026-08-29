@@ -56,7 +56,16 @@ class OracleRepository(private val context: Context) {
         val ref=if(o.has("referencePrice") && !o.isNull("referencePrice"))o.optDouble("referencePrice") else null
         val cur=if(o.has("currentPrice") && !o.isNull("currentPrice"))o.optDouble("currentPrice") else null
         val adx=if(o.has("adx") && !o.isNull("adx"))o.optDouble("adx") else null
-        return OracleGrowthRecommendation(o.optString("horizon"),o.optString("ticker"),o.optString("company"),o.optString("sector"),o.optInt("score"),o.optString("signal"),o.optString("risk"),o.optDouble("allocationMax"),o.optDouble("forecastPct"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),weights,o.optString("newsTitle"),o.optString("newsSource"),o.optLong("referenceTimestamp"),actual,ref,cur,adx)
+        return OracleGrowthRecommendation(
+            o.optString("horizon"),o.optString("ticker"),o.optString("company"),o.optString("sector"),
+            o.optInt("score"),o.optString("signal"),o.optString("risk"),o.optDouble("allocationMax"),
+            o.optDouble("forecastPct"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),weights,
+            o.optString("newsTitle"),o.optString("newsSource"),o.optLong("referenceTimestamp"),actual,ref,cur,adx,
+            source = o.optString("source","ORACLE_ENGINE"),
+            confidence = o.optInt("confidence",0),
+            dataQuality = o.optInt("dataQuality",0),
+            regime = o.optString("regime","UNKNOWN")
+        )
     }
 }
 
@@ -76,4 +85,5 @@ private fun OracleGrowthRecommendation.toJson() = JSONObject().apply {
     if(referencePrice!=null)put("referencePrice",referencePrice) else put("referencePrice",JSONObject.NULL)
     if(currentPrice!=null)put("currentPrice",currentPrice) else put("currentPrice",JSONObject.NULL)
     if(adx!=null)put("adx",adx) else put("adx",JSONObject.NULL)
+    put("source",source); put("confidence",confidence); put("dataQuality",dataQuality); put("regime",regime)
 }
