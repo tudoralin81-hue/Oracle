@@ -96,6 +96,13 @@ When a new version regresses a previously working screen:
 - When a new snapshot is generated, all recommendation rows receive the new anchor as `referenceTimestamp`; T0 is never inherited from an older ticker or moved by refresh.
 - Regression check: open Growth repeatedly before the next 16:00 and verify identical recommendation tickers, score, signal, risk, allocation, forecast and snapshot timestamp. Repeat across Saturday/Sunday; the Friday snapshot must remain unchanged until Monday 16:00.
 
+## Rule 014 — Canonical weekend seed must use a trading-day anchor
+- Symptom: the app still reranked Growth on Saturday 29.08.2026 even though Rule 013 correctly mapped the weekend to Friday's 16:00 anchor.
+- Root cause: `OracleBootstrap` seeded the approved weekend snapshot with `29.08.2026 16:00`, which is a Saturday timestamp. `OracleLocalProcessor` correctly computed Friday `28.08.2026 16:00` as the active anchor, saw a mismatch, and legitimately reran the live Growth engine.
+- Required behavior: the canonical snapshot for the 29.08.2026 weekend view must be stamped `28.08.2026 16:00 Europe/Bucharest` (`1787922000000L`).
+- Migration version is incremented so an already-installed app repairs the bad Saturday anchor exactly once.
+- Regression check: after migration, repeatedly open/refresh Growth on Saturday/Sunday and verify that SNPS/VEEV/CRM, their score/forecast/risk/allocation and the `28.08.2026 16:00` anchor remain unchanged.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
@@ -105,3 +112,4 @@ When a new version regresses a previously working screen:
 - Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
 - Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
 - Latest Growth freeze fix is isolated to `OracleLocalProcessor.kt`: the engine now recomputes Growth only when the 16:00 trading-day snapshot anchor changes.
+- Latest weekend-anchor repair is isolated to `OracleBootstrap.kt` V8: the canonical 29.08.2026 weekend view is pinned to Friday 28.08.2026 16:00.
