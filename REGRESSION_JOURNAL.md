@@ -44,9 +44,18 @@ When a new version regresses a previously working screen:
 - Required behavior: if support/resistance is missing, zero, NaN or infinite, fall back to the position's current price.
 - Prevention: Portfolio must never display `N/A` for these two fields when a valid current price exists.
 
+## Rule 007 — Shared module shell must respect Android safe areas
+- Symptom: module content could overlap the Android status/notification area at the top and the Android navigation area at the bottom.
+- Required behavior: the shared `OracleNativeModule` shell applies the Android status-bar inset above the header and the navigation-bar inset below the module content.
+- The module header is deliberately taller so `ORACLE` and the module title (including `PORTFOLIO`) remain fully visible above the divider.
+- The scrollable module content has additional bottom space so the final controls/cards can be moved above Android navigation controls.
+- This is a shared-shell fix and therefore applies to Portfolio, Alerts, News, Growth, Knowledge, Analysis, Watchlist and Journal.
+- Do not reimplement per-module safe-area offsets unless a future device-specific regression proves it necessary.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
 - Portfolio functional baseline includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
 - Latest Portfolio V12 fixes preserve the canonical Oracle recommendations and technical indicators, use current-price fallback for missing support/resistance, and put the total portfolio return prominently in XLSX/PDF exports with active/sold status.
+- Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
 - Do not modify the restored shell until startup/module behavior is confirmed.
