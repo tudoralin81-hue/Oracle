@@ -51,7 +51,6 @@ class MainActivity : Activity() {
         status.addView(TextView(this).apply{text="  ORACLE READY";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)},LinearLayout.LayoutParams(0,-2,1f))
         status.addView(TextView(this).apply{text="LOCAL INTELLIGENCE";textSize=10f;setTextColor(Color.rgb(140,150,170))})
         page.addView(status,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,dp(8),0,dp(8))})
-        
         scroll.addView(page); root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
     }
 
@@ -72,6 +71,7 @@ class MainActivity : Activity() {
         if(currentModule!=key || isFinishing)return
         Toast.makeText(this,"Se actualizează ${titles[key]?:key.uppercase()}…",Toast.LENGTH_SHORT).show()
         Thread{
+            // OracleLocalProcessor.refresh() performs a real network news fetch.
             val result=runCatching{OracleLocalProcessor.refresh(repository)}
             mainHandler.post{
                 if(currentModule!=key || isFinishing)return@post
@@ -82,15 +82,25 @@ class MainActivity : Activity() {
     }
 
     private fun renderModule(key:String,refresh:Boolean=false){
-        root.removeAllViews();val host=OracleNativeModule(this,titles[key]?:key.uppercase(),{showHub()},{refreshModule(key)});root.addView(host.root,FrameLayout.LayoutParams(-1,-1));val data=if(refresh)OracleLocalProcessor.refresh(repository)else repository.snapshot()
+        val title = titles[key]?:key.uppercase()
+        // Capture the current module position before replacing its view tree.
+        // This prevents a news refresh from jumping back to the beginning.
+        val preservedScrollY = OracleNativeModule.rememberedScroll(title)
+        root.removeAllViews()
+        val host=OracleNativeModule(this,title,{showHub()},{refreshModule(key)})
+        root.addView(host.root,FrameLayout.LayoutParams(-1,-1))
+        val data=if(refresh)OracleLocalProcessor.refresh(repository)else repository.snapshot()
         when(key){
             "portfolio"->OraclePortfolioModule(host).render(data.positions)
             "alerts"->OracleAlertsModule(host).render(data.alerts)
             "news"->OracleNewsModule(host).render(data.news)
             "journal"->OracleJournalModule(host).render(data.journal,data.history,data.alerts)
             "growth"->{ val liveGrowth=OracleGrowthLiveData.refresh(data.growth); OracleGrowthModule(host).render(liveGrowth,data.news) }
-            "analysis","watchlist","knowledge"->OracleSimpleModule(host,titles[key]?:key.uppercase()).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)
+            "analysis","watchlist","knowledge"->OracleSimpleModule(host,title).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)
         }
+        // Restore after content has been populated; ScrollView will clamp only if
+        // the new content is genuinely shorter than the previous position.
+        host.restoreScrollY(preservedScrollY)
     }
     private fun showModuleError(key:String,error:Throwable){root.removeAllViews();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(32),dp(32),dp(32),dp(32));setBackgroundColor(Color.rgb(2,4,10))};box.addView(TextView(this).apply{text="ORACLE  •  ${titles[key]?:key.uppercase()}";textSize=22f;gravity=Gravity.CENTER;setTextColor(Color.WHITE)});box.addView(TextView(this).apply{text="Modulul nu s-a putut încărca.\n\n${error.message?:error.javaClass.simpleName}";textSize=16f;gravity=Gravity.CENTER;setTextColor(Color.LTGRAY);setPadding(0,dp(24),0,dp(24))});box.addView(Button(this).apply{text="REÎNCEARCĂ";setOnClickListener{openModule(key)}});box.addView(Button(this).apply{text="ÎNAPOI LA ORACLE";setOnClickListener{showHub()}});root.addView(box,FrameLayout.LayoutParams(-1,-1))}
     private fun showFatalError(title:String,error:Throwable){root.removeAllViews();root.addView(TextView(this).apply{text="$title\n\n${error.message?:error.javaClass.simpleName}\n\nAplicația nu va rămâne blocată pe loading.";textSize=17f;gravity=Gravity.CENTER;setTextColor(Color.WHITE);setPadding(dp(32),dp(32),dp(32),dp(32))},FrameLayout.LayoutParams(-1,-1))}
@@ -122,6 +132,8 @@ private class OracleHeroView(context:android.content.Context,private val onModul
     }
     private fun drawIcon(c:Canvas,x:Float,y:Float,s:Float,key:String,color:Int,d:Float){
         p.style=Paint.Style.STROKE;p.strokeWidth=1.8f*d;p.strokeCap=Paint.Cap.ROUND;p.strokeJoin=Paint.Join.ROUND;p.color=color
-        when(key){"portfolio"->{c.drawCircle(x,y,s*.62f,p);c.drawLine(x,y,x,y-s*.62f,p);c.drawLine(x,y,x+s*.48f,y+s*.28f,p)}"alerts"->{c.drawArc(x-s*.48f,y-s*.35f,x+s*.48f,y+s*.42f,205f,130f,false,p);c.drawLine(x-s*.58f,y+s*.42f,x+s*.58f,y+s*.42f,p);c.drawCircle(x,y+s*.62f,s*.07f,p)}"news"->{c.drawRect(x-s*.58f,y-s*.55f,x+s*.58f,y+s*.55f,p);c.drawLine(x-s*.35f,y-s*.20f,x+s*.35f,y-s*.20f,p);c.drawLine(x-s*.35f,y,x+s*.35f,y,p);c.drawLine(x-s*.35f,y+s*.20f,x+s*.18f,y+s*.20f,p)}"growth"->{val q=Path();q.moveTo(x-s*.58f,y+s*.18f);q.lineTo(x-s*.10f,y-s*.28f);q.lineTo(x+s*.08f,y-s*.05f);q.lineTo(x+s*.58f,y-s*.52f);c.drawPath(q,p);c.drawLine(x+s*.30f,y-s*.52f,x+s*.58f,y-s*.52f,p);c.drawLine(x+s*.58f,y-s*.52f,x+s*.58f,y-s*.25f,p)}"knowledge"->{c.drawRect(x-s*.58f,y-s*.52f,x-.03f,y+s*.52f,p);c.drawRect(x+.03f,y-s*.52f,x+s*.58f,y+s*.52f,p);c.drawLine(x,y-s*.52f,x,y+s*.52f,p)}}
+        when(key){"portfolio"->{c.drawCircle(x,y,s*.62f,p);c.drawLine(x,y,x,y-s*.62f,p);c.drawLine(x,y,x+s*.48f,y+s*.28f,p)}"alerts"->{c.drawArc(x-s*.48f,y-s*.35f,x+s*.48f,y+s*.42f,205f,130f,false,p);c.drawLine(x-s*.58f,y+s*.42f,x+s*.58f,y+s*.42f,p);c.drawCircle(x,y+s*.62f,s*.07f,p)}"news"->{c.drawRect(x-s*.58f,y-s*.55f,x+s*.58f,y+s*.55f,p);c.drawLine(x-s*.35f,y-s*.20f,x+s*.35f,y-s*.20f,p);c.drawLine(x-s*.35f,y,x+s*.35f,y,p);c.drawLine(x-s*.35f,y+s*.20f,x+s*.18f,y+s*.20f,p)}"growth"->{val q=Path();q.moveTo(x-s*.58f,y+s*.18f);q.lineTo(x-s*.10f,y-s*.28f);q.lineTo(x+s*.08f,y-s*.05f);q.lineTo(x+s*.58f,y-s*.52f);c.drawPath(q,p)}"knowledge"->{c.drawRect(x-s*.55f,y-s*.55f,x+s*.55f,y+s*.55f,p);c.drawLine(x-s*.35f,y-s*.20f,x+s*.35f,y-s*.20f,p);c.drawLine(x-s*.35f,y,x+s*.25f,y,p)}"analysis"->{c.drawCircle(x,y,s*.52f,p);c.drawLine(x+s*.20f,y+s*.20f,x+s*.60f,y+s*.60f,p)}"watchlist"->{c.drawLine(x-s*.58f,y,x+s*.58f,y,p);c.drawCircle(x-s*.35f,y,s*.10f,p);c.drawCircle(x,y,s*.10f,p);c.drawCircle(x+s*.35f,y,s*.10f,p)}}
     }
+    override fun onTouchEvent(e:MotionEvent):Boolean{if(e.action==MotionEvent.ACTION_UP){val best=nodes.minByOrNull{val dx=e.x-width*it.x;val dy=e.y-height*it.y;dx*dx+dy*dy};if(best!=null){onModule(best.key);performClick()};return true};return true}
+    override fun performClick():Boolean{super.performClick();return true}
 }
