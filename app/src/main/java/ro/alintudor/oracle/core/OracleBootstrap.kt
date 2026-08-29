@@ -8,7 +8,7 @@ package ro.alintudor.oracle.core
  * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 4
+    private const val VERSION = 5
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -49,7 +49,8 @@ object OracleBootstrap {
 
         // Growth reference snapshot supplied from the WordPress UI screenshots.
         // These are cached Oracle values; Android does not invent or recalculate Oracle formulas.
-        if (repository.cachedGrowth().isEmpty()) {
+        val cachedGrowth = repository.cachedGrowth()
+        if (cachedGrowth.isEmpty()) {
             val t0 = 1788008400000L // 29.08.2026 16:00 Europe/Bucharest
             repository.saveGrowth(listOf(
                 OracleGrowthRecommendation(
@@ -70,10 +71,19 @@ object OracleBootstrap {
                     horizon="LONG", ticker="CRWD", company="CrowdStrike Holdings, Inc.", sector="Technology",
                     score=82, signal="BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=40.1,
                     momentum5D=19.8, momentum20D=23.1,
-                    weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
+                    // V5 correction: LONG Momentum 7 -> 6, bringing the official profile to 100.
+                    weights=listOf(6,6,20,6,5,8,18,4,9,7,9,2),
                     newsTitle="CrowdStrike jumps 11% on record second quarter as 'Mythos moment' drives AI cyber wave - CNBC", newsSource="CNBC", referenceTimestamp=t0
                 )
             ))
+        } else {
+            // Migrate only the known pre-V5 LONG seed (sum 101) to the corrected 100-point profile.
+            val migrated = cachedGrowth.map { item ->
+                if (item.horizon.equals("LONG", true) && item.weights.size >= 12 && item.weights.sum() == 101 && item.weights[3] == 7) {
+                    item.copy(weights = item.weights.toMutableList().also { it[3] = 6 })
+                } else item
+            }
+            if (migrated != cachedGrowth) repository.saveGrowth(migrated)
         }
 
         repository.markBootstrap(VERSION)
