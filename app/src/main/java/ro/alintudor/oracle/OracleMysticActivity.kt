@@ -29,6 +29,9 @@ class OracleMysticActivity : Activity() {
         window.navigationBarColor = Color.rgb(3, 4, 12)
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(3, 4, 12)) }
         setContentView(root)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
+        }
         runCatching { OracleBootstrap.ensure(repository); showHub() }
             .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
     }
@@ -74,7 +77,7 @@ class OracleMysticActivity : Activity() {
 
     private fun renderModule(key: String) {
         root.removeAllViews()
-        val host = OracleNativeModule(this, titles[key] ?: key.uppercase()) { showHub() }
+        val host = OracleNativeModule(this, titles[key] ?: key.uppercase(), { showHub() }, { openModule(key) })
         root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
         val data = repository.snapshot()
         when (key) {
@@ -84,6 +87,10 @@ class OracleMysticActivity : Activity() {
             "journal" -> OracleJournalModule(host).render(data.journal, data.history, data.alerts)
             "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)
         }
+    }
+
+    private fun handleBack() {
+        if (currentModule != null) showHub() else finish()
     }
 
     private fun showModuleError(key: String, error: Throwable) {
@@ -104,7 +111,7 @@ class OracleMysticActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     @Suppress("DEPRECATION")
-    override fun onBackPressed() { if (currentModule != null) showHub() else super.onBackPressed() }
+    override fun onBackPressed() { handleBack() }
 }
 
 private class OracleMysticStartView(context: android.content.Context, private val onModule: (String) -> Unit) : View(context) {
@@ -211,7 +218,7 @@ private class OracleMysticStartView(context: android.content.Context, private va
             "alerts" -> { c.drawArc(x - s * .48f, y - s * .35f, x + s * .48f, y + s * .42f, 205f, 130f, false, paint); c.drawLine(x - s * .58f, y + s * .42f, x + s * .58f, y + s * .42f, paint); c.drawCircle(x, y + s * .62f, s * .07f, paint) }
             "news" -> { c.drawRect(x - s * .58f, y - s * .55f, x + s * .58f, y + s * .55f, paint); c.drawLine(x - s * .35f, y - s * .2f, x + s * .35f, y - s * .2f, paint); c.drawLine(x - s * .35f, y, x + s * .35f, y, paint); c.drawLine(x - s * .35f, y + s * .2f, x + s * .18f, y + s * .2f, paint) }
             "growth" -> { val q = Path(); q.moveTo(x - s * .62f, y + s * .35f); q.lineTo(x - s * .18f, y - s * .04f); q.lineTo(x + s * .04f, y + s * .10f); q.lineTo(x + s * .62f, y - s * .55f); c.drawPath(q, paint); c.drawLine(x + s * .35f, y - s * .55f, x + s * .62f, y - s * .55f, paint); c.drawLine(x + s * .62f, y - s * .55f, x + s * .62f, y - s * .27f, paint) }
-            "knowledge" -> c.drawRect(x - s * .58f, y - s * .58f, x - s * .04f, y + s * .58f, paint).also { c.drawRect(x + s * .04f, y - s * .58f, x + s * .58f, y + s * .58f, paint) }
+            "knowledge" -> { c.drawRect(x - s * .58f, y - s * .58f, x - s * .04f, y + s * .58f, paint); c.drawRect(x + s * .04f, y - s * .58f, x + s * .58f, y + s * .58f, paint) }
             "analysis" -> { c.drawLine(x - s * .6f, y + s * .55f, x - s * .6f, y - s * .58f, paint); c.drawLine(x - s * .6f, y + s * .55f, x + s * .62f, y + s * .55f, paint); val q = Path(); q.moveTo(x - s * .48f, y + s * .22f); q.lineTo(x - s * .12f, y - s * .05f); q.lineTo(x + s * .08f, y + s * .08f); q.lineTo(x + s * .55f, y - s * .45f); c.drawPath(q, paint) }
             "watchlist" -> { val q = Path(); q.moveTo(x - s * .7f, y); q.cubicTo(x - s * .28f, y - s * .62f, x + s * .28f, y - s * .62f, x + s * .7f, y); q.cubicTo(x + s * .28f, y + s * .62f, x - s * .28f, y + s * .62f, x - s * .7f, y); c.drawPath(q, paint); c.drawCircle(x, y, s * .18f, paint) }
         }
