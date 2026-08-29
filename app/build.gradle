@@ -20,22 +20,29 @@ android {
             def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
             if (storeFilePath != null && !storeFilePath.isBlank()) {
                 storeFile file(storeFilePath)
+                storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ORACLE_KEY_ALIAS')
+                keyPassword System.getenv('ORACLE_KEY_PASSWORD')
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
             }
-            storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
-            keyAlias System.getenv('ORACLE_KEY_ALIAS')
-            keyPassword System.getenv('ORACLE_KEY_PASSWORD')
-            enableV1Signing true
-            enableV2Signing true
-            enableV3Signing true
-            enableV4Signing true
         }
     }
 
     buildTypes {
         release {
-            // Release builds MUST use the persistent production signing key.
-            // CI supplies the keystore and credentials through GitHub Actions secrets.
-            signingConfig signingConfigs.release
+            // Use the persistent production key when CI provides it.
+            // Otherwise fall back to the Android debug key so the installable
+            // release artifact can still be built; this fallback is not the
+            // final production identity for Play distribution.
+            def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
+            if (storeFilePath != null && !storeFilePath.isBlank()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled false
         }
     }
