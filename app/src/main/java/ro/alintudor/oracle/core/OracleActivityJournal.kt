@@ -7,7 +7,15 @@ data class OracleJournalEntry(
     val action: String,
     val score: Double,
     val reason: String,
-    val status: String = "ACTIVE"
+    val status: String = "ACTIVE",
+    val shares: Double = 0.0,
+    val entryPrice: Double = 0.0,
+    val salePrice: Double = 0.0,
+    val salePercent: Double = 0.0,
+    val entryValue: Double = 0.0,
+    val saleValue: Double = 0.0,
+    val realizedPnl: Double = 0.0,
+    val positionId: String = ""
 )
 
 object OracleActivityJournal {
