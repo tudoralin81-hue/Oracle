@@ -9,15 +9,25 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.widget.*
 
-class OracleNativeModule(private val context: Context, private val title: String, private val onRefresh: () -> Unit = {}) {
+/** Shared module shell. Left = Back. Right = Refresh. */
+class OracleNativeModule(
+    private val context: Context,
+    private val title: String,
+    private val onBack: () -> Unit = {},
+    private val onRefresh: () -> Unit = {}
+) {
     val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(1,3,8))
-        setPadding(dp(10),dp(6),dp(10),0)
+        setPadding(dp(10),0,dp(10),0)
     }
-    val content = LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(2),dp(6),dp(2),dp(28)) }
+    val content = LinearLayout(context).apply {
+        orientation=LinearLayout.VERTICAL
+        setPadding(dp(2),dp(10),dp(2),dp(4))
+    }
     val accent = when(title.uppercase()) {
         "ALERTS" -> Color.rgb(255,75,40)
         "NEWS","ANALYSIS" -> Color.rgb(25,205,255)
@@ -26,17 +36,25 @@ class OracleNativeModule(private val context: Context, private val title: String
         else -> Color.rgb(255,210,45)
     }
     init {
-        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),0,dp(2),dp(7)) }
-        header.addView(button("‹","Home",Color.rgb(255,205,45)){(context as? android.app.Activity)?.onBackPressed()},LinearLayout.LayoutParams(dp(46),dp(46)))
-        val center=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
-        center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER})
-        center.addView(TextView(context).apply{text=title;textSize=10f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER})
-        header.addView(center,LinearLayout.LayoutParams(0,dp(46),1f))
+        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL;setPadding(dp(2),dp(5),dp(2),dp(5)) }
+        header.addView(button("‹","Back",Color.rgb(255,205,45)){onBack()},LinearLayout.LayoutParams(dp(46),dp(46)))
+        val center=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER }
+        center.addView(TextView(context).apply { text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true })
+        center.addView(TextView(context).apply { text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true })
+        header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
         header.addView(button("↻","Refresh",Color.rgb(255,205,45)){onRefresh()},LinearLayout.LayoutParams(dp(46),dp(46)))
-        root.addView(header)
-        if(title.uppercase()=="GROWTH") root.addView(GrowthBanner(context),LinearLayout.LayoutParams(-1,dp(132)).apply{setMargins(dp(2),dp(1),dp(2),dp(8))})
+        root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
-        root.addView(ScrollView(context).apply{addView(content)},LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(ScrollView(context).apply { clipToPadding=false;overScrollMode=View.OVER_SCROLL_NEVER;addView(content) },LinearLayout.LayoutParams(-1,0,1f))
+        // Android 15/16 edge-to-edge: keep the module header below the system status bar.
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val top=if(android.os.Build.VERSION.SDK_INT>=30)insets.getInsets(WindowInsets.Type.statusBars()).top else 0
+            val bottom=if(android.os.Build.VERSION.SDK_INT>=30)insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
+            root.setPadding(dp(10),top+dp(2),dp(10),0)
+            content.setPadding(dp(2),dp(10),dp(2),bottom+dp(4))
+            insets
+        }
+        root.requestApplyInsets()
     }
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
         text=symbol;textSize=30f;gravity=Gravity.CENTER;contentDescription=desc;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)
@@ -63,7 +81,6 @@ private class GrowthBanner(context:Context):View(context){
         p.color=g;p.textAlign=Paint.Align.CENTER;p.typeface=Typeface.DEFAULT_BOLD;p.textSize=38*d;c.drawText("↗",70*d,h*.61f,p)
         p.textAlign=Paint.Align.LEFT;p.textSize=23*d;c.drawText("GROWTH",126*d,48*d,p)
         p.textSize=14*d;p.color=Color.WHITE;p.typeface=Typeface.DEFAULT;c.drawText("Randament, trend local și",126*d,76*d,p);c.drawText("contribuție la portofoliu",126*d,97*d,p)
-        p.style=Paint.Style.STROKE;p.strokeWidth=2*d;p.color=g;val path=Path();val x=w*.70f;val b=h*.80f
-        path.moveTo(x,b);for(i in 1..12){val xx=x+w*.025f*i;val yy=b-d*(8+i*4+(i%3)*8);path.lineTo(xx,yy)};c.drawPath(path,p);p.style=Paint.Style.FILL;c.drawCircle(x+w*.30f,b-d*76,4*d,p)
+        p.style=Paint.Style.STROKE;p.strokeWidth=2*d;p.color=g;val path=Path();val x=w*.70f;val b=h*.80f;path.moveTo(x,b);for(i in 1..12){val xx=x+w*.025f*i;val yy=b-d*(8+i*4+(i%3)*8);path.lineTo(xx,yy)};c.drawPath(path,p);p.style=Paint.Style.FILL;c.drawCircle(x+w*.30f,b-d*76,4*d,p)
     }
 }
