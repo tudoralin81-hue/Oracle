@@ -28,62 +28,136 @@ object OracleNewsFetcher {
     )
     private val economicKeywords = listOf("stock","stocks","share","shares","equity","equities","market","markets","nasdaq","nyse","s&p","dow","index","indices","earnings","revenue","profit","loss","guidance","ipo","merger","acquisition","m&a","fed","federal reserve","interest rate","inflation","cpi","ppi","gdp","jobs","payroll","treasury","bond","yield","forex","currency","oil","gold","silver","bitcoin","crypto","investor","investing","wall street","business","finance","financial","economy","economic","tariff","trade","bank","banks","semiconductor","energy")
 
-    fun fetch(limit:Int=150):List<OracleNews>{
-        val pool=Executors.newFixedThreadPool(feeds.size.coerceAtMost(10))
-        return try{
-            feeds.map{feed->pool.submit(Callable{runCatching{readFeed(feed)}.getOrDefault(emptyList())})}
-                .flatMap{runCatching{it.get()}.getOrDefault(emptyList())}
-                .filter{it.title.isNotBlank() && isEconomic(it)}
-                .groupBy{canonicalKey(it)}.values.mapNotNull{it.maxByOrNull{n->n.publishedAt}}
-                .sortedWith(compareByDescending<OracleNews>{it.breaking}.thenByDescending{it.publishedAt}).take(limit)
-        }finally{pool.shutdownNow()}
-    }
-
-    private fun isEconomic(n:OracleNews):Boolean{
-        val text=(n.title+" "+n.publisher+" "+n.source).lowercase(Locale.US)
-        return economicKeywords.any{text.contains(it)}
-    }
-
-    private fun canonicalKey(n:OracleNews):String{
-        val title=canonicalTitle(n.title)
-        val url=n.url.trim().lowercase(Locale.US).substringBefore("?").removeSuffix("/")
-        if(url.isNotBlank()) return "title:$title"
-        return "title:$title"
-    }
-
-    /** Removes common publisher suffixes so the same syndicated story from two feeds is one item. */
-    private fun canonicalTitle(value:String):String{
-        return value.trim().lowercase(Locale.US)
-            .replace(Regex("\\s+")," ")
-            .replace(Regex("\\s*[-|–—:]\\s*(reuters|cnbc|bloomberg|marketwatch|investing\\.com|bbc|financial times|wsj|the wall street journal)\\s*$"),"")
-            .replace(Regex("[^a-z0-9 ]"),"")
-            .trim()
-    }
-
-    private fun readFeed(feed:Feed):List<OracleNews>{
-        val connection=(URL(feed.url).openConnection() as HttpURLConnection).apply{
-            connectTimeout=2500;readTimeout=4000;requestMethod="GET"
-            setRequestProperty("User-Agent","OracleStockIntelligence/1.0")
-            setRequestProperty("Accept","application/rss+xml, application/atom+xml, application/xml, text/xml")
+    fun fetch(limit: Int = 150): List<OracleNews> {
+        val pool = Executors.newFixedThreadPool(feeds.size.coerceAtMost(10))
+        return try {
+            feeds.map { feed -> pool.submit(Callable { runCatching { readFeed(feed) }.getOrDefault(emptyList()) }) }
+                .flatMap { runCatching { it.get() }.getOrDefault(emptyList()) }
+                .filter { it.title.isNotBlank() && isEconomic(it) }
+                .groupBy { canonicalKey(it) }
+                .values
+                .mapNotNull { group -> group.maxByOrNull { it.publishedAt } }
+                .sortedWith(compareByDescending<OracleNews> { it.breaking }.thenByDescending { it.publishedAt })
+                .take(limit)
+        } finally {
+            pool.shutdownNow()
         }
-        return try{if(connection.responseCode !in 200..299)return emptyList();connection.inputStream.use{parse(feed,it)}}finally{connection.disconnect()}
     }
 
-    private fun parse(feed:Feed,input:java.io.InputStream):List<OracleNews>{
-        val parser=Xml.newPullParser();parser.setInput(input,null);val out=ArrayList<OracleNews>();var event=parser.eventType
-        var inItem=false;var title="";var link="";var id="";var published=0L;var source=feed.name;var currentTag=""
-        while(event!=XmlPullParser.END_DOCUMENT){
-            when(event){
-                XmlPullParser.START_TAG->{val name=parser.name.lowercase(Locale.US);if(name=="item"||name=="entry"){inItem=true;title="";link="";id="";published=0L;source=feed.name}else if(inItem){currentTag=name;if(name=="link")parser.getAttributeValue(null,"href")?.takeIf{it.isNotBlank()}?.let{link=it}}}
-                XmlPullParser.TEXT->if(inItem){val text=parser.text?.trim().orEmpty();when(currentTag){"title"->if(title.isBlank())title=text;"link"->if(link.isBlank())link=text;"guid","id"->if(id.isBlank())id=text;"pubdate","published","updated","dc:date"->if(published==0L)published=parseDate(text);"source"->if(text.isNotBlank())source=text}}
-                XmlPullParser.END_TAG->if(parser.name.equals("item",true)||parser.name.equals("entry",true)){if(title.isNotBlank()){val now=System.currentTimeMillis();val ts=if(published>0)published else now;out+=OracleNews("",clean(title),source,link.trim(),ts,isBreaking(title),source,"NEWS",now,"Europe/Bucharest",0.0,null,id.ifBlank{link.ifBlank{title}},"NEWS-INGEST-3")}inItem=false;currentTag=""}
+    private fun isEconomic(n: OracleNews): Boolean {
+        val text = (n.title + " " + n.publisher + " " + n.source).lowercase(Locale.US)
+        return economicKeywords.any { text.contains(it) }
+    }
+
+    private fun canonicalKey(n: OracleNews): String = "title:" + canonicalTitle(n.title)
+
+    private fun canonicalTitle(value: String): String = value.trim().lowercase(Locale.US)
+        .replace(Regex("\\s+"), " ")
+        .replace(Regex("\\s*[-|–—:]\\s*(reuters|cnbc|bloomberg|marketwatch|investing\\.com|bbc|financial times|wsj|the wall street journal)\\s*$"), "")
+        .replace(Regex("[^a-z0-9 ]"), "")
+        .trim()
+
+    private fun readFeed(feed: Feed): List<OracleNews> {
+        val connection = (URL(feed.url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 2500
+            readTimeout = 4000
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "OracleStockIntelligence/1.0")
+            setRequestProperty("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return emptyList()
+            connection.inputStream.use { parse(feed, it) }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun parse(feed: Feed, input: java.io.InputStream): List<OracleNews> {
+        val parser = Xml.newPullParser()
+        parser.setInput(input, null)
+        val out = ArrayList<OracleNews>()
+        var event = parser.eventType
+        var inItem = false
+        var title = ""
+        var link = ""
+        var id = ""
+        var published = 0L
+        var source = feed.name
+        var currentTag = ""
+
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> {
+                    val name = parser.name.lowercase(Locale.US)
+                    if (name == "item" || name == "entry") {
+                        inItem = true
+                        title = ""
+                        link = ""
+                        id = ""
+                        published = 0L
+                        source = feed.name
+                        currentTag = ""
+                    } else if (inItem) {
+                        currentTag = name
+                        if (name == "link") {
+                            parser.getAttributeValue(null, "href")?.takeIf { it.isNotBlank() }?.let { link = it }
+                        }
+                    }
+                }
+                XmlPullParser.TEXT -> {
+                    if (inItem) {
+                        val text = parser.text?.trim().orEmpty()
+                        when (currentTag) {
+                            "title" -> if (title.isBlank()) title = text
+                            "link" -> if (link.isBlank()) link = text
+                            "guid", "id" -> if (id.isBlank()) id = text
+                            "pubdate", "published", "updated", "dc:date" -> if (published == 0L) published = parseDate(text)
+                            "source" -> if (text.isNotBlank()) source = text
+                        }
+                    }
+                }
+                XmlPullParser.END_TAG -> {
+                    if (parser.name.equals("item", true) || parser.name.equals("entry", true)) {
+                        if (title.isNotBlank()) {
+                            val now = System.currentTimeMillis()
+                            val ts = if (published > 0L) published else now
+                            out += OracleNews(
+                                ticker = "",
+                                title = clean(title),
+                                source = source,
+                                url = link.trim(),
+                                publishedAt = ts,
+                                breaking = isBreaking(title),
+                                publisher = source,
+                                sourceType = "NEWS",
+                                receivedAt = now,
+                                timezone = "Europe/Bucharest",
+                                rawId = id.ifBlank { link.ifBlank { title } },
+                                engineVersion = "NEWS-INGEST-4"
+                            )
+                        }
+                        inItem = false
+                        currentTag = ""
+                    }
+                }
             }
-            event=parser.next()
+            event = parser.next()
         }
         return out
     }
 
-    private fun clean(v:String)=v.replace(Regex("\\s+")," ").trim()
-    private fun isBreaking(title:String):Boolean{val t=title.lowercase(Locale.US);if(Regex("\\bbreakingviews\\b").containsMatchIn(t))return false;return Regex("\\b(breaking|urgent|flash|just in|fed emergency|market halt)\\b").containsMatchIn(t)}
-    private fun parseDate(v:String):Long=runCatching{ZonedDateTime.parse(v,DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()}.getOrElse{runCatching{Instant.parse(v).toEpochMilli()}.getOrDefault(0L)}
+    private fun clean(v: String): String = v.replace(Regex("\\s+"), " ").trim()
+
+    private fun isBreaking(title: String): Boolean {
+        val t = title.lowercase(Locale.US)
+        if (Regex("\\bbreakingviews\\b").containsMatchIn(t)) return false
+        return Regex("\\b(breaking|urgent|flash|just in|fed emergency|market halt)\\b").containsMatchIn(t)
+    }
+
+    private fun parseDate(v: String): Long = runCatching {
+        ZonedDateTime.parse(v, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()
+    }.getOrElse {
+        runCatching { Instant.parse(v).toEpochMilli() }.getOrDefault(0L)
+    }
 }
