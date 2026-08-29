@@ -4,7 +4,6 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.Locale
 
 /** Local orchestration layer. */
 object OracleLocalProcessor {
@@ -18,17 +17,6 @@ object OracleLocalProcessor {
     }
 
     private fun normalizeGrowthSnapshot(items: List<OracleGrowthRecommendation>, anchor: Long) = items.map { it.copy(referenceTimestamp = anchor, generatedAt = anchor) }
-
-    private fun newsKey(n: OracleNews): String {
-        val url = n.url.trim().lowercase(Locale.US).substringBefore("?").removeSuffix("/")
-        if (url.isNotBlank()) return "url:$url"
-        return "title:" + n.title.trim().lowercase(Locale.US).replace(Regex("\\s+"), " ").replace(Regex("[^a-z0-9 ]"), "")
-    }
-
-    private fun mergeNews(fetched: List<OracleNews>, cached: List<OracleNews>): List<OracleNews> =
-        (fetched + cached).filter { it.title.isNotBlank() }.groupBy(::newsKey)
-            .values.map { group -> group.maxByOrNull { it.receivedAt.coerceAtLeast(it.publishedAt) }!! }
-            .sortedWith(compareByDescending<OracleNews> { it.breaking }.thenByDescending { it.publishedAt }).take(250)
 
     fun refresh(repository: OracleRepository): OracleModuleData {
         OracleBootstrap.ensure(repository); val current = repository.snapshot(); val normalized = OracleAnalytics.normalize(current.positions); val now = System.currentTimeMillis()
@@ -47,7 +35,12 @@ object OracleLocalProcessor {
         val oldAlerts=current.alerts.filter{it.active}; val generated=actions.filter{it.action=="BUY"||it.action=="SELL"}.map{OracleAlert(it.ticker,if(it.action=="SELL")"HIGH"else"INFO","${it.action} signal","Score ${"%.1f".format(it.score)} — ${it.reason}",now,true)}
         val alertsByTicker=(oldAlerts+generated).groupBy{it.ticker}.mapValues{(_,v)->v.maxByOrNull{it.timestamp}!!}.values.sortedByDescending{it.timestamp}.take(100)
         val journal=OracleActivityJournal.merge(current.journal,actions)
-        val fetchedNews=runCatching{OracleNewsFetcher.fetch(150)}.getOrDefault(emptyList()); val news=if(fetchedNews.isNotEmpty())mergeNews(fetchedNews,current.news)else current.news.distinctBy(::newsKey)
+
+        // NEWS: every explicit refresh performs a network fetch and replaces the old feed snapshot.
+        // This prevents stale articles from reappearing and keeps the publisher order in the UI stable.
+        val fetchedNews=runCatching{OracleNewsFetcher.fetch(150)}.getOrDefault(emptyList())
+        val news=if(fetchedNews.isNotEmpty()) fetchedNews else current.news
+
         repository.saveNews(news); repository.savePositions(normalized); repository.saveActions(actions); repository.saveTechnical(technical); repository.saveHistory(history); repository.saveAlerts(alertsByTicker); repository.saveJournal(journal); repository.saveGrowth(growth)
         return repository.snapshot().copy(news=news)
     }
