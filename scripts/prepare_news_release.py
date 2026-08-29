@@ -22,7 +22,10 @@ def patch_main(s: str) -> str:
         '    private fun renderModule(key:String,refresh:Boolean=false){\n        root.removeAllViews();',
         '    private fun renderModule(key:String,refresh:Boolean=false){\n        val savedScroll = OracleNativeModule.savedScrollY(key)\n        root.removeAllViews();'
     )
-    block = block.rstrip() + '\n        host.restoreScrollY(savedScroll)\n    }'
+    close = block.rfind('    }')
+    if close < 0:
+        raise SystemExit('renderModule closing brace not found')
+    block = block[:close] + '        host.restoreScrollY(savedScroll)\n' + block[close:]
     return s[:start] + block + s[end:]
 
 
