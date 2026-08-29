@@ -33,3 +33,12 @@ When a new version regresses a previously working screen:
 - Intent: bring the Oracle start graphic closer to the supplied reference while preserving navigation, module rendering, Growth, journal and the recovered native shell.
 - Changes: responsive hero height, constellation/orbital background, gold Oracle core, module icons, cleaner node proportions, and reference-style top controls.
 - Rollback target if visual testing fails: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
+
+## Controlled UI iteration — Build 95 candidate — 2026-08-29
+- Branch: `ui/start-redesign-build95`.
+- Scope: `MainActivity.kt` only for application behavior/UI code; no core, repository, bootstrap, native module shell, Growth renderer, or navigation logic was changed.
+- Intent: make the Start screen materially richer while retaining the established hub composition.
+- Changes: richer radial background, additional constellation points, subtle animated orbital/pulse accents, stronger node glow, tablet-specific hero sizing, and three compact system-status tiles below the hero.
+- Navigation callbacks and module rendering paths are unchanged from the baseline.
+- Rollback target: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
+- This candidate must not be called release-ready until the APK build and runtime regression checks pass.
