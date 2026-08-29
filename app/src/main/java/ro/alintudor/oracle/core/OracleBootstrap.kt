@@ -8,7 +8,7 @@ package ro.alintudor.oracle.core
  * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 3
+    private const val VERSION = 4
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -36,8 +36,6 @@ object OracleBootstrap {
         }
 
         // Canonical analysis snapshot from the working Oracle analysis screen.
-        // Portfolio must consume this snapshot instead of inventing RSI=0 / momentum=0
-        // from a one-point local history.
         repository.saveTechnical(listOf(
             OracleTechnicalSnapshot("CRM", 80.6, 178.87, 22.7, 39.5, 0.0, 0.0),
             OracleTechnicalSnapshot("HOOD", 66.1, 101.38, 15.4, 26.7, 83.68, 112.45),
@@ -50,6 +48,35 @@ object OracleBootstrap {
             OracleAction("HOOD", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis()),
             OracleAction("MELI", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis())
         ))
+
+        // Growth snapshot taken from the supplied WordPress reference screenshots.
+        // These are cached presentation values; Android does not invent or recalculate Oracle formulas.
+        if (repository.cachedGrowth().isEmpty()) {
+            val t0 = 1788019200000L // 29.08.2026 16:00 Europe/Bucharest reference window
+            repository.saveGrowth(listOf(
+                OracleGrowthRecommendation(
+                    horizon="SHORT", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
+                    score=97, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=8.1,
+                    momentum5D=12.6, momentum20D=40.0,
+                    weights=listOf(22,18,12,16,12,8,3,4,2,2,1,0),
+                    newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory", newsSource="StockStory", referenceTimestamp=t0
+                ),
+                OracleGrowthRecommendation(
+                    horizon="MEDIUM", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
+                    score=91, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=18.6,
+                    momentum5D=22.7, momentum20D=39.5,
+                    weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
+                    newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC", referenceTimestamp=t0
+                ),
+                OracleGrowthRecommendation(
+                    horizon="LONG", ticker="CRWD", company="CrowdStrike Holdings, Inc.", sector="Technology",
+                    score=82, signal="BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=40.1,
+                    momentum5D=19.8, momentum20D=23.1,
+                    weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
+                    newsTitle="CrowdStrike jumps 11% on record second quarter as 'Mythos moment' drives AI cyber wave - CNBC", newsSource="CNBC", referenceTimestamp=t0
+                )
+            ))
+        }
 
         repository.markBootstrap(VERSION)
     }
