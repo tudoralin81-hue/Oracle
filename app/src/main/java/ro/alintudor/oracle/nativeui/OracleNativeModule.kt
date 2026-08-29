@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.widget.*
@@ -51,7 +52,25 @@ class OracleNativeModule(
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
-        root.addView(ScrollView(context).apply { clipToPadding=false; addView(content) }, LinearLayout.LayoutParams(-1,0,1f))
+        val scroll = ScrollView(context).apply { clipToPadding=false; addView(content) }
+        var downY = 0f
+        var downScrollY = 0
+        scroll.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downY = event.y
+                    downScrollY = scroll.scrollY
+                }
+                MotionEvent.ACTION_UP -> {
+                    val pull = event.y - downY
+                    if (downScrollY <= 0 && pull > dp(110)) {
+                        onRefresh()
+                    }
+                }
+            }
+            false
+        }
+        root.addView(scroll, LinearLayout.LayoutParams(-1,0,1f))
         root.setOnApplyWindowInsetsListener { _, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else 0
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
