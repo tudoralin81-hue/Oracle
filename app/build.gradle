@@ -45,4 +45,19 @@ android {
     }
 }
 
+// The approved icon is stored losslessly enough for launcher use as Base64 so
+// GitHub text-file updates can carry the exact supplied artwork. Materialize it
+// before Android resource processing.
+tasks.register('materializeOracleIcon') {
+    doLast {
+        def source = file('src/main/assets/oracle_icon.b64')
+        def targetDir = file('src/main/res/drawable-nodpi')
+        targetDir.mkdirs()
+        def target = file('src/main/res/drawable-nodpi/oracle_icon_raster.webp')
+        target.bytes = source.text.trim().decodeBase64()
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn('materializeOracleIcon') }
+
 kotlin { jvmToolchain(17) }
