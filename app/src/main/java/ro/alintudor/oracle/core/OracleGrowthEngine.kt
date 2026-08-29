@@ -14,10 +14,32 @@ object OracleGrowthEngine {
     private val universe = "NVDA,VRT,CEG,AMD,AVGO,PLTR,ANET,MU,AMZN,META,MSFT,GOOGL,GOOG,AAPL,TSLA,NFLX,CRWD,PANW,NOW,ORCL,CRM,ADBE,SNOW,DDOG,NET,ARM,TSM,ASML,QCOM,INTC,MRVL,SMCI,DELL,CLS,APH,GEV,ETN,FSLR,ENPH,LRCX,AMAT,KLAC,MELI,SHOP,COIN,HOOD,UBER,RKLB,LUNR,ACN,IBM,CSCO,INTU,ADP,ADSK,CDNS,SNPS,FTNT,FICO,MSI,HPE,HPQ,NTAP,WDC,STX,KEYS,ZS,OKTA,MDB,TEAM,HUBS,VEEV,PAYC,DOCU,TWLO,APP,ROKU,SPOT,U,LIN,WM,RSG,FAST,DECK,URI,CAT,CMI,PCAR,PH,ROK,EMR,HON,GE,LHX,RTX,NOC,GD,TDG,HEI,TT,CARR,JCI,IR,PWR,FIX,MTZ,EME,XOM,CVX,COP,EOG,OXY,SLB,HAL,MPC,PSX,VLO,WMB,KMI,OKE,LNG,DVN,FANG,APA,JPM,BAC,WFC,C,GS,MS,BLK,SCHW,COF,AXP,USB,PNC,TFC,BK,STT,NTRS,CBOE,CME,ICE,SPGI,MCO,MSCI,NDAQ,AMP,ALLY,DFS,UNH,LLY,JNJ,ABBV,MRK,PFE,BMY,AMGN,GILD,REGN,ISRG,ABT,TMO,DHR,SYK,BSX,MDT,BDX,EW,ZBH,RMD,DXCM,ALGN,IDXX,IQV,HCA,CI,ELV,HUM,CVS,MCK,CAH,COR,COST,WMT,TGT,HD,LOW,TJX,ROST,DG,DLTR,ORLY,AZO,ODP,BBY,NKE,LULU,CMG,MCD,SBUX,YUM,DRI,MAR,HLT,BKNG,EXPE,ABNB,PG,KO,PEP,PM,MO,CL,KMB,GIS,KHC,MDLZ,HSY,MNST,STZ,KDP,KR,CHD,CLX,EL,DIS,CMCSA,WBD,PARA,FOX,FOXA,T,VZ,TMUS,CHTR,EA,TTWO,RBLX,LYV,NEM,GOLD,FCX,NUE,STLD,DOW,DD,ECL,APD,SHW,MLM,VMC,ALB,MOS,CF,PLD,AMT,EQIX,CCI,O,OHI,WELL,VICI,PSA,SPG,AVB,EQR,ESS,INVH,ARE,NEE,DUK,SO,AEP,EXC,XEL,SRE,ED,PEG,WEC,DTE,FE,ETR,PPL,AES,CNP,CMS,NI,BA,LMT,UPS,FDX,DAL,UAL,LUV,AAL,GEHC,SWK,MMM".split(',')
 
     private data class C(val ticker:String,val price:Double,val score:Int,val rsi:Double?,val mom5:Double,val mom20:Double,val vr:Double,val macdHist:Double?,val ichi:Boolean,val sma200:Double?,val sma50:Double?,val adx:Double?,val atrPct:Double,val components:Map<String,Double>,val forecast:Map<String,Double>,val risk:String,val allocation:Double,val news:Int)
-    private val weights = mapOf("SHORT" to intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1), "MEDIUM" to intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1), "LONG" to intArrayOf(6,6,20,7,5,8,18,4,9,7,9,2))
+
+    // All horizon weights are explicitly normalized to exactly 100.
+    private val weights = mapOf(
+        "SHORT" to intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1),
+        "MEDIUM" to intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1),
+        "LONG" to intArrayOf(6,6,20,6,5,8,18,4,9,7,9,2)
+    )
     private val keys = listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
 
+    init {
+        require(weights.values.all { it.sum() == 100 }) { "Growth horizon weights must sum to 100" }
+    }
+
     fun run(seed: List<OracleGrowthRecommendation> = emptyList()): List<OracleGrowthRecommendation> {
+        // If the caller supplies an already persisted snapshot, it is authoritative.
+        // Never re-fetch/re-rank while displaying that snapshot; this prevents the same
+        // 16:00 anchor from changing during refresh/re-entry.
+        val persisted = seed.filter { it.referenceTimestamp > 0L }
+        if (persisted.isNotEmpty()) {
+            val anchor = persisted.maxOf { it.referenceTimestamp }
+            val sameAnchor = persisted.filter { it.referenceTimestamp == anchor }
+            if (sameAnchor.isNotEmpty()) {
+                return sameAnchor.sortedBy { horizonOrder(it.horizon) }
+            }
+        }
+
         val byTicker = seed.associateBy { it.ticker.uppercase(Locale.US) }
         val candidates = mutableListOf<C>()
         for (ticker in universe.distinct()) {
@@ -35,23 +57,27 @@ object OracleGrowthEngine {
         }
         val out = mutableListOf<OracleGrowthRecommendation>()
         val used = mutableSetOf<String>()
+        val snapshotTimestamp = seed.firstOrNull { it.referenceTimestamp > 0L }?.referenceTimestamp ?: System.currentTimeMillis()
         for (h in listOf("SHORT","MEDIUM","LONG")) {
-            val ranked = enriched.sortedWith(compareByDescending<C> { horizonScore(it.components,h) }.thenByDescending { tie(it,h) }.thenByDescending { it.score })
+            val ranked = enriched.sortedWith(compareByDescending<C> { horizonScore(it.components,h) }.thenByDescending { tie(it,h) }.thenByDescending { it.score }.thenBy { it.ticker })
             val pick = ranked.firstOrNull { it.ticker !in used } ?: continue
             used += pick.ticker
             val score = horizonScore(pick.components,h)
             val meta = byTicker[pick.ticker]
             out += OracleGrowthRecommendation(
-                horizon=h,ticker=pick.ticker,company=meta?.company ?: pick.ticker,sector=meta?.sector ?: "US",
+                horizon=h,ticker=pick.ticker,company=meta?.company ?: companyName(pick.ticker),sector=meta?.sector ?: "US",
                 score=score,signal=rating(score),risk=pick.risk,allocationMax=pick.allocation,
                 forecastPct=pick.forecast[h.lowercase(Locale.US)] ?: 0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,
                 weights=weights[h]!!.toList(),newsTitle=meta?.newsTitle ?: "",newsSource=meta?.newsSource ?: "",
-                referenceTimestamp=meta?.referenceTimestamp ?: 0L,currentPrice=pick.price,adx=pick.adx,
-                factorValues=keys.map { pick.components[it] ?: 50.0 },factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7"
+                referenceTimestamp=snapshotTimestamp,currentPrice=pick.price,adx=pick.adx,
+                factorValues=keys.map { pick.components[it] ?: 50.0 },factorScore=score.toDouble(),generatedAt=snapshotTimestamp,source="ORACLE_ENGINE_V6_ENHANCED"
             )
         }
         return out
     }
+
+    private fun horizonOrder(h:String)=when(h.uppercase(Locale.US)){"SHORT"->0;"MEDIUM"->1;"LONG"->2;else->9}
+    private fun companyName(t:String)=when(t.uppercase(Locale.US)){"NOW"->"ServiceNow, Inc.";"CRM"->"Salesforce, Inc.";"PD"->"PagerDuty, Inc.";"ESTC"->"Elastic N.V.";"VEEV"->"Veeva Systems Inc.";else->t}
 
     private fun evaluate(t:String,d:List<OracleOhlcvPoint>):C? {
         val r=d.sortedByDescending { it.timestamp }; val close=r.map{it.close}; val high=r.map{it.high}; val low=r.map{it.low}; val vol=r.map{it.volume}; val p=close[0]
@@ -65,7 +91,7 @@ object OracleGrowthEngine {
         val lo=close.take(20).minOrNull()?:p; val hi=close.take(20).maxOrNull()?:p; val sr=if(hi>lo)(30+70*(p-lo)/(hi-lo)).coerceIn(0.0,100.0) else 50.0
         val mid=avg(20); val sd=std(20); val bbPos=if(mid!=null&&sd!=null&&sd>0)(p-(mid-2*sd))/(4*sd) else .5; val bbWidth=if(mid!=null&&mid>0)100*(4*(sd?:0.0))/mid else 0.0
         val ema12=ema(close,12); val ema26=ema(close,26); val macd=if(ema12!=null&&ema26!=null)ema12-ema26 else null
-        val atr=atr(high,low,close,14)?:p*.01; val atrPct=100*atr/p; val stoch=if(hi>lo)100*(p-lo)/(hi-lo) else 50.0; val adx=adx(high,low,close,14); val ichi=if(close.size>=52){val t9=(high.take(9).max() + low.take(9).min())/2; val k26=(high.take(26).max()+low.take(26).min())/2; val a=(t9+k26)/2; val b=(high.take(52).max()+low.take(52).min())/2; p>max(a,b)&&t9>k26}else false
+        val atr=atr(high,low,close,14)?:p*.01; val atrPct=100*atr/p; val adx=adx(high,low,close,14); val ichi=if(close.size>=52){val t9=(high.take(9).max() + low.take(9).min())/2; val k26=(high.take(26).max()+low.take(26).min())/2; val a=(t9+k26)/2; val b=(high.take(52).max()+low.take(52).min())/2; p>max(a,b)&&t9>k26}else false
         val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0)
         val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0); val volume=(50+(vr-1)*45).coerceIn(0.0,100.0)
         val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0); val ich=if(ichi)90.0 else 30.0; val adxc=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0)
@@ -76,7 +102,7 @@ object OracleGrowthEngine {
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
-    private fun horizonScore(c:Map<String,Double>,h:String):Int { val w=weights[h]!!; return (keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).roundToInt().coerceIn(0,97) }
+    private fun horizonScore(c:Map<String,Double>,h:String):Int { val w=weights[h]!!; return (keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).roundToInt().coerceIn(0,100) }
     private fun tie(c:C,h:String):Double = when(h){"SHORT"->min(2.0,max(-2.0,c.mom5*.15))+min(1.0,max(-1.0,(c.vr-1)*.8))+(if((c.macdHist?:0.0)>0).5 else 0.0)+(if((c.rsi ?: 50.0) in 52.0..72.0).5 else 0.0)+(if((c.rsi?:50.0)>78)-1.0 else 0.0);"MEDIUM"->min(2.0,max(-2.0,c.mom20*.08))+(if(c.ichi).7 else 0.0)+(if((c.adx?:0.0)>=20).5 else 0.0)+(if((c.macdHist?:0.0)>0).3 else 0.0)+(if((c.rsi ?: 50.0) in 50.0..70.0).5 else 0.0)+(if((c.rsi?:50.0)>78)-.8 else 0.0);else->min(2.0,max(-2.0,c.mom20*.06))+(if(c.ichi).8 else 0.0)+(if((c.adx?:0.0)>=25).5 else 0.0)+(if((c.macdHist?:0.0)>0).3 else 0.0)+(if(c.sma200!=null&&c.price>c.sma200).8 else 0.0)+(if(c.sma50!=null&&c.price>c.sma50).4 else 0.0)+(if((c.rsi ?: 50.0) in 48.0..68.0).4 else 0.0)+(if((c.rsi?:50.0)>78||c.mom5>15)-.8 else 0.0)}
     private fun rating(s:Int)=when{ s>=85->"STRONG BUY";s>=75->"BUY";s>=65->"HOLD";s>=55->"WATCH";else->"AVOID" }
     private fun ema(v:List<Double>,n:Int):Double? { if(v.size<n)return null; var e=v.takeLast(n).average(); val k=2.0/(n+1); for(i in v.size-n until v.size)e=v[i]*k+e*(1-k); return e }
