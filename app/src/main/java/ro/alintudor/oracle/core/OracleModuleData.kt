@@ -13,6 +13,7 @@ data class OracleModuleData(
 
 fun OracleRepository.snapshot(): OracleModuleData {
     val actions = cachedActions()
+    val persistedJournal = cachedJournal()
     return OracleModuleData(
         positions = cachedPositions(),
         alerts = cachedAlerts(),
@@ -20,6 +21,6 @@ fun OracleRepository.snapshot(): OracleModuleData {
         history = cachedHistory(),
         actions = actions,
         knowledge = cachedKnowledge(),
-        journal = OracleActivityJournal.fromActions(actions)
+        journal = if (persistedJournal.isNotEmpty()) persistedJournal else OracleActivityJournal.fromActions(actions)
     )
 }
