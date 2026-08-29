@@ -8,7 +8,7 @@ package ro.alintudor.oracle.core
  * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 6
+    private const val VERSION = 7
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -47,9 +47,8 @@ object OracleBootstrap {
             OracleAction("MELI", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis())
         ))
 
-        // Growth fallback snapshot. It is used only until the autonomous engine completes
-        // its first refresh. Keeping this snapshot aligned with the latest approved screen
-        // prevents the user from seeing the previous recommendation set for a moment.
+        // Approved Growth snapshot for the 29.08.2026 16:00 Europe/Bucharest session.
+        // It is the visible recommendation set for this trading-day window.
         val cachedGrowth = repository.cachedGrowth()
         val t0 = 1788008400000L // 29.08.2026 16:00 Europe/Bucharest
         val canonicalGrowthFallback = listOf(
@@ -77,12 +76,14 @@ object OracleBootstrap {
         )
 
         // V5 cached Growth contained the previous VEEV/CRM/CRWD recommendation set.
-        // Replace only that known legacy set; never overwrite a newer autonomous snapshot.
+        // Replace known legacy data and, for this exact 29.08.2026 16:00 anchor,
+        // restore the approved snapshot so an old APK cannot leak a different set.
         val legacyV5 = cachedGrowth.map { it.ticker.uppercase() }.toSet() == setOf("VEEV", "CRM", "CRWD")
-        if (cachedGrowth.isEmpty() || legacyV5) {
+        val sameSession = cachedGrowth.any { it.referenceTimestamp == t0 }
+        if (cachedGrowth.isEmpty() || legacyV5 || sameSession) {
             repository.saveGrowth(canonicalGrowthFallback)
         } else {
-            // Preserve current snapshots, but migrate the known legacy 101-point LONG profile.
+            // Preserve newer snapshots, but migrate the known legacy 101-point LONG profile.
             val migrated = cachedGrowth.map { item ->
                 if (item.horizon.equals("LONG", true) && item.weights.size >= 12 && item.weights.sum() == 101 && item.weights[3] == 7) {
                     item.copy(weights = item.weights.toMutableList().also { it[3] = 6 })
