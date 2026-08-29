@@ -20,18 +20,28 @@ object OracleTechnicalIndicators {
 
     fun forTicker(ticker: String, history: List<OracleHistoryPoint>): OracleTechnicalSnapshot? {
         val key = ticker.uppercase()
-        val prices = history.filter { it.ticker.equals(ticker, true) && it.price.isFinite() && it.price > 0.0 }
+        val prices = history
+            .filter { it.ticker.equals(ticker, true) && it.price.isFinite() && it.price > 0.0 }
             .sortedBy { it.timestamp }
             .map { it.price }
-        if (prices.size < 2) return canonical[key]
+
+        /*
+         * Do not manufacture technical indicators from one/two cached quotes.
+         * The previous implementation produced RSI=0, Momentum=0 and
+         * Support=Resistance=current price when the local history was too short.
+         * For the seeded Oracle portfolio, use the canonical analysis until there
+         * is enough local history to calculate the requested indicators reliably.
+         */
+        val minimumReliableHistory = 20
+        if (prices.size < minimumReliableHistory) return canonical[key]
 
         fun momentum(lookback: Int): Double {
-            if (prices.size <= lookback) return if (prices.first() == 0.0) 0.0 else (prices.last() / prices.first() - 1.0) * 100.0
+            if (prices.size <= lookback) return 0.0
             val base = prices[prices.size - lookback - 1]
             return if (base == 0.0) 0.0 else (prices.last() / base - 1.0) * 100.0
         }
 
-        val window20 = prices.takeLast(minOf(20, prices.size))
+        val window20 = prices.takeLast(20)
         val gains = mutableListOf<Double>()
         val losses = mutableListOf<Double>()
         prices.takeLast(minOf(15, prices.size)).zipWithNext().forEach { (a, b) ->
@@ -59,6 +69,8 @@ object OracleTechnicalIndicators {
 
     fun all(history: List<OracleHistoryPoint>): Map<String, OracleTechnicalSnapshot> {
         val tickers = (history.map { it.ticker } + canonical.keys).distinct()
-        return tickers.mapNotNull { ticker -> forTicker(ticker, history)?.let { ticker to it } }.toMap()
+        return tickers.mapNotNull { ticker ->
+            forTicker(ticker, history)?.let { ticker to it }
+        }.toMap()
     }
 }
