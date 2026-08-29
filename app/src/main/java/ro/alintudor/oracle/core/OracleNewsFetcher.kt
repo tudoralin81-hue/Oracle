@@ -28,6 +28,7 @@ object OracleNewsFetcher {
     )
     private val economicKeywords = listOf("stock","stocks","share","shares","equity","equities","market","markets","nasdaq","nyse","s&p","dow","index","indices","earnings","revenue","profit","loss","guidance","ipo","merger","acquisition","m&a","fed","federal reserve","interest rate","inflation","cpi","ppi","gdp","jobs","payroll","treasury","bond","yield","forex","currency","oil","gold","silver","bitcoin","crypto","investor","investing","wall street","business","finance","financial","economy","economic","tariff","trade","bank","banks","semiconductor","energy")
 
+    /** Always performs a network read. No local news cache is used by the fetcher. */
     fun fetch(limit: Int = 150): List<OracleNews> {
         val pool = Executors.newFixedThreadPool(feeds.size.coerceAtMost(10))
         return try {
@@ -61,9 +62,12 @@ object OracleNewsFetcher {
         val connection = (URL(feed.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 2500
             readTimeout = 4000
+            useCaches = false
             requestMethod = "GET"
-            setRequestProperty("User-Agent", "OracleStockIntelligence/1.0")
+            setRequestProperty("User-Agent", "OracleStockIntelligence/1.1")
             setRequestProperty("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml")
+            setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
+            setRequestProperty("Pragma", "no-cache")
         }
         return try {
             if (connection.responseCode !in 200..299) return emptyList()
@@ -134,7 +138,7 @@ object OracleNewsFetcher {
                                 receivedAt = now,
                                 timezone = "Europe/Bucharest",
                                 rawId = id.ifBlank { link.ifBlank { title } },
-                                engineVersion = "NEWS-INGEST-4"
+                                engineVersion = "NEWS-INGEST-5"
                             )
                         }
                         inItem = false
