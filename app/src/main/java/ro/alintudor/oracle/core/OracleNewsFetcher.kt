@@ -59,12 +59,16 @@ object OracleNewsFetcher {
         .trim()
 
     private fun readFeed(feed: Feed): List<OracleNews> {
-        val connection = (URL(feed.url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 2500
-            readTimeout = 4000
+        // Explicit cache-buster + HTTP no-cache headers ensure pull-to-refresh
+        // asks the feed server for a new response instead of reusing an old body.
+        val separator = if (feed.url.contains("?")) "&" else "?"
+        val freshUrl = feed.url + separator + "oracle_refresh=" + System.currentTimeMillis()
+        val connection = (URL(freshUrl).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5000
+            readTimeout = 7000
             useCaches = false
             requestMethod = "GET"
-            setRequestProperty("User-Agent", "OracleStockIntelligence/1.1")
+            setRequestProperty("User-Agent", "OracleStockIntelligence/1.2")
             setRequestProperty("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml")
             setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
             setRequestProperty("Pragma", "no-cache")
