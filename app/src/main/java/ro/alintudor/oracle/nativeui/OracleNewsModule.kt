@@ -26,9 +26,31 @@ class OracleNewsModule(private val host: OracleNativeModule) {
     private var query = ""
     private var search: EditText? = null
 
-    fun render(news: List<OracleNews>) {
-        allNews = dedupe(news).filter(::isEconomic).sortedByDescending { it.publishedAt }
+    /**
+     * Real refreshes pass rotateOnRefresh=true.  The source order is NEVER changed;
+     * only the article order inside each source is rotated.  This also makes it
+     * immediately visible that pull-to-refresh actually rebuilt the news list.
+     */
+    fun render(news: List<OracleNews>, rotateOnRefresh: Boolean = false) {
+        val incoming = dedupe(news).filter(::isEconomic).sortedByDescending { it.publishedAt }
+        allNews = if (rotateOnRefresh) rotateArticlesWithinSources(incoming) else incoming
         renderFiltered()
+    }
+
+    private fun rotateArticlesWithinSources(items: List<OracleNews>): List<OracleNews> {
+        val grouped = items.groupBy { sourceName(it) }
+        val rotated = grouped.flatMap { (_, sourceItems) ->
+            val ordered = sourceItems.sortedWith(compareByDescending<OracleNews> { it.breaking }.thenByDescending { it.publishedAt })
+            if (ordered.size <= 1) ordered
+            else {
+                // Keep BREAKING NEWS first; rotate the normal stories by one slot.
+                val breaking = ordered.filter { it.breaking }
+                val normal = ordered.filterNot { it.breaking }
+                val shifted = if (normal.size <= 1) normal else normal.drop(1) + normal.take(1)
+                breaking + shifted
+            }
+        }
+        return rotated
     }
 
     private fun renderFiltered() {
