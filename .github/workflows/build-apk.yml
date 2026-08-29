@@ -16,8 +16,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Fix Kotlin PDF row iteration
-        run: sed -i 's/row\.forEachIndexed { c,v ->/row.withIndex().forEach { e -> val c = e.index; val v = e.value;/' app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Upload installable APK
