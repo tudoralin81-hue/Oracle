@@ -30,7 +30,15 @@ data class OracleNews(
     val source: String = "",
     val url: String = "",
     val publishedAt: Long = 0L,
-    val breaking: Boolean = false
+    val breaking: Boolean = false,
+    val publisher: String = source,
+    val sourceType: String = "NEWS",
+    val receivedAt: Long = 0L,
+    val timezone: String = "UTC",
+    val relevanceScore: Double = 0.0,
+    val sentimentScore: Double? = null,
+    val rawId: String = "",
+    val engineVersion: String = ""
 )
 
 data class OracleHistoryPoint(
