@@ -1,13 +1,8 @@
 package ro.alintudor.oracle.core
 
 /**
- * Local orchestration layer. Refreshes the complete Oracle state without any
- * network dependency: normalize positions, record a price snapshot, calculate
- * only missing actions/technical data, and maintain the alert journal.
- *
- * Existing canonical analysis decisions are preserved. The portfolio must not
- * replace a valid Oracle HOLD/BUY/SELL with a synthetic decision caused by an
- * incomplete one-point local history.
+ * Local orchestration layer. Refreshes Oracle state and obtains technical OHLCV directly
+ * from the market-data adapter; WordPress is never used as a data source.
  */
 object OracleLocalProcessor {
     fun refresh(repository: OracleRepository): OracleModuleData {
@@ -32,10 +27,32 @@ object OracleLocalProcessor {
                 ?: computedActions[p.ticker]
         }
 
-        val computedTechnical = OracleTechnicalIndicators.all(history)
+        val computedTechnical = OracleTechnicalIndicators.all(history).toMutableMap()
+        val marketTickers = (normalized.map { it.ticker } + current.growth.map { it.ticker }).distinct()
+        for (ticker in marketTickers) {
+            val candles = OracleMarketData.fetchDaily(ticker)
+            val adx = OracleTechnicalIndicators.adx14(candles)
+            if (adx != null) {
+                val base = computedTechnical[ticker]
+                if (base != null) computedTechnical[ticker] = base.copy(adx = adx)
+            }
+        }
+
         val technical = normalized.mapNotNull { p ->
-            current.technical.firstOrNull { it.ticker.equals(p.ticker, true) }
-                ?: computedTechnical[p.ticker]
+            val existing = current.technical.firstOrNull { it.ticker.equals(p.ticker, true) }
+            val computed = computedTechnical[p.ticker]
+            when {
+                existing != null && computed?.adx != null -> existing.copy(adx = computed.adx)
+                existing != null -> existing
+                else -> computed
+            }
+        }
+
+        // ADX is a live indicator value, not the ADX weight. Keep both concepts separate.
+        val growth = current.growth.map { item ->
+            val candles = OracleMarketData.fetchDaily(item.ticker)
+            val adx = OracleTechnicalIndicators.adx14(candles)
+            if (adx != null) item.copy(adx = adx) else item
         }
 
         val oldAlerts = current.alerts.filter { it.active }
@@ -62,6 +79,7 @@ object OracleLocalProcessor {
         repository.saveHistory(history)
         repository.saveAlerts(alertsByTicker)
         repository.saveJournal(journal)
+        repository.saveGrowth(growth)
 
         return repository.snapshot()
     }
