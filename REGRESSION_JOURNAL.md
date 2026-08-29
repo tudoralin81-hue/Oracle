@@ -16,7 +16,15 @@ When a new version regresses a previously working screen:
 4. Build.
 5. Only then make one controlled visual change at a time.
 
+## Rule 003 — Portfolio data and actions must be functional, not decorative
+- Portfolio must show the real stored tickers, share counts and market values; do not replace them with demo/static rows.
+- Portfolio must support adding another local position without changing existing positions.
+- `JURNAL ACTIVITATE`, `DESCARCĂ EXCEL` and `DESCARCĂ PDF` must perform real local actions and must not be plain share/placeholder buttons.
+- Export files must be written to the Android Downloads/Oracle folder on current Android versions.
+- Prevention: test the portfolio interaction path after every portfolio change, not only compilation.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
+- Portfolio functional baseline now includes explicit position summary, add-position flow, local journal view/export, CSV/Excel-compatible export and real PDF export.
 - Do not modify the restored shell until the startup/module behavior is confirmed.
