@@ -1,108 +1,333 @@
 package ro.alintudor.oracle.nativeui
 
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import ro.alintudor.oracle.core.OracleGrowthRecommendation
+import ro.alintudor.oracle.core.OracleNews
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/** Growth module translated from the supplied WordPress reference. */
+/**
+ * Growth module. Visual structure follows the approved mobile Growth mockup,
+ * while values remain the persisted Oracle snapshot and are never recalculated here.
+ */
 class OracleGrowthModule(private val host: OracleNativeModule) {
-    private val bg = Color.rgb(6,10,20)
-    private val border = Color.rgb(49,82,125)
-    private val muted = Color.rgb(165,174,195)
-    private val cyan = Color.rgb(75,225,255)
-    private val orange = Color.rgb(255,160,25)
-    private val green = Color.rgb(105,245,35)
-    private val red = Color.rgb(255,80,90)
-    private val parameterNames = listOf("News","BO","Trend","Mom","Vol","S/R","Fund","BB","Ichimoku","Mkt","R/R","ADX")
+    private val bg = Color.rgb(6, 10, 20)
+    private val panel = Color.rgb(7, 14, 28)
+    private val border = Color.rgb(49, 82, 125)
+    private val muted = Color.rgb(165, 174, 195)
+    private val cyan = Color.rgb(75, 225, 255)
+    private val orange = Color.rgb(255, 160, 25)
+    private val green = Color.rgb(105, 245, 35)
+    private val red = Color.rgb(255, 80, 90)
+    private val white = Color.WHITE
 
-    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<ro.alintudor.oracle.core.OracleNews> = emptyList()) {
+    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews> = emptyList()) {
         host.content.removeAllViews()
-        if (items.isEmpty()) { host.addCard("GROWTH","Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil."); return }
-        addIntro(items)
-        addParameters(items)
-        listOf(Triple("SHORT","TERMEN SCURT","1–10 zile bursiere"),Triple("MEDIUM","TERMEN MEDIU","2–12 săptămâni"),Triple("LONG","TERMEN LUNG","3–12 luni")).forEach { (horizon, label, range) ->
-            val recommendation = items.firstOrNull { it.horizon.equals(horizon, true) }
-            addHorizon(label, range, recommendation, fallbackNews)
+        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
+            return
         }
+
+        addGrowthHero()
+        addSummary(items)
+
+        val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
+            items.firstOrNull { it.horizon.equals(horizon, true) }
+        }
+        if (ordered.isNotEmpty()) addRecommendations(ordered, fallbackNews)
+        addNewsAndMethodology(ordered, fallbackNews)
         addHistory(items)
     }
 
-    private fun addIntro(items: List<OracleGrowthRecommendation>) {
-        val card = card(16)
-        card.addView(text("RECOMANDĂRILE DE CREȘTERE",18f,Typeface.DEFAULT_BOLD,green,0,0))
-        card.addView(text("Oracle Growth • snapshot zilnic 16:00 • univers țintă 300 companii",13f,Typeface.DEFAULT,muted,0,5))
-        val line=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(0,host.dp(12),0,0)}
-        line.addView(metric("ORIZONTURI",items.map{it.horizon}.distinct().size.toString(),cyan),LinearLayout.LayoutParams(0,-2,1f))
-        line.addView(metric("RECOMANDĂRI",items.size.toString(),orange),LinearLayout.LayoutParams(0,-2,1f))
-        line.addView(metric("ANCHOR",formatT0(items.first().referenceTimestamp),Color.WHITE),LinearLayout.LayoutParams(0,-2,1.35f))
-        card.addView(line);host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(10))})
+    private fun addGrowthHero() {
+        val card = card(14).apply { background = rounded(panel, green, 1, 16) }
+        val row = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val icon = TextView(host.root.context).apply {
+            text = "↗"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(green)
+            background = rounded(Color.rgb(18, 70, 12), Color.TRANSPARENT, 0, 50)
+        }
+        row.addView(icon, LinearLayout.LayoutParams(host.dp(68), host.dp(68)))
+        val copy = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(12), 0, host.dp(8), 0)
+        }
+        copy.addView(text("GROWTH", 22f, Typeface.DEFAULT_BOLD, green, 0, 0))
+        copy.addView(text("Randament, trend local și\ncontribuție la portofoliu", 14f, Typeface.DEFAULT, white, 0, 6))
+        row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(SparklineView(host.root.context, green), LinearLayout.LayoutParams(host.dp(150), host.dp(76)))
+        card.addView(row)
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
 
-    private fun addParameters(items: List<OracleGrowthRecommendation>) {
-        val card=card(14)
-        card.addView(text("PARAMETRII LUAȚI ÎN CALCUL",16f,Typeface.DEFAULT_BOLD,cyan,0,0))
-        card.addView(text("Ponderile sunt cele ale profilului Oracle primit pentru fiecare orizont.",13f,Typeface.DEFAULT,muted,0,5))
-        val reference=items.firstOrNull{it.horizon.equals("SHORT",true)}
-        addWeightGrid(card,reference?.weights ?: emptyList())
-        card.addView(text("Selectarea SHORT / MEDIUM / LONG schimbă profilul; Android nu modifică formulele Oracle.",11f,Typeface.DEFAULT,Color.rgb(125,135,155),0,9))
-        host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(12))})
+    private fun addSummary(items: List<OracleGrowthRecommendation>) {
+        val card = card(14)
+        card.addView(text("RECOMANDĂRILE DE CREȘTERE", 18f, Typeface.DEFAULT_BOLD, green, 0, 0))
+        card.addView(text("Oracle Growth • snapshot zilnic 16:00", 13f, Typeface.DEFAULT, muted, 0, 5))
+        val line = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, host.dp(12), 0, 0)
+        }
+        line.addView(metric("ORIZONTURI", items.map { it.horizon }.distinct().size.toString(), cyan), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(metric("RECOMANDĂRI", items.size.toString(), orange), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(metric("ANCHOR", formatT0(items.first().referenceTimestamp), white), LinearLayout.LayoutParams(0, -2, 1.55f))
+        card.addView(line)
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
 
-    private fun addHorizon(label:String,range:String,item:OracleGrowthRecommendation?,news:List<ro.alintudor.oracle.core.OracleNews>){
-        val header=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(4),host.dp(5),host.dp(4),host.dp(9))}
-        val titleRow=LinearLayout(host.root.context).apply{gravity=Gravity.CENTER_VERTICAL}
-        titleRow.addView(TextView(host.root.context).apply{text="●";textSize=22f;setTextColor(green);gravity=Gravity.CENTER},LinearLayout.LayoutParams(host.dp(34),host.dp(32)))
-        titleRow.addView(TextView(host.root.context).apply{text=label;textSize=22f;typeface=Typeface.DEFAULT_BOLD;setTextColor(orange)},LinearLayout.LayoutParams(0,-2,1f))
-        header.addView(titleRow);header.addView(text(range,14f,Typeface.DEFAULT,muted,host.dp(34),3))
-        host.content.addView(header,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(1))})
-        if(item==null){host.addCard("DATE INSUFICIENTE","Nu există încă un snapshot ${label.lowercase()} în cache.");return}
-        addRecommendation(item,news)
+    private fun addRecommendations(items: List<OracleGrowthRecommendation>, news: List<OracleNews>) {
+        val section = TextView(host.root.context).apply {
+            text = "SUMAR RECOMANDĂRI ACTIVE"
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(green)
+            setPadding(host.dp(4), host.dp(3), host.dp(4), host.dp(7))
+        }
+        host.content.addView(section)
+        items.forEach { addRecommendationCard(it, news) }
     }
 
-    private fun addRecommendation(item:OracleGrowthRecommendation,news:List<ro.alintudor.oracle.core.OracleNews>){
-        val card=card(15)
-        val timeRow=LinearLayout(host.root.context).apply{gravity=Gravity.CENTER_VERTICAL}
-        timeRow.addView(text("◷  ${formatT0(item.referenceTimestamp)}",13f,Typeface.DEFAULT,muted,0,0),LinearLayout.LayoutParams(0,-2,1f))
-        timeRow.addView(text("ANCHOR 16:00",11f,Typeface.DEFAULT_BOLD,cyan,0,0));card.addView(timeRow)
-        val identity=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(0,host.dp(14),0,host.dp(10))}
-        identity.addView(text(item.ticker,34f,Typeface.DEFAULT_BOLD,Color.WHITE,0,0),LinearLayout.LayoutParams(host.dp(125),-2))
-        val company=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL};company.addView(text(item.company,17f,Typeface.DEFAULT_BOLD,Color.WHITE,0,0));company.addView(text(item.sector,14f,Typeface.DEFAULT_BOLD,Color.rgb(160,175,205),0,5));identity.addView(company,LinearLayout.LayoutParams(0,-2,1f));card.addView(identity);card.addView(divider())
-        val metrics=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;setPadding(0,host.dp(10),0,host.dp(5))}
-        metrics.addView(metric("SCOR","${item.score}/100",cyan),LinearLayout.LayoutParams(0,-2,1f));metrics.addView(metric("SEMNAL",item.signal,orange),LinearLayout.LayoutParams(0,-2,1.2f));metrics.addView(metric("RISC",item.risk,red),LinearLayout.LayoutParams(0,-2,1f));metrics.addView(metric("ALOCARE MAX.","${format(item.allocationMax)}%",orange),LinearLayout.LayoutParams(0,-2,1f));card.addView(metrics)
-        val forecast=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(0,host.dp(13),0,host.dp(13));background=GradientDrawable().apply{setColor(Color.rgb(5,13,15));cornerRadius=host.dp(15).toFloat();setStroke(host.dp(1),Color.rgb(47,95,125))}}
-        forecast.addView(text("Potențial estimat",18f,Typeface.DEFAULT,Color.WHITE,0,0).apply{gravity=Gravity.CENTER});forecast.addView(text("${if(item.forecastPct>=0)"+" else ""}${format(item.forecastPct)}%",42f,Typeface.DEFAULT_BOLD,green,0,5).apply{gravity=Gravity.CENTER});card.addView(forecast,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,host.dp(6),0,host.dp(10))})
-        val mom=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;setPadding(0,host.dp(2),0,host.dp(9))}
-        mom.addView(metric("MOMENTUM 5D","${format(item.momentum5D)}%",cyan),LinearLayout.LayoutParams(0,-2,1f));mom.addView(metric("MOMENTUM 20D","${format(item.momentum20D)}%",cyan),LinearLayout.LayoutParams(0,-2,1f));item.currentActualPct?.let{mom.addView(metric("ACTUAL","${format(it)}%",Color.WHITE),LinearLayout.LayoutParams(0,-2,1f))};card.addView(mom)
-        card.addView(text("Ponderi (importanță)",16f,Typeface.DEFAULT_BOLD,Color.WHITE,0,4));addWeightGrid(card,item.weights)
-        val linkedNews=news.firstOrNull{it.ticker.equals(item.ticker,true)};val newsTitle=if(item.newsTitle.isNotBlank())item.newsTitle else linkedNews?.title.orEmpty();val source=if(item.newsSource.isNotBlank())item.newsSource else linkedNews?.source.orEmpty()
-        if(newsTitle.isNotBlank()){val newsCard=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(2),host.dp(11),host.dp(2),host.dp(2))};newsCard.addView(text("▣  ${if(source.isBlank())"NEWS" else source}",12f,Typeface.DEFAULT_BOLD,cyan,0,0));newsCard.addView(text(newsTitle,14f,Typeface.DEFAULT,Color.WHITE,0,5));card.addView(newsCard)}
-        card.addView(text("Datele sunt informative și nu constituie recomandări de investiții.",11f,Typeface.DEFAULT,Color.rgb(125,135,155),0,11));host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(13))})
+    private fun addRecommendationCard(item: OracleGrowthRecommendation, news: List<OracleNews>) {
+        val accent = when (item.horizon.uppercase(Locale.US)) {
+            "SHORT" -> cyan
+            "MEDIUM" -> orange
+            else -> green
+        }
+        val card = card(12).apply { background = rounded(bg, accent, 1, 15) }
+
+        val top = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val left = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        left.addView(text(horizonLabel(item.horizon), 13f, Typeface.DEFAULT_BOLD, accent, 0, 0))
+        left.addView(text(horizonRange(item.horizon), 11f, Typeface.DEFAULT, muted, 0, 3))
+        top.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(text(formatT0(item.referenceTimestamp), 10f, Typeface.DEFAULT, muted, 0, 0))
+        card.addView(top)
+
+        val identity = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, host.dp(10), 0, host.dp(8))
+        }
+        val ticker = text(item.ticker, 30f, Typeface.DEFAULT_BOLD, white, 0, 0)
+        identity.addView(ticker, LinearLayout.LayoutParams(host.dp(120), -2))
+        val company = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        company.addView(text(item.company, 15f, Typeface.DEFAULT_BOLD, white, 0, 0))
+        company.addView(text(item.sector, 11f, Typeface.DEFAULT_BOLD, Color.rgb(150, 170, 205), 0, 4))
+        identity.addView(company, LinearLayout.LayoutParams(0, -2, 1f))
+        identity.addView(text("›", 28f, Typeface.DEFAULT, accent, 0, 0))
+        card.addView(identity)
+        card.addView(divider())
+
+        val metrics = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, host.dp(7), 0, host.dp(4))
+        }
+        metrics.addView(metric("SCOR", "${item.score}/100", cyan), LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(metric("SEMNAL", compactSignal(item.signal), orange), LinearLayout.LayoutParams(0, -2, 1.15f))
+        metrics.addView(metric("RISC", item.risk, riskColor(item.risk)), LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(metric("ALOCARE", "${format(item.allocationMax)}%", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        card.addView(metrics)
+
+        val lower = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, host.dp(5), 0, host.dp(4))
+        }
+        val forecast = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
+        forecast.addView(text("Potențial estimat", 10f, Typeface.DEFAULT, muted, 0, 0))
+        forecast.addView(text(signedPct(item.forecastPct), 22f, Typeface.DEFAULT_BOLD, green, 0, 2))
+        lower.addView(forecast, LinearLayout.LayoutParams(0, -2, 1.15f))
+        val momentum = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        momentum.addView(text("Momentum", 10f, Typeface.DEFAULT, muted, 0, 0))
+        momentum.addView(text("5D: ${signedPct(item.momentum5D)}", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 2))
+        momentum.addView(text("20D: ${signedPct(item.momentum20D)}", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 2))
+        lower.addView(momentum, LinearLayout.LayoutParams(0, -2, 1.1f))
+        lower.addView(SparklineView(host.root.context, accent), LinearLayout.LayoutParams(host.dp(112), host.dp(52)))
+        card.addView(lower)
+
+        addCompactWeights(card, item.weights)
+
+        val linked = news.firstOrNull { it.ticker.equals(item.ticker, true) }
+        val newsTitle = if (item.newsTitle.isNotBlank()) item.newsTitle else linked?.title.orEmpty()
+        val source = if (item.newsSource.isNotBlank()) item.newsSource else linked?.source.orEmpty()
+        if (newsTitle.isNotBlank()) {
+            card.addView(text("▣  ${if (source.isBlank()) "NEWS" else source}", 10f, Typeface.DEFAULT_BOLD, cyan, 0, 5))
+            card.addView(text(newsTitle, 11f, Typeface.DEFAULT, white, 0, 4))
+        }
+        card.addView(text("Datele sunt informative și nu constituie recomandări de investiții.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), 0, 8))
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(9)) })
     }
 
-    private fun addWeightGrid(parent:LinearLayout,weights:List<Int>){
-        if(weights.isEmpty())return
-        val columns=if(host.root.context.resources.configuration.screenWidthDp>=600)6 else 3;val rows=(parameterNames.size+columns-1)/columns
-        for(r in 0 until rows){val row=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL};for(c in 0 until columns){val index=r*columns+c;if(index>=parameterNames.size)break;val value=weights.getOrNull(index)?:0;val cell=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(host.dp(2),host.dp(8),host.dp(2),host.dp(8))};cell.addView(text(parameterNames[index],10f,Typeface.DEFAULT,muted,0,0).apply{gravity=Gravity.CENTER});cell.addView(text(if(value>0)value.toString() else "—",15f,Typeface.DEFAULT_BOLD,cyan,0,3).apply{gravity=Gravity.CENTER});row.addView(cell,LinearLayout.LayoutParams(0,-2,1f))};parent.addView(row)}
+    private fun addCompactWeights(parent: LinearLayout, weights: List<Int>) {
+        if (weights.isEmpty()) return
+        val title = text("Ponderi", 10f, Typeface.DEFAULT_BOLD, white, 0, 5)
+        parent.addView(title)
+        val names = listOf("News", "BO", "Trend", "Mom", "Vol", "S/R", "Fund", "BB", "Ichimoku", "Mkt", "R/R", "ADX")
+        val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, host.dp(2), 0, host.dp(1)) }
+        val columns = 6
+        for (r in 0 until 2) {
+            val row = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            for (c in 0 until columns) {
+                val i = r * columns + c
+                val cell = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(host.dp(2), host.dp(2), host.dp(2), host.dp(2))
+                }
+                cell.addView(text(names[i], 8f, Typeface.DEFAULT, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+                cell.addView(text(weights.getOrNull(i)?.takeIf { it > 0 }?.toString() ?: "—", 9f, Typeface.DEFAULT_BOLD, cyan, 0, 0))
+                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+            grid.addView(row)
+        }
+        parent.addView(grid)
     }
 
-    private fun addHistory(items:List<OracleGrowthRecommendation>){
-        val label=TextView(host.root.context).apply{text="JURNAL GROWTH • ISTORIC FORECAST";textSize=17f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.06f;setTextColor(cyan);setPadding(host.dp(4),host.dp(9),host.dp(4),host.dp(8))};host.content.addView(label)
-        items.sortedBy{it.referenceTimestamp}.forEach{item->val row=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(host.dp(14),host.dp(12),host.dp(14),host.dp(12));background=GradientDrawable().apply{setColor(bg);cornerRadius=host.dp(13).toFloat();setStroke(host.dp(1),Color.rgb(34,43,65))}};row.addView(text(item.ticker,16f,Typeface.DEFAULT_BOLD,Color.WHITE,0,0),LinearLayout.LayoutParams(host.dp(64),-2));row.addView(text("${item.horizon}\nT0 ${formatT0(item.referenceTimestamp)}",11f,Typeface.DEFAULT,muted,0,0),LinearLayout.LayoutParams(0,-2,1.4f));row.addView(text("Forecast\n${if(item.forecastPct>=0)"+" else ""}${format(item.forecastPct)}%",12f,Typeface.DEFAULT_BOLD,green,0,0),LinearLayout.LayoutParams(0,-2,1f));row.addView(text("Scor\n${item.score}/100",12f,Typeface.DEFAULT_BOLD,cyan,0,0),LinearLayout.LayoutParams(0,-2,.8f));host.content.addView(row,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(8))})}
-        host.content.addView(text("Istoricul este append-only: o schimbare de forecast nu rescrie T0.",11f,Typeface.DEFAULT,Color.rgb(125,135,155),host.dp(4),4),LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(18))})
+    private fun addNewsAndMethodology(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews>) {
+        val recent = items.mapNotNull { item ->
+            val n = fallbackNews.firstOrNull { it.ticker.equals(item.ticker, true) }
+            if (n != null) n else if (item.newsTitle.isNotBlank()) OracleNews(item.ticker, item.newsTitle, item.newsSource, "", item.referenceTimestamp, false) else null
+        }.distinctBy { it.ticker }
+        if (recent.isNotEmpty()) {
+            val card = card(12)
+            card.addView(text("ȘTIRI & CATALIZATORI RECENȚI", 15f, Typeface.DEFAULT_BOLD, green, 0, 0))
+            recent.forEach { n ->
+                card.addView(text("▣  ${n.title}", 11f, Typeface.DEFAULT, white, 0, 7))
+                card.addView(text("${formatT0(n.publishedAt)} • ${n.source}", 9f, Typeface.DEFAULT, muted, host.dp(18), 2))
+            }
+            host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+        }
+        val method = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(14), host.dp(9), host.dp(12), host.dp(9))
+            background = rounded(bg, green, 1, 13)
+        }
+        method.addView(text("☷", 18f, Typeface.DEFAULT, green, 0, 0), LinearLayout.LayoutParams(host.dp(32), -2))
+        method.addView(text("VEZI METODOLOGIA ȘI PONDERILE", 11f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+        method.addView(text("›", 23f, Typeface.DEFAULT, green, 0, 0))
+        host.content.addView(method, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(12)) })
     }
 
-    private fun card(padding:Int)=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(padding),host.dp(padding),host.dp(padding),host.dp(padding));background=GradientDrawable().apply{setColor(bg);cornerRadius=host.dp(16).toFloat();setStroke(host.dp(1),border)}}
-    private fun divider()=android.view.View(host.root.context).apply{setBackgroundColor(Color.rgb(35,48,70));layoutParams=LinearLayout.LayoutParams(-1,host.dp(1))}
-    private fun metric(label:String,value:String,color:Int)=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(3),host.dp(4),host.dp(3),host.dp(4));gravity=Gravity.CENTER;addView(text(label,10f,Typeface.DEFAULT,muted,0,0).apply{gravity=Gravity.CENTER});addView(text(value,16f,Typeface.DEFAULT_BOLD,color,0,4).apply{gravity=Gravity.CENTER})}
-    private fun text(value:String,size:Float,typeface:Typeface,color:Int,left:Int,top:Int)=TextView(host.root.context).apply{text=value;textSize=size;this.typeface=typeface;setTextColor(color);setPadding(left,top,0,0)}
-    private fun format(v:Double)="%.1f".format(Locale.US,v)
-    private fun formatT0(timestamp:Long):String{if(timestamp<=0L)return "—";val f=SimpleDateFormat("dd.MM.yyyy HH:mm",Locale("ro","RO"));f.timeZone=TimeZone.getTimeZone("Europe/Bucharest");return f.format(Date(timestamp))}
+    private fun addHistory(items: List<OracleGrowthRecommendation>) {
+        val label = TextView(host.root.context).apply {
+            text = "JURNAL GROWTH • ISTORIC FORECAST"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = .05f
+            setTextColor(cyan)
+            setPadding(host.dp(4), host.dp(5), host.dp(4), host.dp(7))
+        }
+        host.content.addView(label)
+        items.sortedBy { it.referenceTimestamp }.forEach { item ->
+            val row = LinearLayout(host.root.context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(host.dp(10), host.dp(8), host.dp(10), host.dp(8))
+                background = rounded(bg, Color.rgb(34, 43, 65), 1, 11)
+            }
+            row.addView(text(item.ticker, 13f, Typeface.DEFAULT_BOLD, white, 0, 0), LinearLayout.LayoutParams(host.dp(58), -2))
+            row.addView(text("${item.horizon}\nT0 ${formatT0(item.referenceTimestamp)}", 9f, Typeface.DEFAULT, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1.35f))
+            row.addView(text("Forecast\n${signedPct(item.forecastPct)}", 10f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(text("Scor\n${item.score}/100", 10f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, .8f))
+            host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
+        }
+        host.content.addView(text("Istoricul este append-only: o schimbare de forecast nu rescrie T0.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), host.dp(4), 2), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(15)) })
+    }
+
+    private fun horizonLabel(horizon: String) = when (horizon.uppercase(Locale.US)) {
+        "SHORT" -> "●  TERMEN SCURT"
+        "MEDIUM" -> "●  TERMEN MEDIU"
+        else -> "●  TERMEN LUNG"
+    }
+
+    private fun horizonRange(horizon: String) = when (horizon.uppercase(Locale.US)) {
+        "SHORT" -> "1–10 zile bursiere"
+        "MEDIUM" -> "2–12 săptămâni"
+        else -> "3–12 luni"
+    }
+
+    private fun compactSignal(signal: String) = signal.replace("STRONG ", "STRONG\n").trim()
+
+    private fun riskColor(risk: String): Int = if (risk.contains("RID", true)) red else orange
+
+    private fun signedPct(v: Double) = if (v >= 0) "+${format(v)}%" else "${format(v)}%"
+    private fun format(v: Double) = "%.1f".format(Locale.US, v)
+
+    private fun formatT0(timestamp: Long): String {
+        if (timestamp <= 0L) return "—"
+        val f = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro", "RO"))
+        f.timeZone = TimeZone.getTimeZone("Europe/Bucharest")
+        return f.format(Date(timestamp))
+    }
+
+    private fun card(padding: Int) = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(host.dp(padding), host.dp(padding), host.dp(padding), host.dp(padding))
+        background = rounded(bg, border, 1, 16)
+    }
+
+    private fun rounded(fill: Int, stroke: Int, strokeWidth: Int, radius: Int) = GradientDrawable().apply {
+        setColor(fill)
+        if (strokeWidth > 0) setStroke(host.dp(strokeWidth), stroke)
+        cornerRadius = host.dp(radius).toFloat()
+    }
+
+    private fun divider() = View(host.root.context).apply {
+        setBackgroundColor(Color.rgb(35, 48, 70))
+        layoutParams = LinearLayout.LayoutParams(-1, host.dp(1))
+    }
+
+    private fun metric(label: String, value: String, color: Int) = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(host.dp(2), host.dp(2), host.dp(2), host.dp(2))
+        gravity = Gravity.CENTER
+        addView(text(label, 8f, Typeface.DEFAULT, muted, 0, 0).apply { gravity = Gravity.CENTER })
+        addView(text(value, 13f, Typeface.DEFAULT_BOLD, color, 0, 3).apply { gravity = Gravity.CENTER })
+    }
+
+    private fun text(value: String, size: Float, typeface: Typeface, color: Int, left: Int, top: Int) = TextView(host.root.context).apply {
+        text = value
+        textSize = size
+        this.typeface = typeface
+        setTextColor(color)
+        setPadding(left, top, 0, 0)
+    }
+
+    private class SparklineView(context: android.content.Context, private val lineColor: Int) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            paint.color = lineColor
+            val p = Path()
+            val pts = floatArrayOf(.02f,.78f, .14f,.55f, .25f,.67f, .37f,.44f, .48f,.57f, .61f,.31f, .73f,.46f, .86f,.20f, .98f,.05f)
+            for (i in pts.indices step 2) {
+                val x = pts[i] * width
+                val y = pts[i + 1] * height
+                if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+            }
+            canvas.drawPath(p, paint)
+            canvas.drawCircle(width * .98f, height * .05f, 4f, paint)
+        }
+    }
 }
