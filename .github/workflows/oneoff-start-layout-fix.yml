@@ -1,0 +1,36 @@
+name: One-off Start layout fix
+on:
+  push:
+    branches: [ main ]
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Fix Start layout spacing'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Start layout fix
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s = p.read_text()
+          old = 'val heroHeightPx=(resources.displayMetrics.heightPixels*.68f).toInt().coerceAtLeast(dp(620))'
+          new = 'val heroHeightPx=(resources.displayMetrics.heightPixels*.80f).toInt().coerceAtLeast(dp(620))'
+          if s.count(old) != 1:
+              raise SystemExit(f'hero height pattern count={s.count(old)}')
+          s = s.replace(old,new)
+          old2 = 'page.addView(TextView(this).apply{text="Atinge un modul din hartă pentru a-l deschide";textSize=11f;gravity=Gravity.CENTER;setTextColor(Color.rgb(95,105,125));setPadding(0,dp(12),0,0)})'
+          if s.count(old2) != 1:
+              raise SystemExit(f'instruction pattern count={s.count(old2)}')
+          s = s.replace(old2,'')
+          p.write_text(s)
+      - name: Commit Start layout fix
+        shell: bash
+        run: |
+          git config user.name 'oracle-bot'
+          git config user.email 'oracle-bot@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          git commit -m 'Fix Start layout spacing'
+          git push
