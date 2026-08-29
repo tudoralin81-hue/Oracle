@@ -46,7 +46,7 @@ class OracleRepository(private val context: Context) {
     private fun newsFromJson(o: JSONObject) = OracleNews(o.optString("ticker"),o.optString("title"),o.optString("source"),o.optString("url"),o.optLong("publishedAt"),o.optBoolean("breaking",false))
     private fun historyFromJson(o: JSONObject) = OracleHistoryPoint(o.optString("ticker"),o.optLong("timestamp"),o.optDouble("price"),o.optDouble("value"),o.optDouble("pnl"))
     private fun actionFromJson(o: JSONObject) = OracleAction(o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optLong("timestamp"))
-    private fun technicalFromJson(o: JSONObject) = OracleTechnicalSnapshot(o.optString("ticker"),o.optDouble("rsi"),o.optDouble("sma50"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),o.optDouble("support20D"),o.optDouble("resistance20D"))
+    private fun technicalFromJson(o: JSONObject) = OracleTechnicalSnapshot(o.optString("ticker"),o.optDouble("rsi"),o.optDouble("sma50"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),o.optDouble("support20D"),o.optDouble("resistance20D"), if(o.has("adx") && !o.isNull("adx")) o.optDouble("adx") else null)
     private fun knowledgeFromJson(o: JSONObject) = OracleKnowledgeItem(o.optString("title"),o.optString("category"),o.optString("content"),o.optLong("publishedAt"))
     private fun journalFromJson(o: JSONObject) = OracleJournalEntry(o.optLong("timestamp"),o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optString("status","ACTIVE"),o.optDouble("shares"),o.optDouble("entryPrice"),o.optDouble("salePrice"),o.optDouble("salePercent"),o.optDouble("entryValue"),o.optDouble("saleValue"),o.optDouble("realizedPnl"),o.optString("positionId"))
     private fun growthFromJson(o: JSONObject): OracleGrowthRecommendation {
@@ -55,7 +55,8 @@ class OracleRepository(private val context: Context) {
         val actual=if(o.has("currentActualPct") && !o.isNull("currentActualPct"))o.optDouble("currentActualPct") else null
         val ref=if(o.has("referencePrice") && !o.isNull("referencePrice"))o.optDouble("referencePrice") else null
         val cur=if(o.has("currentPrice") && !o.isNull("currentPrice"))o.optDouble("currentPrice") else null
-        return OracleGrowthRecommendation(o.optString("horizon"),o.optString("ticker"),o.optString("company"),o.optString("sector"),o.optInt("score"),o.optString("signal"),o.optString("risk"),o.optDouble("allocationMax"),o.optDouble("forecastPct"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),weights,o.optString("newsTitle"),o.optString("newsSource"),o.optLong("referenceTimestamp"),actual,ref,cur)
+        val adx=if(o.has("adx") && !o.isNull("adx"))o.optDouble("adx") else null
+        return OracleGrowthRecommendation(o.optString("horizon"),o.optString("ticker"),o.optString("company"),o.optString("sector"),o.optInt("score"),o.optString("signal"),o.optString("risk"),o.optDouble("allocationMax"),o.optDouble("forecastPct"),o.optDouble("momentum5D"),o.optDouble("momentum20D"),weights,o.optString("newsTitle"),o.optString("newsSource"),o.optLong("referenceTimestamp"),actual,ref,cur,adx)
     }
 }
 
@@ -64,7 +65,7 @@ private fun OracleAlert.toJson() = JSONObject().apply { put("ticker",ticker); pu
 private fun OracleNews.toJson() = JSONObject().apply { put("ticker",ticker); put("title",title); put("source",source); put("url",url); put("publishedAt",publishedAt); put("breaking",breaking) }
 private fun OracleHistoryPoint.toJson() = JSONObject().apply { put("ticker",ticker); put("timestamp",timestamp); put("price",price); put("value",value); put("pnl",pnl) }
 private fun OracleAction.toJson() = JSONObject().apply { put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("timestamp",timestamp) }
-private fun OracleTechnicalSnapshot.toJson() = JSONObject().apply { put("ticker",ticker); put("rsi",rsi); put("sma50",sma50); put("momentum5D",momentum5D); put("momentum20D",momentum20D); put("support20D",support20D); put("resistance20D",resistance20D) }
+private fun OracleTechnicalSnapshot.toJson() = JSONObject().apply { put("ticker",ticker); put("rsi",rsi); put("sma50",sma50); put("momentum5D",momentum5D); put("momentum20D",momentum20D); put("support20D",support20D); put("resistance20D",resistance20D); if(adx!=null)put("adx",adx) else put("adx",JSONObject.NULL) }
 private fun OracleKnowledgeItem.toJson() = JSONObject().apply { put("title",title); put("category",category); put("content",content); put("publishedAt",publishedAt) }
 private fun OracleJournalEntry.toJson() = JSONObject().apply { put("timestamp",timestamp); put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("status",status); put("shares",shares); put("entryPrice",entryPrice); put("salePrice",salePrice); put("salePercent",salePercent); put("entryValue",entryValue); put("saleValue",saleValue); put("realizedPnl",realizedPnl); put("positionId",positionId) }
 private fun OracleGrowthRecommendation.toJson() = JSONObject().apply {
@@ -74,4 +75,5 @@ private fun OracleGrowthRecommendation.toJson() = JSONObject().apply {
     if(currentActualPct!=null)put("currentActualPct",currentActualPct) else put("currentActualPct",JSONObject.NULL)
     if(referencePrice!=null)put("referencePrice",referencePrice) else put("referencePrice",JSONObject.NULL)
     if(currentPrice!=null)put("currentPrice",currentPrice) else put("currentPrice",JSONObject.NULL)
+    if(adx!=null)put("adx",adx) else put("adx",JSONObject.NULL)
 }
