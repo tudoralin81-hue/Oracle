@@ -8,7 +8,8 @@ data class OracleTechnicalSnapshot(
     val momentum5D: Double,
     val momentum20D: Double,
     val support20D: Double,
-    val resistance20D: Double
+    val resistance20D: Double,
+    val adx: Double? = null
 )
 
 object OracleTechnicalIndicators {
@@ -65,6 +66,55 @@ object OracleTechnicalIndicators {
             support20D = window20.minOrNull() ?: prices.last(),
             resistance20D = window20.maxOrNull() ?: prices.last()
         )
+    }
+
+    /** Wilder ADX(14), calculated from real OHLC candles. Returns null when history is insufficient. */
+    fun adx14(candles: List<OracleOhlcvPoint>): Double? {
+        val data = candles.filter {
+            it.open.isFinite() && it.high.isFinite() && it.low.isFinite() && it.close.isFinite() &&
+                it.high >= it.low && it.close > 0.0
+        }.sortedBy { it.timestamp }
+        val period = 14
+        if (data.size < period * 2 + 1) return null
+
+        val tr = ArrayList<Double>(data.size - 1)
+        val plusDm = ArrayList<Double>(data.size - 1)
+        val minusDm = ArrayList<Double>(data.size - 1)
+        for (i in 1 until data.size) {
+            val cur = data[i]
+            val prev = data[i - 1]
+            val upMove = cur.high - prev.high
+            val downMove = prev.low - cur.low
+            tr += maxOf(cur.high - cur.low, kotlin.math.abs(cur.high - prev.close), kotlin.math.abs(cur.low - prev.close))
+            plusDm += if (upMove > downMove && upMove > 0.0) upMove else 0.0
+            minusDm += if (downMove > upMove && downMove > 0.0) downMove else 0.0
+        }
+
+        var smTr = tr.take(period).sum()
+        var smPlus = plusDm.take(period).sum()
+        var smMinus = minusDm.take(period).sum()
+        val dx = ArrayList<Double>()
+
+        fun appendDx() {
+            if (smTr <= 0.0) return
+            val plusDi = 100.0 * smPlus / smTr
+            val minusDi = 100.0 * smMinus / smTr
+            val denominator = plusDi + minusDi
+            if (denominator > 0.0) dx += 100.0 * kotlin.math.abs(plusDi - minusDi) / denominator
+        }
+
+        appendDx()
+        for (i in period until tr.size) {
+            smTr = smTr - smTr / period + tr[i]
+            smPlus = smPlus - smPlus / period + plusDm[i]
+            smMinus = smMinus - smMinus / period + minusDm[i]
+            appendDx()
+        }
+        if (dx.size < period) return null
+
+        var adx = dx.take(period).average()
+        for (i in period until dx.size) adx = (adx * (period - 1) + dx[i]) / period
+        return adx.takeIf { it.isFinite() }?.coerceIn(0.0, 100.0)
     }
 
     fun all(history: List<OracleHistoryPoint>): Map<String, OracleTechnicalSnapshot> {
