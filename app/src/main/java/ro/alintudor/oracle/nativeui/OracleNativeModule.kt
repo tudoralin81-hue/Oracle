@@ -20,12 +20,19 @@ class OracleNativeModule(private val context: Context, private val title: String
         setOnApplyWindowInsetsListener { view, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else insets.systemWindowInsetBottom
-            view.setPadding(dp(10), dp(6) + top, dp(10), dp(8) + bottom)
+            // Keep every Oracle module inside the Android safe area. The shared shell
+            // is used by Portfolio, Alerts, News, Growth, Knowledge, Analysis,
+            // Watchlist and Journal, so the fix applies consistently everywhere.
+            view.setPadding(dp(10), dp(6) + top, dp(10), dp(10) + bottom)
             insets
         }
         post { requestApplyInsets() }
     }
-    val content = LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(2),dp(6),dp(2),dp(28)) }
+    val content = LinearLayout(context).apply {
+        orientation=LinearLayout.VERTICAL
+        // Extra scrollable space keeps the last cards/buttons above Android navigation controls.
+        setPadding(dp(2),dp(6),dp(2),dp(48))
+    }
     val accent = when(title.uppercase()) {
         "ALERTS" -> Color.rgb(255,75,40)
         "NEWS","ANALYSIS" -> Color.rgb(25,205,255)
@@ -34,17 +41,18 @@ class OracleNativeModule(private val context: Context, private val title: String
         else -> Color.rgb(255,210,45)
     }
     init {
-        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),0,dp(2),dp(7)) }
+        // Taller shared header prevents the module title from being clipped by the divider.
+        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(3),dp(2),dp(5)) }
         header.addView(button("‹","Home",Color.rgb(255,205,45)){(context as? android.app.Activity)?.onBackPressed()},LinearLayout.LayoutParams(dp(46),dp(46)))
         val center=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
-        center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER})
-        center.addView(TextView(context).apply{text=title;textSize=10f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER})
-        header.addView(center,LinearLayout.LayoutParams(0,dp(46),1f))
+        center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true})
+        center.addView(TextView(context).apply{text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true})
+        header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
         header.addView(button("↻","Refresh",Color.rgb(255,205,45)){onRefresh()},LinearLayout.LayoutParams(dp(46),dp(46)))
-        root.addView(header)
+        root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         if(title.uppercase()=="GROWTH") root.addView(GrowthBanner(context),LinearLayout.LayoutParams(-1,dp(132)).apply{setMargins(dp(2),dp(1),dp(2),dp(8))})
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
-        root.addView(ScrollView(context).apply{addView(content)},LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(ScrollView(context).apply{clipToPadding=false;addView(content)},LinearLayout.LayoutParams(-1,0,1f))
     }
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
         text=symbol;textSize=30f;gravity=Gravity.CENTER;contentDescription=desc;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)
