@@ -1,25 +1,44 @@
 name: Build Oracle APK
 on:
   push:
+    branches: [ main, 'ui/**' ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  build:
+  regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard Start-only changes
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || '1e8e703d27148ef9d0cf560fc62ac22fbd220919' }}"
+          git diff --name-only "$BASE" HEAD > /tmp/changed.txt
+          cat /tmp/changed.txt
+          while read f; do
+            case "$f" in
+              app/src/main/java/ro/alintudor/oracle/MainActivity.kt|REGRESSION_JOURNAL.md|.github/workflows/build-apk.yml) ;;
+              *) echo "UNAUTHORIZED CHANGE: $f"; exit 1;;
+            esac
+          done < /tmp/changed.txt
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Build signed release APK
+      - name: Build release APK
         run: gradle :app:assembleRelease --stacktrace
-      - name: Upload installable APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-installable
+          name: Oracle-APK-${{ github.sha }}
           path: app/build/outputs/apk/release/*.apk
