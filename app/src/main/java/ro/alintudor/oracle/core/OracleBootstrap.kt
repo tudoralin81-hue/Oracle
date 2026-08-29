@@ -8,7 +8,7 @@ package ro.alintudor.oracle.core
  * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 5
+    private const val VERSION = 6
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -47,37 +47,42 @@ object OracleBootstrap {
             OracleAction("MELI", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis())
         ))
 
-        // Growth reference snapshot supplied from the WordPress UI screenshots.
-        // These are cached Oracle values; Android does not invent or recalculate Oracle formulas.
+        // Growth fallback snapshot. It is used only until the autonomous engine completes
+        // its first refresh. Keeping this snapshot aligned with the latest approved screen
+        // prevents the user from seeing the previous recommendation set for a moment.
         val cachedGrowth = repository.cachedGrowth()
-        if (cachedGrowth.isEmpty()) {
-            val t0 = 1788008400000L // 29.08.2026 16:00 Europe/Bucharest
-            repository.saveGrowth(listOf(
-                OracleGrowthRecommendation(
-                    horizon="SHORT", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
-                    score=97, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=8.1,
-                    momentum5D=12.6, momentum20D=40.0,
-                    weights=listOf(22,18,12,16,12,8,3,4,2,2,1,0),
-                    newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory", newsSource="StockStory", referenceTimestamp=t0
-                ),
-                OracleGrowthRecommendation(
-                    horizon="MEDIUM", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
-                    score=91, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=18.6,
-                    momentum5D=22.7, momentum20D=39.5,
-                    weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
-                    newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC", referenceTimestamp=t0
-                ),
-                OracleGrowthRecommendation(
-                    horizon="LONG", ticker="CRWD", company="CrowdStrike Holdings, Inc.", sector="Technology",
-                    score=82, signal="BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=40.1,
-                    momentum5D=19.8, momentum20D=23.1,
-                    // V5 correction: LONG Momentum 7 -> 6, bringing the official profile to 100.
-                    weights=listOf(6,6,20,6,5,8,18,4,9,7,9,2),
-                    newsTitle="CrowdStrike jumps 11% on record second quarter as 'Mythos moment' drives AI cyber wave - CNBC", newsSource="CNBC", referenceTimestamp=t0
-                )
-            ))
+        val t0 = 1788008400000L // 29.08.2026 16:00 Europe/Bucharest
+        val canonicalGrowthFallback = listOf(
+            OracleGrowthRecommendation(
+                horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Technology",
+                score=86, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=6.1,
+                momentum5D=16.8, momentum20D=24.9,
+                weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1),
+                newsTitle="", newsSource="", referenceTimestamp=t0
+            ),
+            OracleGrowthRecommendation(
+                horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
+                score=85, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=18.2,
+                momentum5D=12.6, momentum20D=40.0,
+                weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
+                newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory", newsSource="StockStory", referenceTimestamp=t0
+            ),
+            OracleGrowthRecommendation(
+                horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
+                score=81, signal="BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=33.1,
+                momentum5D=22.7, momentum20D=39.5,
+                weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
+                newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC", referenceTimestamp=t0
+            )
+        )
+
+        // V5 cached Growth contained the previous VEEV/CRM/CRWD recommendation set.
+        // Replace only that known legacy set; never overwrite a newer autonomous snapshot.
+        val legacyV5 = cachedGrowth.map { it.ticker.uppercase() }.toSet() == setOf("VEEV", "CRM", "CRWD")
+        if (cachedGrowth.isEmpty() || legacyV5) {
+            repository.saveGrowth(canonicalGrowthFallback)
         } else {
-            // Migrate only the known pre-V5 LONG seed (sum 101) to the corrected 100-point profile.
+            // Preserve current snapshots, but migrate the known legacy 101-point LONG profile.
             val migrated = cachedGrowth.map { item ->
                 if (item.horizon.equals("LONG", true) && item.weights.size >= 12 && item.weights.sum() == 101 && item.weights[3] == 7) {
                     item.copy(weights = item.weights.toMutableList().also { it[3] = 6 })
