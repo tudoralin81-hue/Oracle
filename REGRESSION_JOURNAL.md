@@ -60,6 +60,18 @@ When a new version regresses a previously working screen:
 - Growth must remain responsive on phone/tablet and inherit the shared Android safe-area shell.
 - Growth history is append-only: forecast changes must not overwrite the original T0 snapshot.
 
+## Rule 009 — Growth UI has one hero and no methodology shortcut card
+- The shared `OracleNativeModule` `GrowthBanner` is the single Growth hero.
+- `OracleGrowthModule` must not add a second Growth hero/card below the module header.
+- The `VEZI METODOLOGIA ȘI PONDERILE` shortcut card is intentionally removed from the Growth screen; the compact 12-weight grid remains inside each recommendation card.
+- Recommendation tickers must remain prominent and visible on phone/tablet.
+- VEEV ADX is displayed as `—` when the Oracle snapshot contains no ADX value; this is a missing-data state, not a score of zero.
+
+## Rule 010 — LONG Growth profile must total 100
+- The corrected V5 LONG profile changes Momentum from `7` to `6`.
+- Corrected LONG weights: `6/6/20/6/5/8/18/4/9/7/9/2` for `News/BO/Trend/Mom/Vol/S/R/Fund/BB/Ichimoku/Mkt/R/R/ADX`.
+- The migration only changes the known legacy 101-point seed (`sum == 101` and `Momentum == 7`); other persisted Growth snapshots are preserved.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
@@ -68,3 +80,4 @@ When a new version regresses a previously working screen:
 - Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
 - Growth now has a dedicated native module backed by persisted Oracle Growth snapshots and the supplied WordPress reference values.
 - Do not modify the restored shared shell while validating Growth unless a real device regression is demonstrated.
+- Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
