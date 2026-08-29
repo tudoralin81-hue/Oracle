@@ -72,6 +72,13 @@ When a new version regresses a previously working screen:
 - Corrected LONG weights: `6/6/20/6/5/8/18/4/9/7/9/2` for `News/BO/Trend/Mom/Vol/S/R/Fund/BB/Ichimoku/Mkt/R/R/ADX`.
 - The migration only changes the known legacy 101-point seed (`sum == 101` and `Momentum == 7`); other persisted Growth snapshots are preserved.
 
+## Rule 011 — Growth live market enrichment must come from market data, not WordPress
+- Growth refresh may independently derive only fields supported by live OHLCV: current price, 5D momentum, 20D momentum, actual return from the frozen reference price and ADX(14).
+- These live fields are refreshed from the direct market-data adapter (`OracleMarketData`) and persisted locally.
+- Score, forecast, risk, horizon weights and news/catalyst remain authoritative Oracle snapshot fields until the real Oracle calculation/data source is integrated.
+- Never replace missing live data with zero or a fabricated value.
+- This separation prevents the Android client from silently inventing Oracle formulas while removing WordPress as a live market-data dependency.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
@@ -79,5 +86,5 @@ When a new version regresses a previously working screen:
 - Latest Portfolio V12 fixes preserve the canonical Oracle recommendations and technical indicators, use current-price fallback for missing support/resistance, and put the total portfolio return prominently in XLSX/PDF exports with active/sold status.
 - Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
 - Growth now has a dedicated native module backed by persisted Oracle Growth snapshots and the supplied WordPress reference values.
-- Do not modify the restored shared shell while validating Growth unless a real device regression is demonstrated.
 - Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
+- Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
