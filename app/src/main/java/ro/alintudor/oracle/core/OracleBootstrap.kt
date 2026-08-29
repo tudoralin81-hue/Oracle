@@ -4,44 +4,36 @@ package ro.alintudor.oracle.core
  * One-time migration of the latest Oracle state that was available before the
  * standalone Android app became independent from WordPress.
  *
- * This is deliberately local: after migration the app never contacts the web
- * to obtain these records. The values below come from the 27.08.2026 Oracle
- * activity export (V5.8.17).
+ * The canonical portfolio seed is the supplied 27.08.2026 activity XLSX.
+ * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 1
+    private const val VERSION = 2
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
-        if (repository.cachedPositions().isNotEmpty()) {
-            repository.markBootstrap(VERSION)
-            return
-        }
 
+        // V2: replace the obsolete demo/mismatched portfolio with the exact
+        // three active positions from the supplied Excel export.
         val positions = listOf(
-            OraclePosition("HOOD", "Robinhood Markets", 5.0, 107.32, 112.45, "USD", status = "ACTIVE"),
-            OraclePosition("NVDA", "NVIDIA", 3.0, 126.50, 131.75, "USD", status = "ACTIVE"),
-            OraclePosition("CRM", "Salesforce", 4.0, 248.69, 248.69, "USD", status = "ACTIVE")
+            OraclePosition("CRM", "Salesforce", 4.0, 248.69, 252.05, "USD", status = "ACTIVE"),
+            OraclePosition("MELI", "MercadoLibre", 1.0, 1937.20, 1930.75, "USD", status = "ACTIVE"),
+            OraclePosition("HOOD", "Robinhood Markets", 10.0, 107.315, 109.76, "USD", status = "ACTIVE")
         )
         repository.savePositions(OracleAnalytics.normalize(positions))
 
-        // Two price observations where the activity export provides them.
-        repository.saveHistory(listOf(
-            OracleHistoryPoint("HOOD", 1787594825000L, 107.32, 1073.20, 0.0),
-            OracleHistoryPoint("HOOD", 1787830401000L, 112.45, 1124.50, 51.30),
-            OracleHistoryPoint("NVDA", 1787753433000L, 126.50, 632.50, 0.0),
-            OracleHistoryPoint("NVDA", 1787838009000L, 131.75, 658.75, 26.25),
-            OracleHistoryPoint("CRM", 1787815365000L, 248.69, 994.76, 0.0)
+        // The journal rows are copied from the supplied Excel model, including
+        // ticker, share count, entry price, Oracle forecast and position ID.
+        repository.saveJournal(listOf(
+            OracleJournalEntry(1787848564000L, "CRM", "BUY / OPEN", 0.080581688009822, "Deschidere poziție", "ACTIVE", 4.0, 248.69, 0.0, 0.0, 994.76, 0.0, 0.0, "p58_6a904b54d3ce84.44500668"),
+            OracleJournalEntry(1787675532000L, "MELI", "BUY / OPEN", 0.16307360057563, "Deschidere poziție", "ACTIVE", 1.0, 1937.20, 0.0, 0.0, 1937.20, 0.0, 0.0, "p58_6a8d995cb69045.35194800"),
+            OracleJournalEntry(1787591224000L, "HOOD", "BUY / OPEN", 0.23464565052348, "Deschidere poziție", "ACTIVE", 10.0, 107.315, 0.0, 0.0, 1073.15, 0.0, 0.0, "p58_6a8c884900da03.57898950")
         ))
 
-        repository.saveJournal(listOf(
-            OracleJournalEntry(1787594825000L, "HOOD", "BUY / OPEN", 23.5, "Deschidere poziție", "ACTIVE", 10.0, 107.32, 0.0, 0.0, 1073.20, 0.0, 0.0, "p58_6a8c884900da"),
-            OracleJournalEntry(1787664732000L, "MELI", "BUY / OPEN", 16.3, "Deschidere poziție", "CLOSED", 1.0, 1937.20, 0.0, 0.0, 1937.20, 0.0, 0.0, "p58_6a8d995cb690"),
-            OracleJournalEntry(1787753433000L, "NVDA", "BUY / OPEN", 18.7, "Deschidere poziție", "ACTIVE", 5.0, 126.50, 0.0, 0.0, 632.50, 0.0, 0.0, "p58_6a8f1c1e3ab2"),
-            OracleJournalEntry(1787815365000L, "CRM", "BUY / OPEN", 8.1, "Deschidere poziție", "ACTIVE", 4.0, 248.69, 0.0, 0.0, 994.76, 0.0, 0.0, "p58_6a904b54d3ce"),
-            OracleJournalEntry(1787830401000L, "HOOD", "SELL (PARTIAL)", 23.5, "Vânzare parțială", "ACTIVE", 5.0, 107.32, 112.45, 50.0, 536.60, 562.25, 25.65, "p58_6a8c884900da"),
-            OracleJournalEntry(1787832318000L, "MELI", "SELL (FULL)", 16.3, "Închidere poziție", "CLOSED", 1.0, 1937.20, 2005.80, 100.0, 1937.20, 2005.80, 68.60, "p58_6a8d995cb690"),
-            OracleJournalEntry(1787838009000L, "NVDA", "SELL (PARTIAL)", 18.7, "Vânzare parțială", "ACTIVE", 2.0, 126.50, 131.75, 40.0, 253.00, 263.50, 10.50, "p58_6a8f1c1e3ab2")
+        repository.saveHistory(listOf(
+            OracleHistoryPoint("CRM", 1787848564000L, 252.05, 1008.20, 13.44),
+            OracleHistoryPoint("MELI", 1787675532000L, 1930.75, 1930.75, -6.45),
+            OracleHistoryPoint("HOOD", 1787591224000L, 109.76, 1097.60, 24.45)
         ))
 
         repository.markBootstrap(VERSION)
