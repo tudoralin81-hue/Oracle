@@ -1,6 +1,9 @@
 package ro.alintudor.oracle.core
 
-/** Oracle Growth snapshot. Android displays persisted Oracle values and never recalculates Growth formulas. */
+/**
+ * Growth recommendation produced by the Oracle engine.
+ * Android renders this result; it does not invent Score, Forecast or Signal.
+ */
 data class OracleGrowthRecommendation(
     val horizon: String,
     val ticker: String,
@@ -20,6 +23,9 @@ data class OracleGrowthRecommendation(
     val currentActualPct: Double? = null,
     val referencePrice: Double? = null,
     val currentPrice: Double? = null,
-    /** Live technical value sourced from OHLCV; separate from the ADX weight. */
-    val adx: Double? = null
+    val adx: Double? = null,
+    val factorValues: List<Double> = emptyList(),
+    val factorScore: Double? = null,
+    val generatedAt: Long = 0L,
+    val source: String = "ORACLE_ENGINE"
 )
