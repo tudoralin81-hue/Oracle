@@ -7,6 +7,7 @@ import org.json.JSONObject
 /** Fully local native data layer. No WordPress/API dependency. */
 class OracleRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("oracle_data", Context.MODE_PRIVATE)
+
     fun cachedPositions(): List<OraclePosition> = parsePositions(prefs.getString("positions", "[]") ?: "[]")
     fun cachedAlerts(): List<OracleAlert> = parseAlerts(prefs.getString("alerts", "[]") ?: "[]")
     fun cachedNews(): List<OracleNews> = parseNews(prefs.getString("news", "[]") ?: "[]")
@@ -14,6 +15,9 @@ class OracleRepository(private val context: Context) {
     fun cachedActions(): List<OracleAction> = parseActions(prefs.getString("actions", "[]") ?: "[]")
     fun cachedKnowledge(): List<OracleKnowledgeItem> = parseKnowledge(prefs.getString("knowledge", "[]") ?: "[]")
     fun cachedJournal(): List<OracleJournalEntry> = parseJournal(prefs.getString("journal", "[]") ?: "[]")
+
+    fun bootstrapVersion(): Int = prefs.getInt("bootstrap_version", 0)
+    fun markBootstrap(version: Int) { prefs.edit().putInt("bootstrap_version", version).apply() }
 
     fun savePositions(items: List<OraclePosition>) = prefs.edit().putString("positions", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
     fun saveAlerts(items: List<OracleAlert>) = prefs.edit().putString("alerts", JSONArray().apply { items.forEach { put(it.toJson()) } }.toString()).apply()
@@ -37,7 +41,7 @@ class OracleRepository(private val context: Context) {
     private fun historyFromJson(o: JSONObject) = OracleHistoryPoint(o.optString("ticker"),o.optLong("timestamp"),o.optDouble("price"),o.optDouble("value"),o.optDouble("pnl"))
     private fun actionFromJson(o: JSONObject) = OracleAction(o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optLong("timestamp"))
     private fun knowledgeFromJson(o: JSONObject) = OracleKnowledgeItem(o.optString("title"),o.optString("category"),o.optString("content"),o.optLong("publishedAt"))
-    private fun journalFromJson(o: JSONObject) = OracleJournalEntry(o.optLong("timestamp"),o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optString("status","ACTIVE"))
+    private fun journalFromJson(o: JSONObject) = OracleJournalEntry(o.optLong("timestamp"),o.optString("ticker"),o.optString("action"),o.optDouble("score"),o.optString("reason"),o.optString("status","ACTIVE"),o.optDouble("shares"),o.optDouble("entryPrice"),o.optDouble("salePrice"),o.optDouble("salePercent"),o.optDouble("entryValue"),o.optDouble("saleValue"),o.optDouble("realizedPnl"),o.optString("positionId"))
 }
 
 private fun OraclePosition.toJson() = JSONObject().apply { put("ticker",ticker); put("company",company); put("shares",shares); put("avgCost",avgCost); put("currentPrice",currentPrice); put("currency",currency); put("pnl",pnl); put("pnlPercent",pnlPercent); put("marketValue",marketValue); put("weight",weight); put("status",status) }
@@ -46,4 +50,4 @@ private fun OracleNews.toJson() = JSONObject().apply { put("ticker",ticker); put
 private fun OracleHistoryPoint.toJson() = JSONObject().apply { put("ticker",ticker); put("timestamp",timestamp); put("price",price); put("value",value); put("pnl",pnl) }
 private fun OracleAction.toJson() = JSONObject().apply { put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("timestamp",timestamp) }
 private fun OracleKnowledgeItem.toJson() = JSONObject().apply { put("title",title); put("category",category); put("content",content); put("publishedAt",publishedAt) }
-private fun OracleJournalEntry.toJson() = JSONObject().apply { put("timestamp",timestamp); put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("status",status) }
+private fun OracleJournalEntry.toJson() = JSONObject().apply { put("timestamp",timestamp); put("ticker",ticker); put("action",action); put("score",score); put("reason",reason); put("status",status); put("shares",shares); put("entryPrice",entryPrice); put("salePrice",salePrice); put("salePercent",salePercent); put("entryValue",entryValue); put("saleValue",saleValue); put("realizedPnl",realizedPnl); put("positionId",positionId) }
