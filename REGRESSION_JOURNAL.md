@@ -19,7 +19,7 @@ When a new version regresses a previously working screen:
 ## Rule 003 — Portfolio data and actions must be functional, not decorative
 - Portfolio must show the real stored tickers, share counts and market values; do not replace them with demo/static rows.
 - Portfolio must support adding another local position without changing existing positions.
-- `JURNAL ACTIVITATE`, `DESCARCĂ EXCEL` and `DESCARCĂ PDF` must perform real local actions and must not be plain share/placeholder buttons.
+- `JURNAL ACTIVITATE` and portfolio export buttons must perform real local actions and must not be plain share/placeholder buttons.
 - Export files must be written to the Android Downloads/Oracle folder on current Android versions.
 - Prevention: test the portfolio interaction path after every portfolio change, not only compilation.
 
@@ -29,6 +29,8 @@ When a new version regresses a previously working screen:
 - Exported portfolio actions/positions are sourced from the persisted Oracle journal and current positions; never replace them with demo/static tickers.
 - PDF must use the same columns, row order and footer semantics as the Excel model.
 - The Excel export must be a real `.xlsx` file, not a renamed CSV.
+- The total portfolio return must be displayed prominently at the top of both XLSX and PDF exports.
+- The export must include `Status` with `ACTIVE` for current positions and `VÂNDUT` for closed positions.
 
 ## Rule 005 — Portfolio recommendations must not be recomputed from incomplete history
 - Symptom: CRM, HOOD and MELI showed `RSI 0.0`, `Momentum 0.0%` and false `SELL` signals in Portfolio while the working Oracle analysis showed `HOLD`.
@@ -37,9 +39,14 @@ When a new version regresses a previously working screen:
 - Never turn missing technical data into a SELL signal.
 - Regression check: seeded portfolio must remain `CRM HOLD 82/100`, `HOOD HOLD 95/100`, `MELI HOLD 95/100`, with the canonical technical snapshots loaded into Portfolio.
 
+## Rule 006 — Missing support/resistance must never render as N/A when current price is available
+- Symptom: CRM showed `Suport 20D N/A` and `Rezistență 20D N/A` even though the current price was available.
+- Required behavior: if support/resistance is missing, zero, NaN or infinite, fall back to the position's current price.
+- Prevention: Portfolio must never display `N/A` for these two fields when a valid current price exists.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
-- Portfolio functional baseline now includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
-- Latest fix preserves canonical Oracle recommendations and technical indicators instead of deriving false SELL signals from insufficient local history.
-- Do not modify the restored shell until the startup/module behavior is confirmed.
+- Portfolio functional baseline includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
+- Latest Portfolio V12 fixes preserve the canonical Oracle recommendations and technical indicators, use current-price fallback for missing support/resistance, and put the total portfolio return prominently in XLSX/PDF exports with active/sold status.
+- Do not modify the restored shell until startup/module behavior is confirmed.
