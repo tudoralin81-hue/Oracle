@@ -7,29 +7,30 @@ def patch(path: str, transform):
     s = p.read_text(encoding='utf-8')
     out = transform(s)
     if out == s:
-        raise SystemExit(f'No change made to {path}; source layout changed.')
+        print(f'No patch needed for {path}; source is already in the desired state.')
+        return
     p.write_text(out, encoding='utf-8')
 
 
 def patch_main(s: str) -> str:
+    if 'rememberedScroll(title)' in s or 'savedScroll' in s:
+        return s
     needle = '    private fun renderModule(key:String,refresh:Boolean=false){'
     start = s.index(needle)
     end = s.index('\n    private fun showModuleError', start)
     block = s[start:end]
-    if 'savedScroll' in block:
-        return s
-    block = block.replace(
-        '    private fun renderModule(key:String,refresh:Boolean=false){\n        root.removeAllViews();',
-        '    private fun renderModule(key:String,refresh:Boolean=false){\n        val savedScroll = OracleNativeModule.savedScrollY(key)\n        root.removeAllViews();'
-    )
+    old = '    private fun renderModule(key:String,refresh:Boolean=false){\n        root.removeAllViews();'
+    if old not in block:
+        raise SystemExit('renderModule layout changed; refusing unsafe patch.')
+    block = block.replace(old, '    private fun renderModule(key:String,refresh:Boolean=false){\n        val savedScroll = OracleNativeModule.savedScrollY(key)\n        root.removeAllViews();', 1)
     close = block.rfind('    }')
-    if close < 0:
-        raise SystemExit('renderModule closing brace not found')
     block = block[:close] + '        host.restoreScrollY(savedScroll)\n' + block[close:]
     return s[:start] + block + s[end:]
 
 
 def patch_native(s: str) -> str:
+    if 'fun rememberedScroll(title:String)' in s:
+        return s
     if 'fun savedScrollY(title:String)' not in s:
         s = s.replace(
             '        private val scrollPositions = mutableMapOf<String, Int>()\n',
@@ -39,14 +40,8 @@ def patch_native(s: str) -> str:
         '    private var downY = 0f\n    private var dragging = false',
         '    private var downY = 0f\n    private var downX = 0f\n    private var dragging = false'
     )
-    s = s.replace(
-        '    private val threshold = (72f * resources.displayMetrics.density)',
-        '    private val threshold = (48f * resources.displayMetrics.density)'
-    )
-    s = s.replace(
-        '                downY = ev.y\n                dragging = false',
-        '                downY = ev.y\n                downX = ev.x\n                dragging = false'
-    )
+    s = s.replace('    private val threshold = (72f * resources.displayMetrics.density)', '    private val threshold = (48f * resources.displayMetrics.density)')
+    s = s.replace('                downY = ev.y\n                dragging = false', '                downY = ev.y\n                downX = ev.x\n                dragging = false')
     s = s.replace(
         '                val dy = ev.y - downY\n                if (dy > (10f * resources.displayMetrics.density) && child != null && !child.canScrollVertically(-1)) {\n                    dragging = true\n                    return true\n                }',
         '                val dy = ev.y - downY\n                val dx = kotlin.math.abs(ev.x - downX)\n                if (dy > (8f * resources.displayMetrics.density) && dy > dx * 1.15f && child != null && !child.canScrollVertically(-1)) {\n                    dragging = true\n                    return true\n                }'
@@ -65,8 +60,6 @@ patch('app/src/main/java/ro/alintudor/oracle/MainActivity.kt', patch_main)
 patch('app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt', patch_native)
 patch('app/src/main/AndroidManifest.xml', patch_manifest)
 
-# The approved icon is already stored in the project as base64 WebP.
-# Convert it into a real Android drawable at build time so the launcher uses the exact image.
 raw = Path('app/src/main/assets/oracle_icon.b64').read_text(encoding='utf-8').strip()
 Path('app/src/main/res/drawable').mkdir(parents=True, exist_ok=True)
 Path('app/src/main/res/drawable/oracle_exact.webp').write_bytes(base64.b64decode(raw))
