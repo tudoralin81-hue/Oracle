@@ -79,6 +79,14 @@ When a new version regresses a previously working screen:
 - Never replace missing live data with zero or a fabricated value.
 - This separation prevents the Android client from silently inventing Oracle formulas while removing WordPress as a live market-data dependency.
 
+## Rule 012 — Shared header button semantics are fixed
+- On every module screen, the **top-left button is Back** and the **top-right button is Refresh**.
+- Back returns to the Oracle Start screen; it must never trigger refresh.
+- Refresh performs the module refresh action; it must never navigate back.
+- The **Start screen has no top-right Refresh/Back button at all**.
+- This behavior is implemented centrally in `OracleNativeModule` and must not be inverted or reimplemented differently by individual modules.
+- Regression check: open each module, verify left=`Back`, right=`Refresh`; return to Start and verify neither header button is present.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
