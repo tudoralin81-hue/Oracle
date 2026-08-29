@@ -27,5 +27,8 @@ data class OracleGrowthRecommendation(
     val factorValues: List<Double> = emptyList(),
     val factorScore: Double? = null,
     val generatedAt: Long = 0L,
-    val source: String = "ORACLE_ENGINE"
+    val source: String = "ORACLE_ENGINE",
+    val confidence: Int = 0,
+    val dataQuality: Int = 0,
+    val regime: String = "UNKNOWN"
 )
