@@ -1,5 +1,6 @@
 package ro.alintudor.oracle.nativeui
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
@@ -34,18 +35,40 @@ class OracleNativeModule(private val context: Context, private val title: String
         else -> Color.rgb(255,210,45)
     }
     init {
-        // Shared header geometry is identical across modules. Growth has no
-        // separate banner: title -> divider -> first card, matching Portfolio.
         val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(3),dp(2),dp(5)) }
-        header.addView(button("‹","Home",Color.rgb(255,205,45)){(context as? android.app.Activity)?.onBackPressed()},LinearLayout.LayoutParams(dp(46),dp(46)))
+        header.addView(button("‹","Back",Color.rgb(255,205,45)){(context as? Activity)?.onBackPressed()},LinearLayout.LayoutParams(dp(46),dp(46)))
         val center=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
         center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true})
         center.addView(TextView(context).apply{text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true})
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
-        header.addView(button("↻","Refresh",Color.rgb(255,205,45)){onRefresh()},LinearLayout.LayoutParams(dp(46),dp(46)))
+        // The right control is a real module refresh. MainActivity's existing callback
+        // was historically wired to showHub(), which made this button behave like Back.
+        header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ refreshCurrentModule() },LinearLayout.LayoutParams(dp(46),dp(46)))
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(ScrollView(context).apply{clipToPadding=false;addView(content)},LinearLayout.LayoutParams(-1,0,1f))
+    }
+    private fun refreshCurrentModule() {
+        val activity = context as? Activity ?: return onRefresh()
+        try {
+            val field = activity.javaClass.getDeclaredField("currentModule").apply { isAccessible = true }
+            val key = field.get(activity) as? String
+            if (key != null) {
+                val method = activity.javaClass.getDeclaredMethod("renderModule", String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+                Thread {
+                    try {
+                        val dataMethod = activity.javaClass.getDeclaredField("repository").apply { isAccessible = true }
+                        val repository = dataMethod.get(activity)
+                        val processor = Class.forName("ro.alintudor.oracle.core.OracleLocalProcessor")
+                        val refresh = processor.getDeclaredMethod("refresh", Class.forName("ro.alintudor.oracle.core.OracleRepository"))
+                        refresh.invoke(processor.kotlin.objectInstance, repository)
+                        activity.runOnUiThread { method.invoke(activity, key, false) }
+                    } catch (_: Throwable) {
+                        activity.runOnUiThread { method.invoke(activity, key, false) }
+                    }
+                }.start()
+            } else onRefresh()
+        } catch (_: Throwable) { onRefresh() }
     }
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
         text=symbol;textSize=30f;gravity=Gravity.CENTER;contentDescription=desc;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)
