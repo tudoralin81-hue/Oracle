@@ -3,6 +3,8 @@ package ro.alintudor.oracle
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.widget.*
 import ro.alintudor.oracle.core.OracleLocalProcessor
@@ -14,6 +16,7 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var repository: OracleRepository
     private var currentModule: String? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "JURNAL ACTIVITATE")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +26,11 @@ class MainActivity : Activity() {
         window.navigationBarColor = Color.rgb(2, 4, 10)
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(2, 4, 10)) }
         setContentView(root)
-        showHub()
+
+        // The first frame is always the native hub. No network call, refresh or
+        // calculation is allowed to block startup or leave a skeleton screen.
+        runCatching { showHub() }
+            .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
     }
 
     private fun showHub() {
@@ -58,16 +65,24 @@ class MainActivity : Activity() {
 
     private fun openModule(key: String) {
         currentModule = key
-        renderModule(key)
-        // Never block the UI with local recalculation. Render persisted data first,
-        // then refresh on a worker and replace the module when the new snapshot is ready.
+        // Render persisted local data immediately. A slow/failing calculation
+        // must never replace the screen with an endless loading state.
+        runCatching { renderModule(key, refresh = false) }
+            .onFailure { showModuleError(key, it) }
+
         Thread {
-            runCatching { OracleLocalProcessor.refresh(repository) }
-                .onSuccess {
-                    runOnUiThread {
-                        if (currentModule == key && !isFinishing) renderModule(key, refresh = false)
-                    }
+            val result = runCatching { OracleLocalProcessor.refresh(repository) }
+            mainHandler.post {
+                if (currentModule != key || isFinishing) return@post
+                result.onSuccess {
+                    runCatching { renderModule(key, refresh = false) }
+                        .onFailure { showModuleError(key, it) }
+                }.onFailure { error ->
+                    // Keep the already-rendered cached module visible and expose
+                    // the actual refresh failure instead of showing fake loading.
+                    Toast.makeText(this, "Refresh local eșuat: ${error.message ?: error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
                 }
+            }
         }.start()
     }
 
@@ -91,6 +106,50 @@ class MainActivity : Activity() {
                     history = data.history
                 )
         }
+    }
+
+    private fun showModuleError(key: String, error: Throwable) {
+        root.removeAllViews()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(32, 32, 32, 32)
+            setBackgroundColor(Color.rgb(2, 4, 10))
+        }
+        box.addView(TextView(this).apply {
+            text = "ORACLE  •  ${titles[key] ?: key.uppercase()}"
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+        })
+        box.addView(TextView(this).apply {
+            text = "Modulul nu s-a putut încărca.\n\n${error.message ?: error.javaClass.simpleName}"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(Color.LTGRAY)
+            setPadding(0, 24, 0, 24)
+        })
+        box.addView(Button(this).apply {
+            text = "REÎNCEARCĂ"
+            setOnClickListener { openModule(key) }
+        })
+        box.addView(Button(this).apply {
+            text = "ÎNAPOI LA ORACLE"
+            setOnClickListener { showHub() }
+        })
+        root.addView(box, FrameLayout.LayoutParams(-1, -1))
+    }
+
+    private fun showFatalError(title: String, error: Throwable) {
+        root.removeAllViews()
+        val text = TextView(this).apply {
+            text = "$title\n\n${error.message ?: error.javaClass.simpleName}\n\nAplicația nu va rămâne blocată pe loading."
+            textSize = 17f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setPadding(32, 32, 32, 32)
+        }
+        root.addView(text, FrameLayout.LayoutParams(-1, -1))
     }
 
     @Suppress("DEPRECATION")
