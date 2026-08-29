@@ -9,7 +9,6 @@ import java.time.ZonedDateTime
 object OracleLocalProcessor {
     private val BUCHAREST = ZoneId.of("Europe/Bucharest")
 
-    /** The active Growth snapshot anchor: 16:00 on the current trading day, or the previous trading day before 16:00. */
     private fun currentGrowthAnchor(nowMillis: Long): Long {
         val z = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
         var date = if (z.hour < 16) z.toLocalDate().minusDays(1) else z.toLocalDate()
@@ -44,19 +43,11 @@ object OracleLocalProcessor {
             when { existing != null && computed?.adx != null -> existing.copy(adx = computed.adx); existing != null -> existing; else -> computed }
         }
 
-        // HARD RULE: Growth is a snapshot, not a live ranking.
-        // The complete recommendation set is immutable between two 16:00 trading-day anchors.
-        // IMPORTANT: during Saturday/Sunday we NEVER rerank, even if an older APK left
-        // a non-canonical timestamp in local storage. The visible weekend set stays fixed.
         val growthAnchor = currentGrowthAnchor(now)
         val localDay = Instant.ofEpochMilli(now).atZone(BUCHAREST).dayOfWeek
         val weekend = localDay == DayOfWeek.SATURDAY || localDay == DayOfWeek.SUNDAY
-        val snapshotIsCurrent = current.growth.isNotEmpty() && (
-            current.growth.all { it.referenceTimestamp == growthAnchor } || weekend
-        )
-        val growth = if (snapshotIsCurrent) {
-            current.growth
-        } else {
+        val snapshotIsCurrent = current.growth.isNotEmpty() && (current.growth.all { it.referenceTimestamp == growthAnchor } || weekend)
+        val growth = if (snapshotIsCurrent) current.growth else {
             val generated = OracleGrowthEngine.run(current.growth)
             if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor) else current.growth
         }
@@ -65,7 +56,21 @@ object OracleLocalProcessor {
         val generated = actions.filter { it.action == "BUY" || it.action == "SELL" }.map { OracleAlert(it.ticker, if (it.action == "SELL") "HIGH" else "INFO", "${it.action} signal", "Score ${"%.1f".format(it.score)} — ${it.reason}", now, true) }
         val alertsByTicker = (oldAlerts + generated).groupBy { it.ticker }.mapValues { (_, v) -> v.maxByOrNull { it.timestamp }!! }.values.sortedByDescending { it.timestamp }.take(100)
         val journal = OracleActivityJournal.merge(current.journal, actions)
+
+        // News is refreshed independently of portfolio calculations. If feeds are unavailable,
+        // preserve the last good cache instead of blanking the module.
+        val fetchedNews = runCatching { OracleNewsFetcher.fetch(150) }.getOrDefault(emptyList())
+        val news = if (fetchedNews.isNotEmpty()) {
+            val merged = (fetchedNews + current.news)
+                .groupBy { it.rawId.ifBlank { it.url.ifBlank { it.title.lowercase() } } }
+                .values.map { group -> group.maxByOrNull { it.receivedAt.coerceAtLeast(it.publishedAt) }!! }
+                .sortedWith(compareByDescending<OracleNews> { it.breaking }.thenByDescending { it.publishedAt })
+                .take(250)
+            repository.saveNews(merged)
+            merged
+        } else current.news
+
         repository.savePositions(normalized); repository.saveActions(actions); repository.saveTechnical(technical); repository.saveHistory(history); repository.saveAlerts(alertsByTicker); repository.saveJournal(journal); repository.saveGrowth(growth)
-        return repository.snapshot()
+        return repository.snapshot().copy(news = news)
     }
 }
