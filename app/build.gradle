@@ -11,38 +11,32 @@ android {
         applicationId 'ro.alintudor.oracle'
         minSdk 26
         targetSdk 36
-        versionCode 9
-        versionName '2.1.3'
+        versionCode 10
+        versionName '2.1.4'
     }
 
     signingConfigs {
         release {
             def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
-            if (storeFilePath != null && !storeFilePath.isBlank()) {
-                storeFile file(storeFilePath)
-                storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('ORACLE_KEY_ALIAS')
-                keyPassword System.getenv('ORACLE_KEY_PASSWORD')
-                enableV1Signing true
-                enableV2Signing true
-                enableV3Signing true
-                enableV4Signing true
+            if (storeFilePath == null || storeFilePath.isBlank()) {
+                throw new GradleException('Production release signing key is required. Refusing to create an APK with a changing debug signature.')
             }
+            storeFile file(storeFilePath)
+            storePassword System.getenv('ORACLE_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('ORACLE_KEY_ALIAS')
+            keyPassword System.getenv('ORACLE_KEY_PASSWORD')
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
         }
     }
 
     buildTypes {
         release {
-            // Use the persistent production key when CI provides it.
-            // Otherwise fall back to the Android debug key so the installable
-            // release artifact can still be built; this fallback is not the
-            // final production identity for Play distribution.
-            def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
-            if (storeFilePath != null && !storeFilePath.isBlank()) {
-                signingConfig signingConfigs.release
-            } else {
-                signingConfig signingConfigs.debug
-            }
+            // Production APKs always use the persistent Oracle release certificate.
+            signingConfig signingConfigs.release
+            debuggable false
             minifyEnabled false
         }
     }
