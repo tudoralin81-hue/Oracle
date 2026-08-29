@@ -35,24 +35,22 @@ object OracleBootstrap {
             repository.saveHistory(positions.map { OracleHistoryPoint(it.ticker, now, it.currentPrice, it.marketValue, it.pnl) })
         }
 
-        // Canonical analysis snapshot from the working Oracle analysis screen.
         repository.saveTechnical(listOf(
             OracleTechnicalSnapshot("CRM", 80.6, 178.87, 22.7, 39.5, 0.0, 0.0),
             OracleTechnicalSnapshot("HOOD", 66.1, 101.38, 15.4, 26.7, 83.68, 112.45),
             OracleTechnicalSnapshot("MELI", 59.2, 1815.21, 0.5, 2.4, 1759.21, 2011.20)
         ))
 
-        // Canonical decisions shown by the working analysis screen.
         repository.saveActions(listOf(
             OracleAction("CRM", "HOLD", 82.0, "supraîncălzire RSI · trend și momentum încă acceptabile", System.currentTimeMillis()),
             OracleAction("HOOD", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis()),
             OracleAction("MELI", "HOLD", 95.0, "trend și momentum încă acceptabile", System.currentTimeMillis())
         ))
 
-        // Growth snapshot taken from the supplied WordPress reference screenshots.
-        // These are cached presentation values; Android does not invent or recalculate Oracle formulas.
+        // Growth reference snapshot supplied from the WordPress UI screenshots.
+        // These are cached Oracle values; Android does not invent or recalculate Oracle formulas.
         if (repository.cachedGrowth().isEmpty()) {
-            val t0 = 1788019200000L // 29.08.2026 16:00 Europe/Bucharest reference window
+            val t0 = 1788008400000L // 29.08.2026 16:00 Europe/Bucharest
             repository.saveGrowth(listOf(
                 OracleGrowthRecommendation(
                     horizon="SHORT", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
