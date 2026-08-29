@@ -106,7 +106,22 @@ class OracleNewsModule(private val host: OracleNativeModule) {
     private fun addStory(box:LinearLayout,n:OracleNews,accent:Int){
         val row=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(3),host.dp(9),host.dp(3),host.dp(9));isClickable=n.url.isNotBlank();if(isClickable)setOnClickListener{open(n.url)}}
         val top=LinearLayout(host.root.context).apply{gravity=Gravity.CENTER_VERTICAL}
-        if(n.breaking) top.addView(TextView(host.root.context).apply{text="BREAKING";textSize=9f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(255,70,60));gravity=Gravity.CENTER},LinearLayout.LayoutParams(host.dp(72),-2))
+        if(n.breaking) {
+            val badge = TextView(host.root.context).apply {
+                text = "BREAKING"
+                textSize = 9f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.rgb(255,70,60))
+                gravity = Gravity.CENTER
+                alpha = 1f
+            }
+            top.addView(badge, LinearLayout.LayoutParams(host.dp(72), -2))
+            badge.animate().alpha(0.25f).setDuration(550).withEndAction {
+                badge.animate().alpha(1f).setDuration(550).withEndAction {
+                    if (badge.parent != null) badge.animate().alpha(0.25f).setDuration(550).start()
+                }.start()
+            }.start()
+        }
         top.addView(TextView(host.root.context).apply{text=n.title;textSize=15f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(232,237,248));setLineSpacing(0f,1.05f)},LinearLayout.LayoutParams(0,-2,1f))
         row.addView(top)
         val meta=buildList{if(n.publishedAt>0)add(time.format(Date(n.publishedAt)));if(n.sentimentScore!=null)add("Sent %+.2f".format(n.sentimentScore));if(n.relevanceScore>0)add("Rel %.0f".format(n.relevanceScore))}.joinToString("  •  ")
