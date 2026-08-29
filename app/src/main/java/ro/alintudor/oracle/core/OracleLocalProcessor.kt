@@ -53,7 +53,7 @@ object OracleLocalProcessor {
         val growth = if (snapshotIsCurrent) {
             current.growth
         } else {
-            val generated = OracleGrowthEngine.run(current.growth)
+            val generated = OracleGrowthV6Enhanced.run(current.growth)
             if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor) else current.growth
         }
 
