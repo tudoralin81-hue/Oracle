@@ -18,6 +18,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
+      - name: Prepare persistent release signing key
+        if: ${{ secrets.ORACLE_KEYSTORE_BASE64 != '' }}
+        env:
+          ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+          ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+          ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+          ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+        run: |
+          echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+          {
+            echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+            echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+            echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+            echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Upload installable APK
