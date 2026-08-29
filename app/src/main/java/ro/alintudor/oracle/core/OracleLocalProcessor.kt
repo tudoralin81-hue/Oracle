@@ -2,7 +2,7 @@ package ro.alintudor.oracle.core
 
 /**
  * Local orchestration layer. Refreshes Oracle state and obtains technical OHLCV directly
- * from the market-data adapter; WordPress is never used as a data source.
+ * from the market-data adapter; WordPress is never used as a live data source.
  */
 object OracleLocalProcessor {
     fun refresh(repository: OracleRepository): OracleModuleData {
@@ -48,12 +48,9 @@ object OracleLocalProcessor {
             }
         }
 
-        // ADX is a live indicator value, not the ADX weight. Keep both concepts separate.
-        val growth = current.growth.map { item ->
-            val candles = OracleMarketData.fetchDaily(item.ticker)
-            val adx = OracleTechnicalIndicators.adx14(candles)
-            if (adx != null) item.copy(adx = adx) else item
-        }
+        // Growth snapshot fields are authoritative Oracle values. Only fields that
+        // can be independently derived from live OHLCV are refreshed here.
+        val growth = OracleGrowthLiveData.refresh(current.growth)
 
         val oldAlerts = current.alerts.filter { it.active }
         val generated = actions.filter { it.action == "BUY" || it.action == "SELL" }.map {
