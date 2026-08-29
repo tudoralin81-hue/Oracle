@@ -6,7 +6,6 @@ import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.os.Build
@@ -51,7 +50,7 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         val actions = OracleAnalytics.actions(items, data.history).associateBy { it.ticker }
         val tech = OracleTechnicalIndicators.all(data.history)
         items.sortedByDescending { it.marketValue }.forEachIndexed { i, p -> card(i + 1, p, actions[p.ticker], tech[p.ticker], data.journal) }
-        addBottomExports(items)
+        addBottomExports(items, data.journal)
     }
 
     private fun addHero(value: Double, pnl: Double, pct: Double, count: Int) {
@@ -60,7 +59,9 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         row.addView(TextView(context).apply { text = "◔"; textSize = 32f; setTextColor(Color.rgb(255, 210, 55)); gravity = Gravity.CENTER }, LinearLayout.LayoutParams(host.dp(45), host.dp(45)))
         row.addView(LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(10), 0, 0, 0); addView(TextView(context).apply { text = "TOTAL PORTOFOLIU • $count POZIȚII"; textSize = 11f; setTextColor(Color.rgb(155, 166, 188)) }); addView(TextView(context).apply { text = money(value); textSize = 23f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, host.dp(3), 0, 0) }) }, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(TextView(context).apply { text = signedPct(pct); textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(if (pnl >= 0) Color.rgb(145, 245, 35) else Color.rgb(255, 80, 65)) })
-        box.addView(row); box.addView(TextView(context).apply { text = "P/L  ${money(pnl)}"; textSize = 13f; setTextColor(Color.rgb(175, 183, 201)); setPadding(host.dp(55), host.dp(5), 0, 0) })
+        box.addView(row)
+        box.addView(TextView(context).apply { text = "RANDAMENT TOTAL   ${signedPct(pct)}"; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(if (pnl >= 0) Color.rgb(145, 245, 35) else Color.rgb(255, 80, 65)); setPadding(host.dp(55), host.dp(8), 0, 0) })
+        box.addView(TextView(context).apply { text = "P/L  ${money(pnl)}"; textSize = 13f; setTextColor(Color.rgb(175, 183, 201)); setPadding(host.dp(55), host.dp(3), 0, 0) })
         host.content.addView(box, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(9)) })
     }
 
@@ -104,14 +105,14 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         val decisionSignal = TextView(context).apply { text = action; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(accent) }; decision.addView(decisionSignal); pulseSignal(decisionSignal, action); decision.addView(TextView(context).apply { text = reason; textSize = 12f; setTextColor(Color.rgb(190, 198, 215)); setPadding(0, host.dp(4), 0, 0) }); c.addView(decision, LinearLayout.LayoutParams(-1, -2).apply { setMargins(host.dp(34), host.dp(8), 0, 0) })
         val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(34), host.dp(8), 0, 0) }
         two(grid, "P/L", "${money(p.pnl)} (${signedPct(p.pnlPercent)})", "Score", a?.score?.let { String.format(Locale.US, "%.0f/100", it) } ?: "N/A")
-        two(grid, "RSI", t?.rsi?.let { String.format(Locale.US, "%.1f", it) } ?: "N/A", "SMA50", t?.sma50?.let { money(it) } ?: "N/A")
-        two(grid, "Momentum 5D", t?.let { signedPct(it.momentum5D) } ?: "N/A", "Momentum 20D", t?.let { signedPct(it.momentum20D) } ?: "N/A")
-        two(grid, "Suport 20D", technicalPrice(t?.support20D ?: p.currentPrice), "Rezistență 20D", technicalPrice(t?.resistance20D ?: p.currentPrice)); c.addView(grid)
+        two(grid, "RSI", t?.rsi?.takeIf { it.isFinite() }?.let { String.format(Locale.US, "%.1f", it) } ?: "N/A", "SMA50", t?.sma50?.takeIf { it.isFinite() && it > 0.0 }?.let { money(it) } ?: "N/A")
+        two(grid, "Momentum 5D", t?.momentum5D?.takeIf { it.isFinite() }?.let { signedPct(it) } ?: "N/A", "Momentum 20D", t?.momentum20D?.takeIf { it.isFinite() }?.let { signedPct(it) } ?: "N/A")
+        two(grid, "Suport 20D", technicalPrice(t?.support20D, p.currentPrice), "Rezistență 20D", technicalPrice(t?.resistance20D, p.currentPrice)); c.addView(grid)
         val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(host.dp(34), host.dp(9), 0, 0) }; buttons.addView(btn("SELL ACȚIUNI", Color.rgb(255, 205, 65)) { partialSell(p, forecast) }, LinearLayout.LayoutParams(0, host.dp(43), 1f).apply { setMargins(0, 0, host.dp(4), 0) }); buttons.addView(btn("FULL SELL", Color.rgb(255, 80, 105)) { fullSell(p, forecast) }, LinearLayout.LayoutParams(0, host.dp(43), 1f).apply { setMargins(host.dp(4), 0, 0, 0) }); c.addView(buttons)
         c.addView(TextView(context).apply { text = "Actualizat local • ${date.format(Date())}"; textSize = 9f; setTextColor(Color.rgb(105, 120, 145)); setPadding(host.dp(34), host.dp(7), 0, 0) }); host.content.addView(c, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(9)) })
     }
 
-    private fun technicalPrice(value: Double?): String = if (value == null || value <= 0.0 || !value.isFinite()) "N/A" else money(value)
+    private fun technicalPrice(value: Double?, fallback: Double): String { val v = value?.takeIf { it.isFinite() && it > 0.0 } ?: fallback.takeIf { it.isFinite() && it > 0.0 }; return if (v == null) "N/A" else money(v) }
     private fun pulseSignal(view: TextView, action: String) { if (action != "SELL" && action != "HOLD") return; ObjectAnimator.ofFloat(view, "alpha", 1f, 0.38f, 1f).apply { duration = 1150L; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.RESTART; start() } }
     private fun valueBox(label: String, value: String, color: Int) = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(9), host.dp(8), host.dp(9), host.dp(8)); background = OracleNativeModule.rounded(Color.rgb(8, 13, 27), host.dp(10), color, host.dp(1)); addView(TextView(context).apply { text = label; textSize = 9f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(155, 166, 188)) }); addView(TextView(context).apply { text = value; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; setTextColor(color); setPadding(0, host.dp(2), 0, 0) }) }
     private fun two(g: LinearLayout, a: String, av: String, b: String, bv: String) { val r = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }; metric(r, a, av); metric(r, b, bv); g.addView(r) }
@@ -124,20 +125,82 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
     private fun fullSell(p: OraclePosition, forecast: Double) { AlertDialog.Builder(context).setTitle("FULL SELL • ${p.ticker}").setMessage("Închide poziția locală la ${money(p.currentPrice)}. Nu se transmite brokerului.").setNegativeButton("ANULEAZĂ", null).setPositiveButton("FULL SELL") { _, _ -> sell(p, p.shares, true, forecast) }.show() }
     private fun sell(p: OraclePosition, q: Double, full: Boolean, forecast: Double) { val now = System.currentTimeMillis(); val old = repo.cachedPositions().filterNot { it.ticker.equals(p.ticker, true) }.toMutableList(); val remain = p.shares - q; if (!full && remain > 0) old += p.copy(shares = remain); repo.savePositions(OracleCalculations.withWeights(old)); val j = repo.cachedJournal().toMutableList(); j += OracleJournalEntry(now, p.ticker, if (full) "SELL (FULL)" else "SELL (PARTIAL)", forecast, if (full) "Închidere poziție locală" else "Vânzare parțială locală", if (full) "CLOSED" else "ACTIVE", q, p.avgCost, p.currentPrice, if (p.shares <= 0.0) 100.0 else q / p.shares * 100.0, q * p.avgCost, q * p.currentPrice, q * (p.currentPrice - p.avgCost), "sell_$now"); repo.saveJournal(j); toast(if (full) "${p.ticker}: poziție închisă local" else "${p.ticker}: vânzare înregistrată"); render(repo.cachedPositions()) }
 
-    /** Portfolio exports only; activity journal is handled by its dedicated module. */
-    private fun addBottomExports(p: List<OraclePosition>) {
+    /** Portfolio exports: XLS contains active/sold status; PDF contains the same plus a prominent total return. */
+    private fun addBottomExports(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(host.dp(2), host.dp(5), host.dp(2), 0) }
-        row.addView(btn("DESCARCĂ EXCEL", Color.rgb(65, 225, 135)) { saveExcel(p) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(0, 0, host.dp(3), 0) })
-        row.addView(btn("DESCARCĂ PDF", Color.rgb(255, 205, 65)) { savePdf(p) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, 0, 0) })
+        row.addView(btn("DESCARCĂ XLS", Color.rgb(65, 225, 135)) { saveExcel(p, journal) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(0, 0, host.dp(3), 0) })
+        row.addView(btn("DESCARCĂ PDF", Color.rgb(255, 205, 65)) { savePdf(p, journal) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(host.dp(3), 0, 0, 0) })
         host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
 
-    private fun journalText(j: List<OracleJournalEntry>): String = "AI STOCK ORACLE — JURNAL ACTIVITATE\nGenerated ${date.format(Date())}\n\n" + j.sortedByDescending { it.timestamp }.take(500).joinToString("\n") { e -> "${date.format(Date(e.timestamp))} | ${e.ticker} | ${e.action} | ${e.status} | ${shares(e.shares)} sh | score=${String.format(Locale.US, "%.1f", e.score)} | ${e.reason}" }
-    private fun showJournal(j: List<OracleJournalEntry>) { AlertDialog.Builder(context).setTitle("JURNAL ACTIVITATE").setMessage(journalText(j).take(16000)).setPositiveButton("OK", null).show() }
-    private fun downloadJournal(j: List<OracleJournalEntry>) { val fileName = "oracle_jurnal_${stamp()}.txt"; val ok = saveDownload(fileName, "text/plain") { it.write(journalText(j).toByteArray(Charsets.UTF_8)) }; if (ok) AlertDialog.Builder(context).setTitle("JURNAL DESCĂRCAT").setMessage("Fișierul a fost salvat în:\nDownloads/Oracle/$fileName").setPositiveButton("OK", null).show() }
+    private data class ExportRow(val ticker: String, val company: String, val shares: String, val entry: String, val current: String, val value: String, val pnl: String, val pnlPct: String, val weight: String, val status: String)
 
-    private fun saveExcel(p: List<OraclePosition>) { val csv = buildString { append("Ticker,Company,Shares,Entry,Current,Value,P/L,P/L%,Weight\n"); p.sortedBy { it.ticker }.forEach { append("${it.ticker},\"${it.company.replace("\"", "\"\"")}\",${it.shares},${it.avgCost},${it.currentPrice},${it.marketValue},${it.pnl},${it.pnlPercent},${it.weight}\n") } }; saveDownload("oracle_portfolio_${stamp()}.csv", "text/csv") { it.write(csv.toByteArray(Charsets.UTF_8)) } }
-    private fun savePdf(p: List<OraclePosition>) { saveDownload("oracle_portfolio_${stamp()}.pdf", "application/pdf") { out -> val doc = PdfDocument(); val pageW = 595f; val pageH = 842f; val margin = 28f; val widths = floatArrayOf(62f, 112f, 55f, 65f, 65f, 70f, 65f, 62f, 62f); val rows = mutableListOf<List<String>>(); rows += listOf("TICKER", "COMPANY", "SHARES", "ENTRY", "CURRENT", "VALUE", "P/L", "P/L %", "WEIGHT"); p.sortedBy { it.ticker }.forEach { rows += listOf(it.ticker, it.company, shares(it.shares), money(it.avgCost), money(it.currentPrice), money(it.marketValue), money(it.pnl), signedPct(it.pnlPercent), pct(it.weight)) }; val rp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(15, 23, 42); textSize = 8f; typeface = Typeface.DEFAULT }; var pageNo = 1; var page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create()); var canvas = page.canvas; fun drawHeader() { rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 16f; canvas.drawText("AI STOCK ORACLE — PORTFOLIO", margin, 30f, rp); rp.typeface = Typeface.DEFAULT; rp.textSize = 8f; canvas.drawText("Generated ${date.format(Date())}", margin, 43f, rp); rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 7f }; drawHeader(); var y = 60f; rows.forEachIndexed { index, row -> if (y > pageH - 46f) { doc.finishPage(page); pageNo++; y = 60f; page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create()); canvas = page.canvas; drawHeader() }; val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (index % 2 == 0) Color.rgb(234, 242, 250) else Color.WHITE; style = Paint.Style.FILL }; var x = margin; for (c in row.indices) { val v = row[c]; canvas.drawRect(x, y, x + widths[c], y + 20f, bg); canvas.drawText(v.take(28), x + 2f, y + 12f, rp); x += widths[c] }; y += 20f }; val footer = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(15, 23, 42); textSize = 7f; typeface = Typeface.DEFAULT_BOLD }; canvas.drawText("RATA DE SUCCES GLOBALĂ: ${successRate(rows)}", margin, pageH - 18f, footer); doc.finishPage(page); doc.writeTo(out); doc.close() } }
+    private fun exportRows(p: List<OraclePosition>, journal: List<OracleJournalEntry>): List<ExportRow> {
+        val active = p.sortedBy { it.ticker }.map { ExportRow(it.ticker, it.company, shares(it.shares), money(it.avgCost), money(it.currentPrice), money(it.marketValue), money(it.pnl), signedPct(it.pnlPercent), pct(it.weight), "ACTIV") }
+        val activeTickers = p.map { it.ticker.uppercase(Locale.US) }.toSet()
+        val sold = journal.asSequence().filter { it.status.equals("CLOSED", true) || it.action.contains("SELL (FULL)", true) }.sortedByDescending { it.timestamp }.map { e -> ExportRow(e.ticker, e.ticker, shares(e.shares), money(e.entryPrice), money(e.salePrice), money(e.saleValue), money(e.realizedPnl), if (e.entryValue != 0.0) signedPct(e.realizedPnl / e.entryValue * 100.0) else "0.0%", "0.00%", "VÂNDUT") }.filter { !activeTickers.contains(it.ticker.uppercase(Locale.US)) }.distinctBy { it.ticker.uppercase(Locale.US) }.toList()
+        return active + sold
+    }
+
+    private fun totalReturn(p: List<OraclePosition>, journal: List<OracleJournalEntry>): Double {
+        val activeInvested = p.sumOf { it.shares * it.avgCost }
+        val activePnl = p.sumOf { it.pnl }
+        val closed = journal.filter { it.status.equals("CLOSED", true) || it.action.contains("SELL (FULL)", true) }
+        val realized = closed.sumOf { it.realizedPnl }
+        val base = activeInvested + closed.sumOf { it.entryValue }
+        return if (base == 0.0) 0.0 else (activePnl + realized) / base * 100.0
+    }
+
+    private fun htmlCell(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+    private fun saveExcel(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
+        val total = totalReturn(p, journal)
+        val rows = exportRows(p, journal)
+        val html = buildString {
+            append("<html><head><meta charset='UTF-8'><style>body{font-family:Arial} .title{font-size:24px;font-weight:bold} .return{font-size:22px;font-weight:bold} table{border-collapse:collapse} th,td{border:1px solid #777;padding:6px} th{font-weight:bold}</style></head><body>")
+            append("<div class='title'>AI STOCK ORACLE — PORTOFOLIO</div>")
+            append("<div>Generated ${htmlCell(date.format(Date()))}</div>")
+            append("<div class='return'>RANDAMENT TOTAL PORTOFOLIU: ${htmlCell(signedPct(total))}</div><br>")
+            append("<table><tr><th>TICKER</th><th>COMPANY</th><th>ACȚIUNI</th><th>INTRARE</th><th>CURENT / VÂNZARE</th><th>VALOARE</th><th>P/L</th><th>RANDAMENT</th><th>PONDERE</th><th>STATUS</th></tr>")
+            rows.forEach { r -> append("<tr><td>${htmlCell(r.ticker)}</td><td>${htmlCell(r.company)}</td><td>${htmlCell(r.shares)}</td><td>${htmlCell(r.entry)}</td><td>${htmlCell(r.current)}</td><td>${htmlCell(r.value)}</td><td>${htmlCell(r.pnl)}</td><td>${htmlCell(r.pnlPct)}</td><td>${htmlCell(r.weight)}</td><td><b>${htmlCell(r.status)}</b></td></tr>") }
+            append("</table></body></html>")
+        }
+        saveDownload("oracle_portfolio_${stamp()}.xls", "application/vnd.ms-excel") { it.write(html.toByteArray(Charsets.UTF_8)) }
+    }
+
+    private fun savePdf(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
+        val total = totalReturn(p, journal)
+        val rows = exportRows(p, journal)
+        saveDownload("oracle_portfolio_${stamp()}.pdf", "application/pdf") { out ->
+            val doc = PdfDocument(); val pageW = 595f; val pageH = 842f; val margin = 22f
+            val widths = floatArrayOf(46f, 82f, 45f, 58f, 62f, 62f, 52f, 52f, 48f, 52f)
+            val rp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(15, 23, 42); textSize = 7f; typeface = Typeface.DEFAULT }
+            var pageNo = 1
+            var page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create())
+            var canvas = page.canvas
+            fun header() {
+                rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 15f; canvas.drawText("AI STOCK ORACLE — PORTOFOLIO", margin, 27f, rp)
+                rp.textSize = 19f; rp.color = if (total >= 0) Color.rgb(30, 150, 80) else Color.rgb(210, 55, 70); canvas.drawText("RANDAMENT TOTAL: ${signedPct(total)}", margin, 50f, rp)
+                rp.color = Color.rgb(15, 23, 42); rp.typeface = Typeface.DEFAULT; rp.textSize = 7f; canvas.drawText("Generated ${date.format(Date())}", margin, 64f, rp)
+            }
+            header(); var y = 80f
+            val headers = listOf("TICKER", "COMPANY", "ACȚIUNI", "INTRARE", "CURENT/VÂNZ", "VALOARE", "P/L", "RAND.", "POND.", "STATUS")
+            fun drawRow(row: List<String>, headerRow: Boolean) {
+                var x = margin; val h = if (headerRow) 24f else 21f
+                val bg = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = if (headerRow) Color.rgb(210, 220, 235) else Color.rgb(246, 248, 251); style = android.graphics.Paint.Style.FILL }
+                rp.typeface = if (headerRow) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; rp.textSize = if (headerRow) 6.3f else 6.8f; rp.color = Color.rgb(15,23,42)
+                row.forEachIndexed { i, v -> canvas.drawRect(x, y, x + widths[i], y + h, bg); canvas.drawText(v.take(if (headerRow) 13 else 18), x + 2f, y + if (headerRow) 15f else 14f, rp); x += widths[i] }
+                y += h
+            }
+            drawRow(headers, true)
+            rows.forEach { r ->
+                if (y > pageH - 45f) { doc.finishPage(page); pageNo++; page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create()); canvas = page.canvas; header(); y = 80f; drawRow(headers, true) }
+                drawRow(listOf(r.ticker, r.company, r.shares, r.entry, r.current, r.value, r.pnl, r.pnlPct, r.weight, r.status), false)
+            }
+            rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 7f; canvas.drawText("RANDAMENT TOTAL PORTOFOLIU: ${signedPct(total)}", margin, pageH - 20f, rp)
+            doc.finishPage(page); doc.writeTo(out); doc.close()
+        }
+    }
 
     /** Returns true only after the output stream was closed and the MediaStore item finalized. */
     private fun saveDownload(fileName: String, mime: String, writer: (OutputStream) -> Unit): Boolean = runCatching {
@@ -149,7 +212,7 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         toast("Salvat: $fileName"); true
     }.onFailure { toast("Export eșuat: ${it.message ?: it.javaClass.simpleName}") }.getOrDefault(false)
 
-    private fun decision(action: String, t: OracleTechnicalSnapshot?) = when { (t?.rsi ?: 50.0) >= 70.0 -> "HOLD"; action == "BUY" -> "BUY"; action == "SELL" -> "SELL"; else -> "HOLD" }
+    private fun decision(action: String, t: OracleTechnicalSnapshot?) = when { (t?.rsi?.takeIf { it.isFinite() } ?: 50.0) >= 70.0 -> "HOLD"; action == "BUY" -> "BUY"; action == "SELL" -> "SELL"; else -> "HOLD" }
     private fun stamp() = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
     private fun money(v: Double) = String.format(Locale.US, "%,.2f", v)
     private fun pct(v: Double) = String.format(Locale.US, "%.2f%%", v)
