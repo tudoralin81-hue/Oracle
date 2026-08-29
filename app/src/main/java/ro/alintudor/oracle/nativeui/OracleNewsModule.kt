@@ -105,30 +105,55 @@ class OracleNewsModule(private val host: OracleNativeModule) {
 
     private fun addStory(box:LinearLayout,n:OracleNews,accent:Int){
         val row=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(3),host.dp(9),host.dp(3),host.dp(9));isClickable=n.url.isNotBlank();if(isClickable)setOnClickListener{open(n.url)}}
-        val top=LinearLayout(host.root.context).apply{gravity=Gravity.CENTER_VERTICAL}
+        val top=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL}
+
+        val title=TextView(host.root.context).apply{
+            text=n.title
+            textSize=15f
+            typeface=Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(232,237,248))
+            setLineSpacing(0f,1.05f)
+        }
+        top.addView(title, LinearLayout.LayoutParams(0,-2,1f))
+
         if(n.breaking) {
             val badge = TextView(host.root.context).apply {
-                text = "BREAKING"
+                text = "BREAKING NEWS"
                 textSize = 9f
                 typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.rgb(255,70,60))
+                setTextColor(Color.rgb(255,25,25))
                 gravity = Gravity.CENTER
-                alpha = 1f
+                setPadding(host.dp(7), host.dp(3), host.dp(7), host.dp(3))
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(45,8,8))
+                    cornerRadius = host.dp(6).toFloat()
+                    setStroke(host.dp(1), Color.rgb(255,25,25))
+                }
             }
-            top.addView(badge, LinearLayout.LayoutParams(host.dp(72), -2))
-            badge.animate().alpha(0.25f).setDuration(550).withEndAction {
-                badge.animate().alpha(1f).setDuration(550).withEndAction {
-                    if (badge.parent != null) badge.animate().alpha(0.25f).setDuration(550).start()
-                }.start()
-            }.start()
+            top.addView(badge, LinearLayout.LayoutParams(host.dp(92), -2).apply {
+                setMargins(host.dp(8), 0, 0, 0)
+            })
+            pulseBreaking(badge)
         }
-        top.addView(TextView(host.root.context).apply{text=n.title;textSize=15f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(232,237,248));setLineSpacing(0f,1.05f)},LinearLayout.LayoutParams(0,-2,1f))
+
         row.addView(top)
         val meta=buildList{if(n.publishedAt>0)add(time.format(Date(n.publishedAt)));if(n.sentimentScore!=null)add("Sent %+.2f".format(n.sentimentScore));if(n.relevanceScore>0)add("Rel %.0f".format(n.relevanceScore))}.joinToString("  •  ")
-        if(meta.isNotBlank())row.addView(TextView(host.root.context).apply{text=meta;textSize=10f;setTextColor(Color.rgb(132,145,170));setPadding(if(n.breaking)host.dp(72)else 0,host.dp(3),0,0)})
+        if(meta.isNotBlank())row.addView(TextView(host.root.context).apply{text=meta;textSize=10f;setTextColor(Color.rgb(132,145,170));setPadding(0,host.dp(3),0,0)})
         box.addView(row)
         box.addView(TextView(host.root.context).apply{setBackgroundColor(Color.rgb(31,43,64))},LinearLayout.LayoutParams(-1,1))
     }
+
+    private fun pulseBreaking(view: TextView) {
+        fun loop() {
+            view.animate().alpha(0.25f).setDuration(500).withEndAction {
+                view.animate().alpha(1f).setDuration(500).withEndAction {
+                    if (view.parent != null) loop()
+                }.start()
+            }.start()
+        }
+        loop()
+    }
+
     private fun open(url:String){runCatching{host.root.context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}}
     private fun sourceAccent(source:String)=when{source.contains("CNBC",true)->Color.rgb(40,150,255);source.contains("BBC",true)->Color.rgb(235,40,60);source.contains("Financial Times",true)->Color.rgb(30,190,165);source.contains("Bloomberg",true)->Color.rgb(145,70,245);source.contains("MarketWatch",true)->Color.rgb(35,150,245);source.contains("Wall Street",true)->Color.rgb(70,90,120);source.contains("York Times",true)->Color.rgb(215,165,50);source.contains("Reuters",true)->Color.rgb(235,190,40);else->host.accent}
 }
