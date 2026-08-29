@@ -38,6 +38,7 @@ class OracleNativeModule(
         "PORTFOLIO" -> Color.rgb(190,65,255)
         else -> Color.rgb(255,210,45)
     }
+    private lateinit var scrollView: ScrollView
 
     init {
         val header = LinearLayout(context).apply {
@@ -54,13 +55,14 @@ class OracleNativeModule(
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
 
-        val scroll = ScrollView(context).apply {
+        scrollView = ScrollView(context).apply {
             clipToPadding=false
             isFillViewport=true
+            overScrollMode=View.OVER_SCROLL_ALWAYS
             addView(content)
         }
         val pullContainer = PullRefreshLayout(context) { onRefresh() }
-        pullContainer.addView(scroll, FrameLayout.LayoutParams(-1,-1))
+        pullContainer.addView(scrollView, FrameLayout.LayoutParams(-1,-1))
         root.addView(pullContainer, LinearLayout.LayoutParams(-1,0,1f))
         root.setOnApplyWindowInsetsListener { _, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else 0
@@ -70,6 +72,12 @@ class OracleNativeModule(
             insets
         }
         root.requestApplyInsets()
+    }
+
+    fun getScrollY(): Int = if (::scrollView.isInitialized) scrollView.scrollY else 0
+    fun restoreScrollY(value: Int) {
+        if (!::scrollView.isInitialized) return
+        scrollView.post { scrollView.scrollTo(0, value.coerceAtLeast(0)) }
     }
 
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
@@ -87,8 +95,7 @@ class OracleNativeModule(
     companion object{fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}}
 }
 
-/** Dependency-free pull-to-refresh wrapper. It preserves normal ScrollView scrolling and
- * only captures a downward gesture when the child is already at the top. */
+/** Dependency-free pull-to-refresh wrapper. It only captures a downward gesture when the child is at the top. */
 private class PullRefreshLayout(
     context: Context,
     private val refresh: () -> Unit
@@ -96,7 +103,7 @@ private class PullRefreshLayout(
     private var downY = 0f
     private var dragging = false
     private var triggered = false
-    private val threshold = (112f * resources.displayMetrics.density)
+    private val threshold = (72f * resources.displayMetrics.density)
 
     init {
         clipChildren = false
@@ -114,11 +121,12 @@ private class PullRefreshLayout(
             }
             MotionEvent.ACTION_MOVE -> {
                 val dy = ev.y - downY
-                if (dy > 8f && child != null && !child.canScrollVertically(-1)) {
+                if (dy > (10f * resources.displayMetrics.density) && child != null && !child.canScrollVertically(-1)) {
                     dragging = true
                     return true
                 }
             }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dragging = false
         }
         return dragging
     }
@@ -128,16 +136,19 @@ private class PullRefreshLayout(
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
                 val pull = (event.y - downY).coerceAtLeast(0f)
-                val eased = pull * 0.55f
-                child.translationY = eased
-                if (pull >= threshold) triggered = true
+                child.translationY = pull * 0.55f
+                triggered = pull >= threshold
                 return true
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (event.actionMasked == MotionEvent.ACTION_UP && triggered) {
-                    refresh()
-                }
+            MotionEvent.ACTION_UP -> {
+                if (triggered) refresh()
                 child.animate().translationY(0f).setDuration(180L).start()
+                dragging = false
+                triggered = false
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                child.animate().translationY(0f).setDuration(120L).start()
                 dragging = false
                 triggered = false
                 return true
