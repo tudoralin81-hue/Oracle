@@ -1,6 +1,6 @@
 package ro.alintudor.oracle.core
 
-/** Single snapshot shared by all native modules. */
+/** Single snapshot shared by all native Oracle modules. */
 data class OracleModuleData(
     val positions: List<OraclePosition> = emptyList(),
     val alerts: List<OracleAlert> = emptyList(),
@@ -9,7 +9,8 @@ data class OracleModuleData(
     val actions: List<OracleAction> = emptyList(),
     val technical: List<OracleTechnicalSnapshot> = emptyList(),
     val knowledge: List<OracleKnowledgeItem> = emptyList(),
-    val journal: List<OracleJournalEntry> = emptyList()
+    val journal: List<OracleJournalEntry> = emptyList(),
+    val growth: List<OracleGrowthRecommendation> = emptyList()
 )
 
 fun OracleRepository.snapshot(): OracleModuleData {
@@ -23,6 +24,7 @@ fun OracleRepository.snapshot(): OracleModuleData {
         actions = actions,
         technical = cachedTechnical(),
         knowledge = cachedKnowledge(),
-        journal = if (persistedJournal.isNotEmpty()) persistedJournal else OracleActivityJournal.fromActions(actions)
+        journal = if (persistedJournal.isNotEmpty()) persistedJournal else OracleActivityJournal.fromActions(actions),
+        growth = cachedGrowth()
     )
 }
