@@ -76,14 +76,14 @@ object OracleGrowthEngine {
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
-    // Final score penalty requested for high raw scores:
-    // 97..100 -> -3; 92..96 -> -2; 0..91 unchanged.
+    // Final V6e score penalty:
+    // 97..100 -> -3; 92..96 -> -1; 0..91 unchanged.
     private fun horizonScore(c:Map<String,Double>,h:String):Int {
         val w=weights[h]!!
         val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).roundToInt().coerceIn(0,100)
         return when {
             raw in 97..100 -> raw - 3
-            raw in 92..96 -> raw - 2
+            raw in 92..96 -> raw - 1
             else -> raw
         }
     }
