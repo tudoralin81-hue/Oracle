@@ -45,11 +45,12 @@ object OracleLocalProcessor {
         }
 
         // HARD RULE: Growth is a snapshot, not a live ranking.
-        // The complete recommendation set is immutable between two 16:00 trading-day anchors.
-        // Before Monday 16:00 the Friday snapshot remains active; refresh/re-entry cannot rerank it.
+        // A new V6 snapshot is allowed once when the persisted set is not yet V6.
+        // After V6 owns the current 16:00 anchor, refresh/re-entry cannot rerank it.
         val growthAnchor = currentGrowthAnchor(now)
         val snapshotIsCurrent = current.growth.isNotEmpty() &&
-            current.growth.all { it.referenceTimestamp == growthAnchor }
+            current.growth.all { it.referenceTimestamp == growthAnchor } &&
+            current.growth.all { it.source == "ORACLE_ENGINE_V6_ENHANCED" }
         val growth = if (snapshotIsCurrent) {
             current.growth
         } else {
