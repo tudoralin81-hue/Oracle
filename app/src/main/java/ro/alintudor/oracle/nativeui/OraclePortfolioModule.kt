@@ -20,8 +20,6 @@ import android.widget.Toast
 import ro.alintudor.oracle.core.*
 import java.io.File
 import java.io.OutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -127,7 +125,7 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
     private fun fullSell(p: OraclePosition, forecast: Double) { AlertDialog.Builder(context).setTitle("FULL SELL • ${p.ticker}").setMessage("Închide poziția locală la ${money(p.currentPrice)}. Nu se transmite brokerului.").setNegativeButton("ANULEAZĂ", null).setPositiveButton("FULL SELL") { _, _ -> sell(p, p.shares, true, forecast) }.show() }
     private fun sell(p: OraclePosition, q: Double, full: Boolean, forecast: Double) { val now = System.currentTimeMillis(); val old = repo.cachedPositions().filterNot { it.ticker.equals(p.ticker, true) }.toMutableList(); val remain = p.shares - q; if (!full && remain > 0) old += p.copy(shares = remain); repo.savePositions(OracleCalculations.withWeights(old)); val j = repo.cachedJournal().toMutableList(); j += OracleJournalEntry(now, p.ticker, if (full) "SELL (FULL)" else "SELL (PARTIAL)", forecast, if (full) "Închidere poziție locală" else "Vânzare parțială locală", if (full) "CLOSED" else "ACTIVE", q, p.avgCost, p.currentPrice, if (p.shares <= 0.0) 100.0 else q / p.shares * 100.0, q * p.avgCost, q * p.currentPrice, q * (p.currentPrice - p.avgCost), "sell_$now"); repo.saveJournal(j); toast(if (full) "${p.ticker}: poziție închisă local" else "${p.ticker}: vânzare înregistrată"); render(repo.cachedPositions()) }
 
-    /** Portfolio exports: XLSX contains the canonical 12 columns; PDF mirrors them. */
+    /** Portfolio exports: XLS contains active/sold status; PDF contains the same plus a prominent total return. */
     private fun addBottomExports(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(host.dp(2), host.dp(5), host.dp(2), 0) }
         row.addView(btn("DESCARCĂ XLS", Color.rgb(65, 225, 135)) { saveExcel(p, journal) }, LinearLayout.LayoutParams(0, host.dp(46), 1f).apply { setMargins(0, 0, host.dp(3), 0) })
@@ -135,13 +133,13 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
 
-    private data class ExportRow(val timestamp: Long, val action: String, val ticker: String, val shares: String, val entry: String, val sale: String, val salePct: String, val forecast: String, val pnl: String, val success: String, val positionId: String, val status: String)
+    private data class ExportRow(val ticker: String, val company: String, val shares: String, val entry: String, val current: String, val value: String, val pnl: String, val pnlPct: String, val weight: String, val status: String)
 
-    private fun forecastFor(ticker: String, journal: List<OracleJournalEntry>): Double = when (ticker.uppercase(Locale.US)) {
-        "CRM" -> 8.1
-        "HOOD" -> 23.5
-        "MELI" -> 16.3
-        else -> journal.filter { it.ticker.equals(ticker, true) && it.action.contains("BUY / OPEN", true) }.minByOrNull { it.timestamp }?.score ?: 0.0
+    private fun exportRows(p: List<OraclePosition>, journal: List<OracleJournalEntry>): List<ExportRow> {
+        val active = p.sortedBy { it.ticker }.map { ExportRow(it.ticker, it.company, shares(it.shares), money(it.avgCost), money(it.currentPrice), money(it.marketValue), money(it.pnl), signedPct(it.pnlPercent), pct(it.weight), "ACTIV") }
+        val activeTickers = p.map { it.ticker.uppercase(Locale.US) }.toSet()
+        val sold = journal.asSequence().filter { it.status.equals("CLOSED", true) || it.action.contains("SELL (FULL)", true) }.sortedByDescending { it.timestamp }.map { e -> ExportRow(e.ticker, e.ticker, shares(e.shares), money(e.entryPrice), money(e.salePrice), money(e.saleValue), money(e.realizedPnl), if (e.entryValue != 0.0) signedPct(e.realizedPnl / e.entryValue * 100.0) else "0.0%", "0.00%", "VÂNDUT") }.filter { !activeTickers.contains(it.ticker.uppercase(Locale.US)) }.distinctBy { it.ticker.uppercase(Locale.US) }.toList()
+        return active + sold
     }
 
     private fun totalReturn(p: List<OraclePosition>, journal: List<OracleJournalEntry>): Double {
@@ -153,50 +151,21 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         return if (base == 0.0) 0.0 else (activePnl + realized) / base * 100.0
     }
 
-    private fun exportRows(p: List<OraclePosition>, journal: List<OracleJournalEntry>): List<ExportRow> {
-        val closedCount = journal.count { it.realizedPnl != 0.0 }
-        val success = if (closedCount == 0) 0.0 else journal.count { it.realizedPnl > 0.0 }.toDouble() / closedCount.toDouble() * 100.0
-        val active = p.sortedBy { it.ticker }.map { position ->
-            val open = journal.filter { it.ticker.equals(position.ticker, true) && it.action.contains("BUY / OPEN", true) }.maxByOrNull { it.timestamp }
-            ExportRow(open?.timestamp ?: System.currentTimeMillis(), "BUY / OPEN", position.ticker, shares(position.shares), money(position.avgCost), "", "", signedPct(forecastFor(position.ticker, journal)), "", signedPct(success), open?.positionId ?: "active_${position.ticker}", "ACTIVE")
-        }
-        val activeTickers = p.map { it.ticker.uppercase(Locale.US) }.toSet()
-        val sold = journal.asSequence()
-            .filter { it.status.equals("CLOSED", true) || it.action.contains("SELL (FULL)", true) }
-            .filter { !activeTickers.contains(it.ticker.uppercase(Locale.US)) }
-            .sortedByDescending { it.timestamp }
-            .map { e -> ExportRow(e.timestamp, e.action, e.ticker, shares(e.shares), money(e.entryPrice), money(e.salePrice), if (e.entryValue != 0.0) signedPct(e.salePercent) else "", signedPct(e.score), money(e.realizedPnl), signedPct(success), e.positionId, "VÂNDUT") }
-            .distinctBy { it.ticker.uppercase(Locale.US) }
-            .toList()
-        return active + sold
-    }
-
-    private fun xml(s: String): String = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
-    private fun xlsxCell(value: String, style: Int = 0): String = "<c t=\"inlineStr\" s=\"$style\"><is><t>${xml(value)}</t></is></c>"
-    private fun xlsxRow(cells: List<String>, style: Int = 0): String = "<row>${cells.joinToString(\"\") { xlsxCell(it, style) }}</row>"
+    private fun htmlCell(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     private fun saveExcel(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
         val total = totalReturn(p, journal)
         val rows = exportRows(p, journal)
-        saveDownload("oracle_portfolio_${stamp()}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") { out ->
-            val sheetRows = buildString {
-                append(xlsxRow(listOf("AI STOCK ORACLE — PORTOFOLIO"), 2))
-                append(xlsxRow(listOf("RANDAMENT TOTAL PORTOFOLIU: ${signedPct(total)}"), 3))
-                append(xlsxRow(listOf("Generated ${date.format(Date())}")))
-                append(xlsxRow(listOf("Data / Ora", "Acțiune", "Ticker", "Acțiuni", "Preț intrare", "Preț vânzare", "% la vânzare", "Prognoză Oracle %", "P/L realizat $", "Rata de succes", "ID poziție", "Status"), 1))
-                rows.forEach { r -> append(xlsxRow(listOf(date.format(Date(r.timestamp)), r.action, r.ticker, r.shares, r.entry, r.sale, r.salePct, r.forecast, r.pnl, r.success, r.positionId, r.status))) }
-            }
-            val shared = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"></sst>"
-            val workbook = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Portfolio\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>"
-            val rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>"
-            val rootRels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>"
-            val sheet = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetViews><sheetView workbookViewId=\"0\"/></sheetViews><sheetFormatPr defaultRowHeight=20/><cols><col min=\"1\" max=\"1\" width=\"22\"/><col min=\"2\" max=\"2\" width=\"18\"/><col min=\"3\" max=\"4\" width=\"12\"/><col min=\"5\" max=\"9\" width=\"18\"/><col min=\"10\" max=\"12\" width=\"20\"/></cols><sheetData>$sheetRows</sheetData></worksheet>"
-            val styles = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"4\"><font><sz val=\"11\"/><name val=\"Arial\"/></font><font><b/><sz val=\"11\"/><name val=\"Arial\"/></font><font><b/><sz val=\"18\"/><name val=\"Arial\"/></font><font><b/><sz val=\"16\"/><name val=\"Arial\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"D9EAF7\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"4\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"1\" borderId=\"0\"/><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\"/><xf numFmtId=\"0\" fontId=\"3\" fillId=\"0\" borderId=\"0\"/></cellXfs></styleSheet>"
-            val contentTypes = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>"
-            val zip = ZipOutputStream(out)
-            fun put(path: String, data: String) { zip.putNextEntry(ZipEntry(path)); zip.write(data.toByteArray(Charsets.UTF_8)); zip.closeEntry() }
-            put("[Content_Types].xml", contentTypes); put("_rels/.rels", rootRels); put("xl/workbook.xml", workbook); put("xl/_rels/workbook.xml.rels", rels); put("xl/worksheets/sheet1.xml", sheet); put("xl/styles.xml", styles); put("xl/sharedStrings.xml", shared); zip.finish()
+        val html = buildString {
+            append("<html><head><meta charset='UTF-8'><style>body{font-family:Arial} .title{font-size:24px;font-weight:bold} .return{font-size:22px;font-weight:bold} table{border-collapse:collapse} th,td{border:1px solid #777;padding:6px} th{font-weight:bold}</style></head><body>")
+            append("<div class='title'>AI STOCK ORACLE — PORTOFOLIO</div>")
+            append("<div>Generated ${htmlCell(date.format(Date()))}</div>")
+            append("<div class='return'>RANDAMENT TOTAL PORTOFOLIU: ${htmlCell(signedPct(total))}</div><br>")
+            append("<table><tr><th>TICKER</th><th>COMPANY</th><th>ACȚIUNI</th><th>INTRARE</th><th>CURENT / VÂNZARE</th><th>VALOARE</th><th>P/L</th><th>RANDAMENT</th><th>PONDERE</th><th>STATUS</th></tr>")
+            rows.forEach { r -> append("<tr><td>${htmlCell(r.ticker)}</td><td>${htmlCell(r.company)}</td><td>${htmlCell(r.shares)}</td><td>${htmlCell(r.entry)}</td><td>${htmlCell(r.current)}</td><td>${htmlCell(r.value)}</td><td>${htmlCell(r.pnl)}</td><td>${htmlCell(r.pnlPct)}</td><td>${htmlCell(r.weight)}</td><td><b>${htmlCell(r.status)}</b></td></tr>") }
+            append("</table></body></html>")
         }
+        saveDownload("oracle_portfolio_${stamp()}.xls", "application/vnd.ms-excel") { it.write(html.toByteArray(Charsets.UTF_8)) }
     }
 
     private fun savePdf(p: List<OraclePosition>, journal: List<OracleJournalEntry>) {
@@ -204,31 +173,31 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
         val rows = exportRows(p, journal)
         saveDownload("oracle_portfolio_${stamp()}.pdf", "application/pdf") { out ->
             val doc = PdfDocument(); val pageW = 595f; val pageH = 842f; val margin = 22f
-            val widths = floatArrayOf(42f, 60f, 35f, 38f, 45f, 45f, 40f, 45f, 45f, 45f, 55f, 40f)
-            val rp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(15, 23, 42); textSize = 6.5f; typeface = Typeface.DEFAULT }
+            val widths = floatArrayOf(46f, 82f, 45f, 58f, 62f, 62f, 52f, 52f, 48f, 52f)
+            val rp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(15, 23, 42); textSize = 7f; typeface = Typeface.DEFAULT }
             var pageNo = 1
             var page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create())
             var canvas = page.canvas
             fun header() {
-                rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 15f; rp.color = Color.rgb(15,23,42); canvas.drawText("AI STOCK ORACLE — PORTOFOLIO", margin, 27f, rp)
+                rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 15f; canvas.drawText("AI STOCK ORACLE — PORTOFOLIO", margin, 27f, rp)
                 rp.textSize = 19f; rp.color = if (total >= 0) Color.rgb(30, 150, 80) else Color.rgb(210, 55, 70); canvas.drawText("RANDAMENT TOTAL: ${signedPct(total)}", margin, 50f, rp)
                 rp.color = Color.rgb(15, 23, 42); rp.typeface = Typeface.DEFAULT; rp.textSize = 7f; canvas.drawText("Generated ${date.format(Date())}", margin, 64f, rp)
             }
             header(); var y = 80f
-            val headers = listOf("DATA/ORA", "ACȚIUNE", "TICKER", "ACȚIUNI", "INTRARE", "VÂNZARE", "% VÂNZ", "PROGNOZĂ", "P/L REALIZAT", "RATA SUCCES", "ID POZIȚIE", "STATUS")
+            val headers = listOf("TICKER", "COMPANY", "ACȚIUNI", "INTRARE", "CURENT/VÂNZ", "VALOARE", "P/L", "RAND.", "POND.", "STATUS")
             fun drawRow(row: List<String>, headerRow: Boolean) {
-                var x = margin; val h = if (headerRow) 25f else 22f
+                var x = margin; val h = if (headerRow) 24f else 21f
                 val bg = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = if (headerRow) Color.rgb(210, 220, 235) else Color.rgb(246, 248, 251); style = android.graphics.Paint.Style.FILL }
-                rp.typeface = if (headerRow) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; rp.textSize = if (headerRow) 5.5f else 6.2f; rp.color = Color.rgb(15,23,42)
-                row.forEachIndexed { i, v -> canvas.drawRect(x, y, x + widths[i], y + h, bg); canvas.drawText(v.take(if (headerRow) 14 else 18), x + 2f, y + if (headerRow) 15f else 14f, rp); x += widths[i] }
+                rp.typeface = if (headerRow) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; rp.textSize = if (headerRow) 6.3f else 6.8f; rp.color = Color.rgb(15,23,42)
+                row.forEachIndexed { i, v -> canvas.drawRect(x, y, x + widths[i], y + h, bg); canvas.drawText(v.take(if (headerRow) 13 else 18), x + 2f, y + if (headerRow) 15f else 14f, rp); x += widths[i] }
                 y += h
             }
             drawRow(headers, true)
             rows.forEach { r ->
                 if (y > pageH - 45f) { doc.finishPage(page); pageNo++; page = doc.startPage(PdfDocument.PageInfo.Builder(pageW.toInt(), pageH.toInt(), pageNo).create()); canvas = page.canvas; header(); y = 80f; drawRow(headers, true) }
-                drawRow(listOf(date.format(Date(r.timestamp)), r.action, r.ticker, r.shares, r.entry, r.sale, r.salePct, r.forecast, r.pnl, r.success, r.positionId, r.status), false)
+                drawRow(listOf(r.ticker, r.company, r.shares, r.entry, r.current, r.value, r.pnl, r.pnlPct, r.weight, r.status), false)
             }
-            rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 8f; canvas.drawText("RANDAMENT TOTAL PORTOFOLIU: ${signedPct(total)}", margin, pageH - 20f, rp)
+            rp.typeface = Typeface.DEFAULT_BOLD; rp.textSize = 7f; canvas.drawText("RANDAMENT TOTAL PORTOFOLIU: ${signedPct(total)}", margin, pageH - 20f, rp)
             doc.finishPage(page); doc.writeTo(out); doc.close()
         }
     }
