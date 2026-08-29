@@ -43,18 +43,6 @@ android {
             minifyEnabled false
         }
     }
+
+    kotlin { jvmToolchain(17) }
 }
-
-tasks.register('prepareOracleIcon') {
-    doLast {
-        def input = file('src/main/assets/oracle_icon.b64')
-        def output = file("${buildDir}/generated/res/oracle_icon/drawable-nodpi/oracle_icon.webp")
-        output.parentFile.mkdirs()
-        output.bytes = java.util.Base64.decoder.decode(input.text.trim())
-    }
-}
-
-android.sourceSets.main.res.srcDir("${buildDir}/generated/res/oracle_icon")
-tasks.named('preBuild').configure { dependsOn tasks.named('prepareOracleIcon') }
-
-kotlin { jvmToolchain(17) }
