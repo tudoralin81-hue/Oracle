@@ -87,12 +87,21 @@ When a new version regresses a previously working screen:
 - This behavior is implemented centrally in `OracleNativeModule` and must not be inverted or reimplemented differently by individual modules.
 - Regression check: open each module, verify left=`Back`, right=`Refresh`; return to Start and verify neither header button is present.
 
+## Rule 013 — Growth recommendations are frozen by the 16:00 trading-day snapshot
+- Symptom: Growth recommendations changed during the same snapshot window; e.g. the visible set changed from `ADSK/SNPS/CRM` to `VEEV/SNPS/CRM` without reaching the next 16:00 anchor.
+- Root cause: `OracleLocalProcessor.refresh()` called `OracleGrowthEngine.run()` on every module open and every Refresh, recomputing the ranking from live market data even when the persisted Growth snapshot was still current.
+- Required behavior: compute a new Growth recommendation set only when the persisted snapshot anchor differs from the current trading-day anchor.
+- The anchor is exactly `16:00 Europe/Bucharest`. Before 16:00, use the previous trading day's 16:00 snapshot. Saturday and Sunday use Friday's 16:00 snapshot; Monday before 16:00 also continues to use Friday's snapshot.
+- Opening Growth must never silently replace the current recommendation set. The right-top Refresh button may refresh live enrichment, but it must not recompute the frozen recommendation set inside the same snapshot window.
+- When a new snapshot is generated, all recommendation rows receive the new anchor as `referenceTimestamp`; T0 is never inherited from an older ticker or moved by refresh.
+- Regression check: open Growth repeatedly before the next 16:00 and verify identical recommendation tickers, score, signal, risk, allocation, forecast and snapshot timestamp. Repeat across Saturday/Sunday; the Friday snapshot must remain unchanged until Monday 16:00.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
 - Portfolio functional baseline includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
-- Latest Portfolio V12 fixes preserve the canonical Oracle recommendations and technical indicators, use current-price fallback for missing support/resistance, and put the total portfolio return prominently in XLSX/PDF exports with active/sold status.
 - Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
 - Growth now has a dedicated native module backed by persisted Oracle Growth snapshots and the supplied WordPress reference values.
 - Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
 - Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
+- Latest Growth freeze fix is isolated to `OracleLocalProcessor.kt`: the engine now recomputes Growth only when the 16:00 trading-day snapshot anchor changes.
