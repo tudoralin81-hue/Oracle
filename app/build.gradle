@@ -3,10 +3,22 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-android { namespace 'ro.alintudor.oracle'; compileSdk 35
-    defaultConfig { applicationId 'ro.alintudor.oracle'; minSdk 26; targetSdk 35; versionCode 7; versionName '2.1.1' }
+android {
+    namespace 'ro.alintudor.oracle'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'ro.alintudor.oracle'
+        minSdk 26
+        targetSdk 36
+        versionCode 8
+        versionName '2.1.2'
+    }
+
     buildTypes {
         release {
+            // Production signing must use a persistent release key.
+            // The current CI fallback is still the debug key until a release keystore is configured.
             signingConfig signingConfigs.debug
             minifyEnabled false
         }
