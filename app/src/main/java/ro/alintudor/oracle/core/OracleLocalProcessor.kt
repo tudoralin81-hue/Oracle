@@ -46,10 +46,14 @@ object OracleLocalProcessor {
 
         // HARD RULE: Growth is a snapshot, not a live ranking.
         // The complete recommendation set is immutable between two 16:00 trading-day anchors.
-        // Before Monday 16:00 the Friday snapshot remains active; refresh/re-entry cannot rerank it.
+        // IMPORTANT: during Saturday/Sunday we NEVER rerank, even if an older APK left
+        // a non-canonical timestamp in local storage. The visible weekend set stays fixed.
         val growthAnchor = currentGrowthAnchor(now)
-        val snapshotIsCurrent = current.growth.isNotEmpty() &&
-            current.growth.all { it.referenceTimestamp == growthAnchor }
+        val localDay = Instant.ofEpochMilli(now).atZone(BUCHAREST).dayOfWeek
+        val weekend = localDay == DayOfWeek.SATURDAY || localDay == DayOfWeek.SUNDAY
+        val snapshotIsCurrent = current.growth.isNotEmpty() && (
+            current.growth.all { it.referenceTimestamp == growthAnchor } || weekend
+        )
         val growth = if (snapshotIsCurrent) {
             current.growth
         } else {
