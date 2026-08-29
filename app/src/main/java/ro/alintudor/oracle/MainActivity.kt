@@ -68,8 +68,22 @@ class MainActivity : Activity() {
         currentModule=key;runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
         Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
     }
+
+    private fun refreshModule(key:String){
+        if(currentModule!=key || isFinishing)return
+        Toast.makeText(this,"Se actualizează ${titles[key]?:key.uppercase()}…",Toast.LENGTH_SHORT).show()
+        Thread{
+            val result=runCatching{OracleLocalProcessor.refresh(repository)}
+            mainHandler.post{
+                if(currentModule!=key || isFinishing)return@post
+                result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}
+                    .onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}
+            }
+        }.start()
+    }
+
     private fun renderModule(key:String,refresh:Boolean=false){
-        root.removeAllViews();val host=OracleNativeModule(this,titles[key]?:key.uppercase()){showHub()};root.addView(host.root,FrameLayout.LayoutParams(-1,-1));val data=if(refresh)OracleLocalProcessor.refresh(repository)else repository.snapshot()
+        root.removeAllViews();val host=OracleNativeModule(this,titles[key]?:key.uppercase(),{showHub()},{refreshModule(key)});root.addView(host.root,FrameLayout.LayoutParams(-1,-1));val data=if(refresh)OracleLocalProcessor.refresh(repository)else repository.snapshot()
         when(key){
             "portfolio"->OraclePortfolioModule(host).render(data.positions)
             "alerts"->OracleAlertsModule(host).render(data.alerts)
@@ -99,8 +113,7 @@ private class OracleHeroView(context:android.content.Context,private val onModul
         p.style=Paint.Style.STROKE;p.strokeWidth=1.2f*d;p.color=Color.argb(190,255,210,60);c.drawCircle(cx,cy,r*.90f,p);p.strokeWidth=1f*d;p.color=Color.argb(100,255,190,35);c.drawCircle(cx,cy,r*1.27f,p)
         val chart=Path();chart.moveTo(cx-r*.66f,cy+r*.57f);val pts=arrayOf(.00f to .08f,.10f to .02f,.20f to .16f,.30f to .05f,.40f to .20f,.50f to .12f,.60f to .34f,.70f to .22f,.80f to .45f,.90f to .39f,1f to .64f);for((x,y)in pts)chart.lineTo(cx-r*.66f+r*1.32f*x,cy+r*.57f-r*.40f*y);p.color=Color.rgb(255,195,35);p.strokeWidth=1.6f*d;c.drawPath(chart,p)
         p.textAlign=Paint.Align.CENTER;p.typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);p.color=Color.WHITE;p.textSize=r*.29f;c.drawText("ORACLE",cx,cy+r*.10f,p);p.textSize=r*.105f;p.color=Color.rgb(255,205,65);c.drawText("STOCK INTELLIGENCE",cx,cy+r*.32f,p);p.typeface=Typeface.DEFAULT_BOLD;p.textSize=r*.38f;p.color=Color.rgb(255,205,35);c.drawText("↗",cx,cy-r*.17f,p)
-        p.style=Paint.Style.STROKE;p.strokeWidth=1.4f*d;p.color=Color.rgb(125,100,35);c.drawRoundRect(4*d,10*d,48*d,54*d,10*d,10*d,p);c.drawRoundRect(w-48*d,10*d,w-4*d,54*d,10*d,10*d,p)
-        p.strokeWidth=2.2f*d;for(i in 0..2){val yy=(25+i*7)*d;c.drawLine(15*d,yy,37*d,yy,p)};c.drawArc(w-37*d,18*d,w-15*d,40*d,-55f,285f,false,p);c.drawLine(w-15*d,18*d,w-15*d,26*d,p)
+        p.style=Paint.Style.STROKE;p.strokeWidth=1.4f*d;p.color=Color.rgb(125,100,35);c.drawRoundRect(4*d,10*d,48*d,54*d,10*d,10*d,p)
         p.style=Paint.Style.FILL;p.textSize=base*.034f;p.color=Color.WHITE;c.drawText("ORACLE",cx,base*.055f,p);p.textSize=base*.018f;p.color=Color.rgb(170,150,90);c.drawText("STOCK INTELLIGENCE",cx,base*.082f,p)
     }
     private fun drawNode(c:Canvas,x:Float,y:Float,rad:Float,n:Node,d:Float){
