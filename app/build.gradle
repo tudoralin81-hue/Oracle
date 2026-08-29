@@ -34,9 +34,13 @@ android {
     buildTypes {
         release {
             // Persistent production certificate is preferred whenever CI secrets exist.
-            // CI keeps an installable non-production fallback until the production keystore is configured.
+            // Until those secrets are configured, keep the release artifact buildable for testing.
             def storeFilePath = System.getenv('ORACLE_KEYSTORE_FILE')
-            signingConfig (storeFilePath != null && !storeFilePath.isBlank()) ? signingConfigs.release : signingConfigs.debug
+            if (storeFilePath != null && !storeFilePath.isBlank()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             debuggable false
             minifyEnabled false
         }
