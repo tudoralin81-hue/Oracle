@@ -26,31 +26,31 @@ class OracleNewsModule(private val host: OracleNativeModule) {
     private var query = ""
     private var search: EditText? = null
 
-    /**
-     * Real refreshes pass rotateOnRefresh=true.  The source order is NEVER changed;
-     * only the article order inside each source is rotated.  This also makes it
-     * immediately visible that pull-to-refresh actually rebuilt the news list.
-     */
-    fun render(news: List<OracleNews>, rotateOnRefresh: Boolean = false) {
+    /** Every render advances the article rotation, while sourceOrder stays immutable. */
+    fun render(news: List<OracleNews>) {
         val incoming = dedupe(news).filter(::isEconomic).sortedByDescending { it.publishedAt }
-        allNews = if (rotateOnRefresh) rotateArticlesWithinSources(incoming) else incoming
+        allNews = rotateArticlesWithinSources(incoming)
         renderFiltered()
     }
 
     private fun rotateArticlesWithinSources(items: List<OracleNews>): List<OracleNews> {
+        val cycle = synchronized(OracleNewsModule::class.java) {
+            rotationCycle = (rotationCycle + 1) and Int.MAX_VALUE
+            rotationCycle
+        }
         val grouped = items.groupBy { sourceName(it) }
-        val rotated = grouped.flatMap { (_, sourceItems) ->
+        return grouped.flatMap { (_, sourceItems) ->
             val ordered = sourceItems.sortedWith(compareByDescending<OracleNews> { it.breaking }.thenByDescending { it.publishedAt })
             if (ordered.size <= 1) ordered
             else {
-                // Keep BREAKING NEWS first; rotate the normal stories by one slot.
+                // BREAKING NEWS stays first; normal stories rotate by one slot per render.
                 val breaking = ordered.filter { it.breaking }
                 val normal = ordered.filterNot { it.breaking }
-                val shifted = if (normal.size <= 1) normal else normal.drop(1) + normal.take(1)
+                val shift = cycle % normal.size
+                val shifted = normal.drop(shift) + normal.take(shift)
                 breaking + shifted
             }
         }
-        return rotated
     }
 
     private fun renderFiltered() {
@@ -120,7 +120,9 @@ class OracleNewsModule(private val host: OracleNativeModule) {
         val accent=sourceAccent(source)
         val box=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;background=GradientDrawable().apply{setColor(Color.rgb(9,15,29));cornerRadius=host.dp(16).toFloat();setStroke(host.dp(1),accent)};setPadding(host.dp(14),host.dp(13),host.dp(14),host.dp(12))}
         box.addView(TextView(host.root.context).apply{text=source;textSize=19f;typeface=Typeface.DEFAULT_BOLD;setTextColor(accent);setPadding(host.dp(2),0,0,host.dp(8))})
-        items.sortedWith(compareByDescending<OracleNews>{it.breaking}.thenByDescending{it.publishedAt}).take(8).forEach{n->addStory(box,n,accent)}
+        // Keep the order produced by rotateArticlesWithinSources. Do NOT sort here:
+        // sorting here would undo the visible refresh rotation.
+        items.take(8).forEach{n->addStory(box,n,accent)}
         box.addView(TextView(host.root.context).apply{text="VEZI $source  →";textSize=11f;typeface=Typeface.DEFAULT_BOLD;gravity=Gravity.CENTER;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(18,34,58));cornerRadius=host.dp(11).toFloat()};setPadding(0,host.dp(10),0,host.dp(10));isClickable=true;if(items.firstOrNull()?.url?.isNotBlank()==true)setOnClickListener{open(items.first().url)}},LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,host.dp(8),0,0)})
         host.content.addView(box,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(12))})
     }
@@ -178,4 +180,8 @@ class OracleNewsModule(private val host: OracleNativeModule) {
 
     private fun open(url:String){runCatching{host.root.context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}}
     private fun sourceAccent(source:String)=when{source.contains("CNBC",true)->Color.rgb(40,150,255);source.contains("BBC",true)->Color.rgb(235,40,60);source.contains("Financial Times",true)->Color.rgb(30,190,165);source.contains("Bloomberg",true)->Color.rgb(145,70,245);source.contains("MarketWatch",true)->Color.rgb(35,150,245);source.contains("Wall Street",true)->Color.rgb(70,90,120);source.contains("York Times",true)->Color.rgb(215,165,50);source.contains("Reuters",true)->Color.rgb(235,190,40);else->host.accent}
+
+    companion object {
+        private var rotationCycle: Int = 0
+    }
 }
