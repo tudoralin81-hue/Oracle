@@ -7,6 +7,7 @@ data class OracleModuleData(
     val news: List<OracleNews> = emptyList(),
     val history: List<OracleHistoryPoint> = emptyList(),
     val actions: List<OracleAction> = emptyList(),
+    val technical: List<OracleTechnicalSnapshot> = emptyList(),
     val knowledge: List<OracleKnowledgeItem> = emptyList(),
     val journal: List<OracleJournalEntry> = emptyList()
 )
@@ -20,6 +21,7 @@ fun OracleRepository.snapshot(): OracleModuleData {
         news = cachedNews(),
         history = cachedHistory(),
         actions = actions,
+        technical = cachedTechnical(),
         knowledge = cachedKnowledge(),
         journal = if (persistedJournal.isNotEmpty()) persistedJournal else OracleActivityJournal.fromActions(actions)
     )
