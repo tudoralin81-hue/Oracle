@@ -60,6 +60,7 @@ class OracleNativeModule(
             isFillViewport=true
             overScrollMode=View.OVER_SCROLL_ALWAYS
             addView(content)
+            setOnScrollChangeListener { _, _, scrollY, _, _ -> scrollPositions[title] = scrollY }
         }
         val pullContainer = PullRefreshLayout(context) { onRefresh() }
         pullContainer.addView(scrollView, FrameLayout.LayoutParams(-1,-1))
@@ -72,11 +73,13 @@ class OracleNativeModule(
             insets
         }
         root.requestApplyInsets()
+        scrollView.post { scrollView.scrollTo(0, scrollPositions[title] ?: 0) }
     }
 
     fun getScrollY(): Int = if (::scrollView.isInitialized) scrollView.scrollY else 0
     fun restoreScrollY(value: Int) {
         if (!::scrollView.isInitialized) return
+        scrollPositions[title] = value.coerceAtLeast(0)
         scrollView.post { scrollView.scrollTo(0, value.coerceAtLeast(0)) }
     }
 
@@ -92,7 +95,10 @@ class OracleNativeModule(
     }
     fun addSectionLabel(text:String,sectionAccent:Int=accent){content.addView(TextView(context).apply{this.text=text.uppercase();textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.14f;setTextColor(sectionAccent);setPadding(dp(5),dp(8),dp(5),dp(7))})}
     fun dp(v:Int)= (v*context.resources.displayMetrics.density).toInt()
-    companion object{fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}}
+    companion object{
+        private val scrollPositions = mutableMapOf<String, Int>()
+        fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}
+    }
 }
 
 /** Dependency-free pull-to-refresh wrapper. It only captures a downward gesture when the child is at the top. */
