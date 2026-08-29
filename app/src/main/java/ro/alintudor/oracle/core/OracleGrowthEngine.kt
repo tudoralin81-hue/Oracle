@@ -76,7 +76,17 @@ object OracleGrowthEngine {
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
-    private fun horizonScore(c:Map<String,Double>,h:String):Int { val w=weights[h]!!; return (keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).roundToInt().coerceIn(0,97) }
+    // Final score penalty requested for high raw scores:
+    // 97..100 -> -3; 92..96 -> -2; 0..91 unchanged.
+    private fun horizonScore(c:Map<String,Double>,h:String):Int {
+        val w=weights[h]!!
+        val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).roundToInt().coerceIn(0,100)
+        return when {
+            raw in 97..100 -> raw - 3
+            raw in 92..96 -> raw - 2
+            else -> raw
+        }
+    }
     private fun tie(c:C,h:String):Double = when(h){"SHORT"->min(2.0,max(-2.0,c.mom5*.15))+min(1.0,max(-1.0,(c.vr-1)*.8))+(if((c.macdHist?:0.0)>0).5 else 0.0)+(if((c.rsi ?: 50.0) in 52.0..72.0).5 else 0.0)+(if((c.rsi?:50.0)>78)-1.0 else 0.0);"MEDIUM"->min(2.0,max(-2.0,c.mom20*.08))+(if(c.ichi).7 else 0.0)+(if((c.adx?:0.0)>=20).5 else 0.0)+(if((c.macdHist?:0.0)>0).3 else 0.0)+(if((c.rsi ?: 50.0) in 50.0..70.0).5 else 0.0)+(if((c.rsi?:50.0)>78)-.8 else 0.0);else->min(2.0,max(-2.0,c.mom20*.06))+(if(c.ichi).8 else 0.0)+(if((c.adx?:0.0)>=25).5 else 0.0)+(if((c.macdHist?:0.0)>0).3 else 0.0)+(if(c.sma200!=null&&c.price>c.sma200).8 else 0.0)+(if(c.sma50!=null&&c.price>c.sma50).4 else 0.0)+(if((c.rsi ?: 50.0) in 48.0..68.0).4 else 0.0)+(if((c.rsi?:50.0)>78||c.mom5>15)-.8 else 0.0)}
     private fun rating(s:Int)=when{ s>=85->"STRONG BUY";s>=75->"BUY";s>=65->"HOLD";s>=55->"WATCH";else->"AVOID" }
     private fun ema(v:List<Double>,n:Int):Double? { if(v.size<n)return null; var e=v.takeLast(n).average(); val k=2.0/(n+1); for(i in v.size-n until v.size)e=v[i]*k+e*(1-k); return e }
