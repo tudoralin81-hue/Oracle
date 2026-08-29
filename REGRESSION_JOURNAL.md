@@ -96,6 +96,24 @@ When a new version regresses a previously working screen:
 - When a new snapshot is generated, all recommendation rows receive the new anchor as `referenceTimestamp`; T0 is never inherited from an older ticker or moved by refresh.
 - Regression check: open Growth repeatedly before the next 16:00 and verify identical recommendation tickers, score, signal, risk, allocation, forecast and snapshot timestamp. Repeat across Saturday/Sunday; the Friday snapshot must remain unchanged until Monday 16:00.
 
+## Rule 014 — Growth V6 Enhanced scans a 1,000-symbol universe
+- Build 234 remains the immutable regression baseline; V6 work is isolated on `growth-v6-enhanced`.
+- V6 uses a deterministic 1,000-symbol US equity candidate universe and never creates synthetic OHLCV values.
+- Stage 1 fetches 3 months of OHLCV concurrently with a bounded 12-worker pool and keeps the strongest 250 candidates for full evaluation.
+- Stage 2 fetches 1 year of OHLCV for those 250 candidates and computes the complete technical feature set.
+- News/catalyst enrichment is bounded to the strongest 60 candidates to avoid turning the daily snapshot into an unbounded network operation.
+- SHORT/MEDIUM/LONG are ranked independently. The engine returns one best candidate per horizon and prevents duplicate tickers across horizons.
+- The 12 weights are validated by construction; all three profiles sum to exactly 100. LONG is `6/6/20/6/5/8/18/4/9/7/9/2`.
+
+## Rule 015 — Growth V6 must expose confidence and data quality
+- V6 adds `confidence`, `dataQuality` and `regime` to every recommendation.
+- Fundamentals and market/sector remain neutral at `50` when authoritative data is unavailable; no values are invented.
+- Ichimoku is scored from price/cloud, Tenkan/Kijun and cloud direction instead of a boolean only.
+- MACD line, signal, histogram and histogram slope participate in momentum/confirmation logic.
+- ADX includes directional `DI+`/`DI-` confirmation.
+- Forecast uses ATR plus momentum, trend, ADX and market regime rather than a fixed ATR multiplier alone.
+- Allocation is reduced when risk, confidence or volatility conditions warrant it.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
@@ -105,3 +123,4 @@ When a new version regresses a previously working screen:
 - Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
 - Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
 - Latest Growth freeze fix is isolated to `OracleLocalProcessor.kt`: the engine now recomputes Growth only when the 16:00 trading-day snapshot anchor changes.
+- V6 Enhanced is isolated from Build 234 and adds a 1,000-symbol bounded-concurrency ranking pipeline, richer technical confirmation, confidence/data-quality metadata and exact 100-point horizon profiles.
