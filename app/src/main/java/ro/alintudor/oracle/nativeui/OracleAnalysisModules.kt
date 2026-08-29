@@ -2,11 +2,14 @@ package ro.alintudor.oracle.nativeui
 
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
+import android.widget.LinearLayout
 import android.widget.TextView
 import ro.alintudor.oracle.core.*
 import kotlin.math.abs
 
-/** Native presentation for all Oracle modules. All calculations stay local. */
+/** Native presentation for Oracle modules, using the same premium dark visual system as the start map. */
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String) {
     fun render(actions: List<OracleAction> = emptyList(), knowledge: List<OracleKnowledgeItem> = emptyList(), positions: List<OraclePosition> = emptyList(), history: List<OracleHistoryPoint> = emptyList()) {
         host.content.removeAllViews()
@@ -23,7 +26,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun renderGrowth(positions: List<OraclePosition>, history: List<OracleHistoryPoint>) {
-        host.addCard("GROWTH", "Randament, trend local și contribuție la portofoliu")
+        host.addCard("GROWTH", "Fundament, trend local și contribuție la portofoliu")
         if (positions.isEmpty()) return emptyState()
         val trends = OracleAnalytics.trends(history).associateBy { it.ticker }
         positions.sortedByDescending { it.pnlPercent }.forEachIndexed { i, p ->
@@ -79,12 +82,54 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun addItem(title: String, body: String) {
-        host.content.addView(TextView(host.root.context).apply {
-            text = "$title\n$body"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE); setPadding(18,18,18,18); setBackgroundColor(Color.rgb(9,13,26))
-        }, android.widget.LinearLayout.LayoutParams(-1,-2).apply { setMargins(0,0,0,10) })
+        val card = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(host.dp(16), host.dp(13), host.dp(16), host.dp(13))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(6, 10, 20))
+                cornerRadius = host.dp(14).toFloat()
+                setStroke(host.dp(1), Color.rgb(34, 43, 65))
+            }
+        }
+        val top = LinearLayout(host.root.context).apply { gravity = Gravity.CENTER_VERTICAL }
+        val marker = TextView(host.root.context).apply {
+            text = "◆"
+            textSize = 9f
+            setTextColor(moduleAccent())
+            gravity = Gravity.CENTER
+        }
+        top.addView(marker, LinearLayout.LayoutParams(host.dp(22), host.dp(22)))
+        top.addView(TextView(host.root.context).apply {
+            text = title.uppercase()
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = .035f
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(TextView(host.root.context).apply {
+            text = "›"
+            textSize = 24f
+            setTextColor(moduleAccent())
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(host.dp(24), host.dp(30)))
+        card.addView(top)
+        card.addView(TextView(host.root.context).apply {
+            text = body
+            textSize = 14f
+            setTextColor(Color.rgb(175, 183, 201))
+            setPadding(host.dp(22), host.dp(5), 0, 0)
+        })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(9)) })
     }
-    private fun emptyState() = host.addCard("Așteaptă date", "Nu există încă date locale suficiente pentru acest modul.")
+
+    private fun moduleAccent(): Int = when (moduleTitle) {
+        "GROWTH" -> Color.rgb(145, 245, 35)
+        "ANALYSIS" -> Color.rgb(25, 205, 255)
+        "WATCHLIST", "KNOWLEDGE" -> Color.rgb(255, 210, 45)
+        else -> Color.rgb(255, 205, 45)
+    }
+
+    private fun emptyState() = host.addCard("Așteaptă date", "Nu există încă date locale suficiente pentru acest modul. Când sincronizarea le furnizează, modulul le afișează nativ.")
     private fun fmt(v: Double) = "%.1f".format(v)
     private fun fmtMoney(v: Double) = "%.2f USD".format(v)
 }
