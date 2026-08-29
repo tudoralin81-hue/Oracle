@@ -87,6 +87,6 @@ class OraclePortfolioModule(private val host: OracleNativeModule) {
     private fun csv(p:List<OraclePosition>,j:List<OracleJournalEntry>)="Ticker,Company,Shares,Entry,Price,Value,P/L,P/L%,Weight\n"+p.joinToString("\n"){"${it.ticker},${it.company},${it.shares},${it.avgCost},${it.currentPrice},${it.marketValue},${it.pnl},${it.pnlPercent},${it.weight}"}
     private fun pdfText(p:List<OraclePosition>)="AI STOCK ORACLE — PORTFOLIO\nGenerated ${date.format(Date())}\n\n"+p.joinToString("\n"){"${it.ticker} | ${shares(it.shares)} sh | ${money(it.currentPrice)} | P/L ${signedPct(it.pnlPercent)}"}
     private fun share(text:String){context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,text)},"Oracle export"))}
-    private fun decision(action:String,t:OracleTechnicalSnapshot?)=when{(t?.rsi?:50)>=70->"HOLD";action=="BUY"->"BUY";action=="SELL"->"SELL";else->"HOLD"}
+    private fun decision(action:String,t:OracleTechnicalSnapshot?)=when{(t?.rsi?:50.0)>=70.0->"HOLD";action=="BUY"->"BUY";action=="SELL"->"SELL";else->"HOLD"}
     private fun money(v:Double)=String.format(Locale.US,"%,.2f",v);private fun pct(v:Double)=String.format(Locale.US,"%.2f%%",v);private fun signedPct(v:Double)=String.format(Locale.US,"%+.1f%%",v);private fun shares(v:Double)=if(v%1.0==0.0)v.toInt().toString() else String.format(Locale.US,"%.2f",v);private fun toast(s:String)=Toast.makeText(context,s,Toast.LENGTH_LONG).show()
 }
