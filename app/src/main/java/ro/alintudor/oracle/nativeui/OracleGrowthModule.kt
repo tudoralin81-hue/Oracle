@@ -39,41 +39,16 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             return
         }
 
-        addGrowthHero()
+        // GrowthBanner from the shared module shell is the single Growth hero.
+        // Do not add a second Growth banner here.
         addSummary(items)
 
         val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
             items.firstOrNull { it.horizon.equals(horizon, true) }
         }
         if (ordered.isNotEmpty()) addRecommendations(ordered, fallbackNews)
-        addNewsAndMethodology(ordered, fallbackNews)
+        addNews(ordered, fallbackNews)
         addHistory(items)
-    }
-
-    private fun addGrowthHero() {
-        val card = card(14).apply { background = rounded(panel, green, 1, 16) }
-        val row = LinearLayout(host.root.context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val icon = TextView(host.root.context).apply {
-            text = "↗"
-            textSize = 30f
-            gravity = Gravity.CENTER
-            setTextColor(green)
-            background = rounded(Color.rgb(18, 70, 12), Color.TRANSPARENT, 0, 50)
-        }
-        row.addView(icon, LinearLayout.LayoutParams(host.dp(68), host.dp(68)))
-        val copy = LinearLayout(host.root.context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(host.dp(12), 0, host.dp(8), 0)
-        }
-        copy.addView(text("GROWTH", 22f, Typeface.DEFAULT_BOLD, green, 0, 0))
-        copy.addView(text("Randament, trend local și\ncontribuție la portofoliu", 14f, Typeface.DEFAULT, white, 0, 6))
-        row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(SparklineView(host.root.context, green), LinearLayout.LayoutParams(host.dp(150), host.dp(76)))
-        card.addView(row)
-        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
 
     private fun addSummary(items: List<OracleGrowthRecommendation>) {
@@ -180,8 +155,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
     private fun addCompactWeights(parent: LinearLayout, weights: List<Int>) {
         if (weights.isEmpty()) return
-        val title = text("Ponderi", 10f, Typeface.DEFAULT_BOLD, white, 0, 5)
-        parent.addView(title)
+        parent.addView(text("Ponderi", 10f, Typeface.DEFAULT_BOLD, white, 0, 5))
         val names = listOf("News", "BO", "Trend", "Mom", "Vol", "S/R", "Fund", "BB", "Ichimoku", "Mkt", "R/R", "ADX")
         val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, host.dp(2), 0, host.dp(1)) }
         val columns = 6
@@ -203,30 +177,20 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         parent.addView(grid)
     }
 
-    private fun addNewsAndMethodology(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews>) {
+    private fun addNews(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews>) {
         val recent = items.mapNotNull { item ->
             val n = fallbackNews.firstOrNull { it.ticker.equals(item.ticker, true) }
             if (n != null) n else if (item.newsTitle.isNotBlank()) OracleNews(item.ticker, item.newsTitle, item.newsSource, "", item.referenceTimestamp, false) else null
         }.distinctBy { it.ticker }
-        if (recent.isNotEmpty()) {
-            val card = card(12)
-            card.addView(text("ȘTIRI & CATALIZATORI RECENȚI", 15f, Typeface.DEFAULT_BOLD, green, 0, 0))
-            recent.forEach { n ->
-                card.addView(text("▣  ${n.title}", 11f, Typeface.DEFAULT, white, 0, 7))
-                card.addView(text("${formatT0(n.publishedAt)} • ${n.source}", 9f, Typeface.DEFAULT, muted, host.dp(18), 2))
-            }
-            host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+        if (recent.isEmpty()) return
+
+        val card = card(12)
+        card.addView(text("ȘTIRI & CATALIZATORI RECENȚI", 15f, Typeface.DEFAULT_BOLD, green, 0, 0))
+        recent.forEach { n ->
+            card.addView(text("▣  ${n.title}", 11f, Typeface.DEFAULT, white, 0, 7))
+            card.addView(text("${formatT0(n.publishedAt)} • ${n.source}", 9f, Typeface.DEFAULT, muted, host.dp(18), 2))
         }
-        val method = LinearLayout(host.root.context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(host.dp(14), host.dp(9), host.dp(12), host.dp(9))
-            background = rounded(bg, green, 1, 13)
-        }
-        method.addView(text("☷", 18f, Typeface.DEFAULT, green, 0, 0), LinearLayout.LayoutParams(host.dp(32), -2))
-        method.addView(text("VEZI METODOLOGIA ȘI PONDERILE", 11f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
-        method.addView(text("›", 23f, Typeface.DEFAULT, green, 0, 0))
-        host.content.addView(method, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(12)) })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
     }
 
     private fun addHistory(items: List<OracleGrowthRecommendation>) {
@@ -268,9 +232,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
     }
 
     private fun compactSignal(signal: String) = signal.replace("STRONG ", "STRONG\n").trim()
-
     private fun riskColor(risk: String): Int = if (risk.contains("RID", true)) red else orange
-
     private fun signedPct(v: Double) = if (v >= 0) "+${format(v)}%" else "${format(v)}%"
     private fun format(v: Double) = "%.1f".format(Locale.US, v)
 
