@@ -16,7 +16,20 @@ When a new version regresses a previously working screen:
 4. Build.
 5. Only then make one controlled visual change at a time.
 
-## Current recovery
+## Rule 003 — Responsive sizing must not mix px and dp
+- The start hero previously calculated its height by mixing `widthPixels` with `dp(20)` and `dp(560)`.
+- This produced inconsistent visual scaling between phone/tablet densities.
+- New controlled change uses the actual screen height in pixels for the hero container and keeps drawing coordinates normalized to the view size.
+- Module shell and Growth module are intentionally untouched.
+
+## Current recovery / known-good base
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
-- Do not modify the restored shell until the startup/module behavior is confirmed.
+- Do not modify the restored shell unless a new regression is independently confirmed.
+
+## Controlled UI iteration — 2026-08-29
+- Commit: `db09cda53312ee746f3f3d441b10926deebe2a3a`.
+- Scope: `MainActivity.kt` only.
+- Intent: bring the Oracle start graphic closer to the supplied reference while preserving navigation, module rendering, Growth, journal and the recovered native shell.
+- Changes: responsive hero height, constellation/orbital background, gold Oracle core, module icons, cleaner node proportions, and reference-style top controls.
+- Rollback target if visual testing fails: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
