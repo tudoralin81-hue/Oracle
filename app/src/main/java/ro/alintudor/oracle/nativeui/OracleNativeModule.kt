@@ -5,8 +5,11 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.View
+import android.view.WindowInsets
 import android.widget.*
 
+/** Shared Oracle module shell. Header semantics are fixed: left=Back, right=Refresh. */
 class OracleNativeModule(
     private val context: Context,
     private val title: String,
@@ -16,11 +19,11 @@ class OracleNativeModule(
     val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.rgb(1,3,8))
-        setPadding(dp(10),dp(6),dp(10),dp(0))
+        setPadding(dp(10),0,dp(10),0)
     }
     val content = LinearLayout(context).apply {
-        orientation=LinearLayout.VERTICAL
-        setPadding(dp(2),dp(6),dp(2),dp(48))
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(2),dp(10),dp(2),dp(24))
     }
     val accent = when(title.uppercase()) {
         "ALERTS" -> Color.rgb(255,75,40)
@@ -29,29 +32,105 @@ class OracleNativeModule(
         "PORTFOLIO" -> Color.rgb(190,65,255)
         else -> Color.rgb(255,210,45)
     }
+
     init {
-        val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(3),dp(2),dp(5)) }
-        header.addView(button("‹","Back",Color.rgb(255,205,45)){ onBack() },LinearLayout.LayoutParams(dp(46),dp(46)))
-        val center=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER}
-        center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true})
-        center.addView(TextView(context).apply{text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true})
+        val header = LinearLayout(context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2),dp(5),dp(2),dp(5))
+        }
+
+        // FIXED SEMANTICS: left is Back, right is Refresh.
+        header.addView(
+            button("‹","Back",Color.rgb(255,205,45)) { onBack() },
+            LinearLayout.LayoutParams(dp(46),dp(46))
+        )
+
+        val center = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        center.addView(TextView(context).apply {
+            text="ORACLE"
+            textSize=21f
+            typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity=Gravity.CENTER
+            includeFontPadding=true
+        })
+        center.addView(TextView(context).apply {
+            text=title
+            textSize=11f
+            typeface=Typeface.DEFAULT_BOLD
+            letterSpacing=.18f
+            setTextColor(accent)
+            gravity=Gravity.CENTER
+            includeFontPadding=true
+        })
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
-        header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ onRefresh() },LinearLayout.LayoutParams(dp(46),dp(46)))
+
+        header.addView(
+            button("↻","Refresh",Color.rgb(255,205,45)) { onRefresh() },
+            LinearLayout.LayoutParams(dp(46),dp(46))
+        )
+
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
-        root.addView(android.view.View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
-        root.addView(ScrollView(context).apply{clipToPadding=false;addView(content)},LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
+        root.addView(
+            ScrollView(context).apply {
+                clipToPadding=false
+                addView(content)
+            },
+            LinearLayout.LayoutParams(-1,0,1f)
+        )
+
+        // Android 15/16 edge-to-edge can place app content under the status/navigation bars.
+        // Apply the real system-bar insets centrally so every module gets the same safe area.
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else 0
+            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
+            root.setPadding(dp(10), top + dp(2), dp(10), bottom)
+            content.setPadding(dp(2),dp(10),dp(2),bottom + dp(24))
+            insets
+        }
+        root.requestApplyInsets()
     }
+
     private fun button(symbol:String,desc:String,color:Int,click:()->Unit)=TextView(context).apply{
-        text=symbol;textSize=30f;gravity=Gravity.CENTER;contentDescription=desc;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)
-        background=rounded(Color.rgb(5,8,17),dp(13),color,dp(1));isClickable=true;isFocusable=true;setOnClickListener{click()}
+        text=symbol
+        textSize=30f
+        gravity=Gravity.CENTER
+        contentDescription=desc
+        typeface=Typeface.DEFAULT_BOLD
+        setTextColor(Color.WHITE)
+        background=rounded(Color.rgb(5,8,17),dp(13),color,dp(1))
+        isClickable=true
+        isFocusable=true
+        setOnClickListener { click() }
     }
+
     fun addCard(heading:String,body:String){
-        val card=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(14));background=rounded(Color.rgb(7,11,22),dp(15),Color.rgb(42,52,76),dp(1))}
+        val card=LinearLayout(context).apply{
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(16),dp(14),dp(16),dp(14))
+            background=rounded(Color.rgb(7,11,22),dp(15),Color.rgb(42,52,76),dp(1))
+        }
         card.addView(TextView(context).apply{text=heading.uppercase();textSize=17f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.04f;setTextColor(Color.WHITE)})
         card.addView(TextView(context).apply{text=body;textSize=14f;setTextColor(Color.rgb(175,182,198));setPadding(0,dp(7),0,0)})
         content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,dp(10))})
     }
-    fun addSectionLabel(text:String,sectionAccent:Int=accent){content.addView(TextView(context).apply{this.text=text.uppercase();textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.14f;setTextColor(sectionAccent);setPadding(dp(5),dp(8),dp(5),dp(7))})}
+
+    fun addSectionLabel(text:String,sectionAccent:Int=accent){
+        content.addView(TextView(context).apply{
+            this.text=text.uppercase();textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.14f
+            setTextColor(sectionAccent);setPadding(dp(5),dp(8),dp(5),dp(7))
+        })
+    }
+
     fun dp(v:Int)= (v*context.resources.displayMetrics.density).toInt()
-    companion object{fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}}
+
+    companion object{
+        fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{
+            setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)
+        }
+    }
 }
