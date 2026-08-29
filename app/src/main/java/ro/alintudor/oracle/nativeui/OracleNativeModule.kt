@@ -41,8 +41,6 @@ class OracleNativeModule(private val context: Context, private val title: String
         center.addView(TextView(context).apply{text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true})
         center.addView(TextView(context).apply{text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true})
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
-        // The right control is a real module refresh. MainActivity's existing callback
-        // was historically wired to showHub(), which made this button behave like Back.
         header.addView(button("↻","Refresh",Color.rgb(255,205,45)){ refreshCurrentModule() },LinearLayout.LayoutParams(dp(46),dp(46)))
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
@@ -57,14 +55,9 @@ class OracleNativeModule(private val context: Context, private val title: String
                 val method = activity.javaClass.getDeclaredMethod("renderModule", String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
                 Thread {
                     try {
-                        val dataMethod = activity.javaClass.getDeclaredField("repository").apply { isAccessible = true }
-                        val repository = dataMethod.get(activity)
-                        val processor = Class.forName("ro.alintudor.oracle.core.OracleLocalProcessor")
-                        val refresh = processor.getDeclaredMethod("refresh", Class.forName("ro.alintudor.oracle.core.OracleRepository"))
-                        refresh.invoke(processor.kotlin.objectInstance, repository)
-                        activity.runOnUiThread { method.invoke(activity, key, false) }
+                        activity.runOnUiThread { method.invoke(activity, key, true) }
                     } catch (_: Throwable) {
-                        activity.runOnUiThread { method.invoke(activity, key, false) }
+                        activity.runOnUiThread { onRefresh() }
                     }
                 }.start()
             } else onRefresh()
