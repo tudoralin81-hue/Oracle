@@ -17,14 +17,14 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
 
     private fun renderAnalysis(){
         host.addSectionLabel("ANALYSIS • SINGLE TICKER")
-        host.addCard("ANALIZĂ TICKER","Introdu un ticker pentru valorile parametrilor Oracle, analiza tehnică și opțiunea de Watchlist. Fără scoruri și fără știri.")
+        host.addCard("ANALIZĂ TICKER","Introdu un ticker pentru cele 11 valori Oracle folosite și în Growth, fără News, plus analiza tehnică și opțiunea de Watchlist. Fără scoruri și fără ponderi.")
         val input=EditText(host.root.context).apply{hint="Introdu tickerul (ex. NVDA)";setSingleLine(true);textSize=18f;setTextColor(Color.WHITE);setHintTextColor(Color.rgb(130,145,170));setPadding(host.dp(16),0,host.dp(16),0);background=GradientDrawable().apply{setColor(Color.rgb(8,14,28));cornerRadius=host.dp(14).toFloat();setStroke(host.dp(1),host.accent)};inputType=3}
         host.fixedToolbar.addView(input,LinearLayout.LayoutParams(-1,host.dp(52)).apply{setMargins(0,host.dp(3),0,host.dp(6))})
         val button=Button(host.root.context).apply{text="ANALIZEAZĂ TICKER";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(15,75,110));cornerRadius=host.dp(13).toFloat()}}
         host.fixedToolbar.addView(button,LinearLayout.LayoutParams(-1,host.dp(48)).apply{setMargins(0,0,0,host.dp(8))})
         fun run(){val t=input.text.toString().trim().uppercase(Locale.US);if(t.isBlank()){input.error="Introdu un ticker";return};button.isEnabled=false;button.text="SE ANALIZEAZĂ…";Thread{val x=runCatching{OracleAnalysisEngine.analyze(t)};host.root.post{button.isEnabled=true;button.text="ANALIZEAZĂ TICKER";x.onSuccess{renderResult(it)}.onFailure{Toast.makeText(host.root.context,"Analiza a eșuat: ${it.message?:it.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()}
         button.setOnClickListener{run()};input.setOnEditorActionListener{_,_,_->run();true}
-        host.content.addView(TextView(host.root.context).apply{text="Caută un ticker și primești analiza tehnică Oracle, fără modul News.";textSize=12f;setTextColor(Color.rgb(150,165,188));setPadding(host.dp(4),host.dp(5),host.dp(4),host.dp(12))})
+        host.content.addView(TextView(host.root.context).apply{text="Caută un ticker și primești valorile Oracle și analiza tehnică, fără modul News.";textSize=12f;setTextColor(Color.rgb(150,165,188));setPadding(host.dp(4),host.dp(5),host.dp(4),host.dp(12))})
     }
 
     private fun renderResult(r:OracleAnalysisEngine.Result?){
@@ -33,10 +33,9 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         val top=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(16),host.dp(14),host.dp(16),host.dp(14));background=GradientDrawable().apply{setColor(Color.rgb(7,13,25));cornerRadius=host.dp(16).toFloat();setStroke(host.dp(1),host.accent)}}
         top.addView(TextView(host.root.context).apply{text=r.ticker;textSize=31f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)})
         top.addView(TextView(host.root.context).apply{text=money(r.price);textSize=14f;setTextColor(host.accent);setPadding(0,host.dp(5),0,0)})
-        top.addView(TextView(host.root.context).apply{text="RISC ${r.risk} • Alocare max ${fmt(r.allocation)}%";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(255,205,55));setPadding(0,host.dp(8),0,0)})
         host.content.addView(top,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(10))})
 
-        host.addSectionLabel("PARAMETRII ORACLE")
+        host.addSectionLabel("PARAMETRII ORACLE • 11 VALORI")
         val grid=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL}
         OracleAnalysisEngine.factorNames.forEachIndexed{i,n->
             if(n.equals("News",true)) return@forEachIndexed
@@ -68,8 +67,8 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         val sr=when{f[5]>=70->"Poziționarea față de suport/rezistență este favorabilă.";f[5]>=45->"Poziționarea față de suport/rezistență este intermediară.";else->"Poziționarea în intervalul tehnic recent este nefavorabilă."}
         val ichi=if(f[8]>=80)"Ichimoku confirmă structura bullish." else "Ichimoku nu confirmă o structură bullish completă."
         val adx=when{(r.adx?:0.0)>=25->"ADX indică o tendință suficient de puternică.";(r.adx?:0.0)>=20->"ADX indică o tendință moderată.";else->"ADX indică o tendință slabă / neconfirmată."}
-        val risk="Riscul este ${r.risk.lowercase()} iar ATR este ${fmt(r.atrPct)}%; volatilitatea trebuie controlată."
-        val verdict=if(r.signal.contains("BUY"))"Verdict: configurația tehnică este favorabilă, dar intrarea trebuie raportată la risc și suport." else "Verdict: avantajul tehnic nu este suficient pentru o intrare agresivă; monitorizarea este preferabilă."
+        val risk="Volatilitatea trebuie controlată; ATR este ${fmt(r.atrPct)}%."
+        val verdict=if(f[2]>=65&&f[3]>=55)"Verdict: configurația tehnică este favorabilă, dar intrarea trebuie raportată la risc și suport." else "Verdict: avantajul tehnic nu este suficient pentru o intrare agresivă; monitorizarea este preferabilă."
         return listOf(trend,mom,br,vol,sr,ichi,adx,risk,verdict).take(10)
     }
 
