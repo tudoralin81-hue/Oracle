@@ -10,7 +10,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String) {
-    fun render(actions:List<OracleAction> = emptyList(),knowledge:List<OracleKnowledgeItem> = emptyList(),positions:List<OraclePosition> = emptyList(),history:List<OracleHistoryPoint> = emptyList(),watchlist:List<String> = emptyList()) {
+    fun render(actions:List<OracleAction> = emptyList(),knowledge:List<OracleKnowledgeItem> = emptyList(),positions:List<OraclePosition> = emptyList(),history:List<OracleHistoryPoint> = emptyList(),watchlist:List<String> = OracleWatchlistStore(host.root.context).load()) {
         host.content.removeAllViews(); val p=OracleAnalytics.normalize(positions); val computed=OracleAnalytics.actions(p,history)
         when(moduleTitle){"GROWTH"->renderGrowth();"ANALYSIS"->renderAnalysis();"WATCHLIST"->renderWatchlist(watchlist);"KNOWLEDGE"->renderKnowledge(knowledge);else->renderActions(if(computed.isNotEmpty())computed else actions)}
     }
