@@ -63,12 +63,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("GRAFIC TEHNIC • DATE REALE")
         val box=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(8),host.dp(8),host.dp(8),host.dp(8));background=GradientDrawable().apply{setColor(Color.rgb(3,7,14));cornerRadius=host.dp(15).toFloat();setStroke(host.dp(1),Color.rgb(34,55,82))}}
         val chart=OracleAnalysisChartView(host.root.context,ticker)
-        box.addView(chart,LinearLayout.LayoutParams(-1,host.dp(560)))
+        box.addView(chart,LinearLayout.LayoutParams(-1,host.dp(620)))
         val ranges=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
-        listOf("5D","1M","3M","6M","1Y").forEachIndexed{i,label->
-            val b=Button(host.root.context).apply{text=label;textSize=10f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);setPadding(0,0,0,0);background=GradientDrawable().apply{setColor(if(i==3)Color.rgb(20,70,105) else Color.rgb(12,20,34));cornerRadius=host.dp(9).toFloat();setStroke(host.dp(1),Color.rgb(45,65,90))}}
+        listOf("1D","1H","30M").forEachIndexed{i,label->
+            val b=Button(host.root.context).apply{text=label;textSize=11f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);setPadding(0,0,0,0);alpha=if(i==0)1f else .72f;background=GradientDrawable().apply{setColor(if(i==0)Color.rgb(20,70,105) else Color.rgb(12,20,34));cornerRadius=host.dp(9).toFloat();setStroke(host.dp(1),Color.rgb(45,65,90))}}
             b.setOnClickListener{chart.setMode(label);for(j in 0 until ranges.childCount)(ranges.getChildAt(j) as Button).alpha=if(ranges.getChildAt(j)===b)1f else .72f}
-            ranges.addView(b,LinearLayout.LayoutParams(0,host.dp(38),1f).apply{setMargins(host.dp(2),host.dp(6),host.dp(2),0)})
+            ranges.addView(b,LinearLayout.LayoutParams(0,host.dp(42),1f).apply{setMargins(host.dp(2),host.dp(6),host.dp(2),0)})
         }
         box.addView(ranges)
         val indicators=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
