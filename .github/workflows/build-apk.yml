@@ -18,6 +18,9 @@ jobs:
       - name: Apply stable Watchlist navigation/eye fix
         shell: bash
         run: python3 scripts/fix_watchlist_eye.py
+      - name: Apply forced Watchlist touch navigation fix
+        shell: bash
+        run: python3 scripts/force_watchlist_navigation.py
       - name: Commit patched source
         shell: bash
         run: |
@@ -28,7 +31,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Watchlist fix already present."
           else
-            git commit -m "fix: Analysis watchlist eye and ticker navigation [skip ci]"
+            git commit -m "fix: force Watchlist ticker touch navigation [skip ci]"
             git push
           fi
       - uses: actions/setup-java@v4
