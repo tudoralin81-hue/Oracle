@@ -46,18 +46,19 @@ object OracleAnalysisEngine {
         fun score(w:IntArray):Int{val raw=factors.indices.sumOf{factors[it]*(w[it]/100.0)}.roundToInt().coerceIn(0,100);return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}}
         val ss=score(shortWeights);val ms=score(mediumWeights);val ls=score(longWeights)
 
-        // Risk and allocation are calculated independently for each ticker.
-        // Risk is no longer a default HIGH bucket, and allocation is not frozen at 3%.
-        val riskScore = (100.0 * (
-            ((rsi - 55.0) / 25.0).coerceIn(0.0, 1.0) * 0.30 +
-            ((vr - 1.0) / 2.0).coerceIn(0.0, 1.0) * 0.15 +
-            (m5 / 20.0).coerceIn(0.0, 1.0) * 0.30 +
-            (atrPct / 8.0).coerceIn(0.0, 1.0) * 0.25
-        )).coerceIn(0.0,100.0)
-        val risk=when { riskScore>=60.0 -> "RIDICAT"; riskScore>=35.0 -> "MEDIU"; else -> "SCĂZUT" }
-        val baseAllocation=when{trend>=90->8.0;trend>=85->7.0;trend>=80->6.0;trend>=75->5.0;trend>=70->4.0;else->2.0}
-        val riskMultiplier=when(risk){"RIDICAT"->0.55;"MEDIU"->0.75;else->1.0}
-        val allocation=(baseAllocation*riskMultiplier*2.0).roundToInt()/2.0
+        // Risk is a continuous per-ticker calculation from volatility, overextension,
+        // volume shock and short-term acceleration. Allocation is then risk-adjusted
+        // from conviction; it is not a frozen/default percentage.
+        val overextension=((rsi-65.0)/15.0).coerceIn(0.0,1.0)
+        val volatility=(atrPct/8.0).coerceIn(0.0,1.0)
+        val volumeShock=((vr-1.0)/2.0).coerceIn(0.0,1.0)
+        val acceleration=(abs(m5)/20.0).coerceIn(0.0,1.0)
+        val riskScore=(100.0*(overextension*0.30+volatility*0.35+volumeShock*0.15+acceleration*0.20)).coerceIn(0.0,100.0)
+        val risk=when{riskScore>=65.0->"RIDICAT";riskScore>=35.0->"MEDIU";else->"SCĂZUT"}
+        val conviction=((ss+ms+ls)/3.0).coerceIn(0.0,100.0)
+        val rawAllocation=1.0+(conviction/100.0)*7.0
+        val riskFactor=when{risk=="RIDICAT"->0.55;risk=="MEDIU"->0.78;else->1.0}
+        val allocation=(rawAllocation*riskFactor).coerceIn(1.0,8.0).roundToInt()/1.0
         val signal=when{ss>=85->"STRONG BUY";ss>=75->"BUY";ss>=65->"HOLD";ss>=55->"WATCH";else->"AVOID"}
         return Result(ticker,p,ss,ms,ls,signal,risk,allocation,rsi,m5,m20,vr,s50,s200,adx,atrPct,factors)
     }
