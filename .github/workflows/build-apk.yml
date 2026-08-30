@@ -15,25 +15,6 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply stable Watchlist navigation/eye fix
-        shell: bash
-        run: python3 scripts/fix_watchlist_eye.py
-      - name: Apply Watchlist V3 independent-button fix
-        shell: bash
-        run: python3 scripts/fix_watchlist_clicks_v3.py
-      - name: Commit patched source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/MainActivity.kt
-          if git diff --cached --quiet; then
-            echo "Watchlist fix already present."
-          else
-            git commit -m "fix: independent Android buttons for Watchlist positions [skip ci]"
-            git push
-          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
