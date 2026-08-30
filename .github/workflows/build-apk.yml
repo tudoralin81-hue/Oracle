@@ -1,4 +1,5 @@
 name: Build Oracle APK
+# Watchlist navigation fix: ticker -> Analysis is patched before compilation.
 on:
   push:
     branches: [ main, 'ui/**', 'feature/**' ]
@@ -57,51 +58,27 @@ jobs:
       }'''
           new = '''    private fun renderKnowledge(items: List<OracleKnowledgeItem>) {
           host.addCard("KNOWLEDGE", "Biblioteca Oracle — conținut local")
-
           val linkCard = LinearLayout(host.root.context).apply {
               orientation = LinearLayout.HORIZONTAL
               gravity = Gravity.CENTER_VERTICAL
               setPadding(host.dp(16), host.dp(13), host.dp(16), host.dp(13))
               background = GradientDrawable().apply {
-                  setColor(Color.rgb(7, 12, 23))
-                  cornerRadius = host.dp(15).toFloat()
-                  setStroke(host.dp(1), host.accent)
+                  setColor(Color.rgb(7, 12, 23)); cornerRadius = host.dp(15).toFloat(); setStroke(host.dp(1), host.accent)
               }
               isClickable = true
               isFocusable = true
-              setOnClickListener {
-                  runCatching {
-                      host.root.context.startActivity(
-                          Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/"))
-                      )
-                  }
-              }
+              setOnClickListener { runCatching { host.root.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/"))) } }
           }
-          linkCard.addView(TextView(host.root.context).apply {
-              text = "KNOWLEDGE ONLINE"
-              textSize = 18f
-              typeface = Typeface.DEFAULT_BOLD
-              setTextColor(Color.WHITE)
-          }, LinearLayout.LayoutParams(0, -2, 1f))
-          linkCard.addView(TextView(host.root.context).apply {
-              text = "alintudor.ro/knowledge  ›"
-              textSize = 14f
-              typeface = Typeface.DEFAULT_BOLD
-              setTextColor(host.accent)
-              gravity = Gravity.END
-          })
-          host.content.addView(linkCard, LinearLayout.LayoutParams(-1, -2).apply {
-              setMargins(0, 0, 0, host.dp(12))
-          })
-
+          linkCard.addView(TextView(host.root.context).apply { text = "KNOWLEDGE ONLINE"; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
+          linkCard.addView(TextView(host.root.context).apply { text = "alintudor.ro/knowledge  ›"; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(host.accent); gravity = Gravity.END })
+          host.content.addView(linkCard, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(12)) })
           if (items.isEmpty()) return
           items.sortedByDescending { it.publishedAt }.forEach { addItem(it.title, "${it.category}\\n${it.content}") }
       }'''
           if old not in s:
-              raise SystemExit("Expected OracleSimpleModule.renderKnowledge() was not found; refusing to build a different source.")
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding="utf-8")
-          print("Knowledge link fix applied to OracleAnalysisModules.kt")
+              raise SystemExit("Expected renderKnowledge() was not found; refusing to build a different source.")
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          print("Knowledge link fix applied")
           PY
       - name: Apply Watchlist ticker navigation fix
         shell: bash
@@ -142,7 +119,7 @@ jobs:
               raise SystemExit("Analysis background-refresh guard target was not found; refusing to build a different source.")
           s = s.replace(marker, guarded, 1)
           p.write_text(s, encoding="utf-8")
-          print("Watchlist -> Analysis fix applied to OracleMysticActivity.kt")
+          print("Watchlist -> Analysis fix applied")
           PY
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
