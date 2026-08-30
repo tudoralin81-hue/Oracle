@@ -65,6 +65,7 @@ class OracleMysticActivity : Activity() {
     private fun openModule(key: String) {
         currentModule = key
         runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+        if (key == "analysis") return
         Thread {
             val result = runCatching { OracleLocalProcessor.refresh(repository) }
             mainHandler.post {
@@ -85,8 +86,19 @@ class OracleMysticActivity : Activity() {
             "alerts" -> OracleAlertsModule(host).render(data.alerts)
             "news" -> OracleNewsModule(host).render(data.news)
             "journal" -> OracleJournalModule(host).render(data.journal, data.history, data.alerts)
-            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)
+            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(
+                host,
+                titles[key] ?: key.uppercase(),
+                onWatchlistTickerClick = { ticker -> openWatchlistTicker(ticker) }
+            ).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)
         }
+    }
+
+    private fun openWatchlistTicker(ticker: String) {
+        val normalized = ticker.trim().uppercase(java.util.Locale.US)
+        if (normalized.isBlank()) return
+        OracleSimpleModule.setTickerDraft(normalized)
+        openModule("analysis")
     }
 
     private fun handleBack() {
