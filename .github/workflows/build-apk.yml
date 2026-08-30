@@ -37,7 +37,6 @@ jobs:
               echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
               echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
             } >> "$GITHUB_ENV"
-            echo "Persistent Oracle release signing key prepared."
           else
             echo "WARNING: production signing secrets are not configured; this build will use the non-production debug certificate fallback."
           fi
@@ -51,7 +50,6 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-          echo "Release APK signature verification passed."
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
