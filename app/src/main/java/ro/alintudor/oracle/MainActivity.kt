@@ -116,7 +116,21 @@ class MainActivity : Activity() {
             "growth"->{ val liveGrowth=OracleGrowthLiveData.refresh(data.growth); OracleGrowthModule(host).render(liveGrowth,data.news) }
             "analysis"->OracleSimpleModule(host,title).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)
             "watchlist"->renderWatchlistDirect()
-            "knowledge"->OracleKnowledgeModule(host).render(OracleKnowledgeSync.load(this)) { url -> openKnowledgeUrl(url) }
+            "knowledge"->OracleKnowledgeModule(host).render(
+                OracleKnowledgeSync.load(this),
+                { url -> openKnowledgeUrl(url) },
+                {
+                    OracleKnowledgeSync.refreshAsync(this) { ok, error ->
+                        if (currentModule != "knowledge" || isFinishing) return@refreshAsync
+                        if (ok) {
+                            runCatching { renderModule("knowledge", false) }
+                                .onFailure { showModuleError("knowledge", it) }
+                        } else {
+                            Toast.makeText(this, "Knowledge refresh eșuat: ${error ?: "eroare necunoscută"}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            )
         }
         host.restoreScrollY(preservedScrollY)
     }
