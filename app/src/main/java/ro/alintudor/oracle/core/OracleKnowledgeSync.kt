@@ -12,7 +12,6 @@ import java.net.URL
 import java.net.URI
 import java.time.Instant
 import java.util.concurrent.Executors
-import java.util.regex.Pattern
 
 data class OracleKnowledgeArticle(
     val title: String,
@@ -25,7 +24,9 @@ data class OracleKnowledgeArticle(
 
 object OracleKnowledgeSync {
     const val SOURCE_URL = "https://alintudor.ro/knowledge/"
-    private const val REST_URL = "https://alintudor.ro/wp-json/wp/v2/posts?categories=1&per_page=100&orderby=date&order=desc&_fields=id,date,link,title,excerpt,content"
+    // Do not depend on a guessed WordPress category ID. The Knowledge section is
+    // identified by the canonical /knowledge/ URL path of each published article.
+    private const val REST_URL = "https://alintudor.ro/wp-json/wp/v2/posts?per_page=100&orderby=date&order=desc&_fields=id,date,link,title,excerpt,content"
     private const val PREFS = "oracle_knowledge"
     private const val ITEMS = "articles"
     private const val LAST_SUCCESS = "last_success"
@@ -40,10 +41,7 @@ object OracleKnowledgeSync {
         val a = JSONArray(raw)
         List(a.length()) { i ->
             val o = a.getJSONObject(i)
-            OracleKnowledgeArticle(
-                o.optString("title"), o.optString("url"), o.optString("excerpt"),
-                o.optString("content"), o.optLong("publishedAt"), o.optLong("refreshedAt")
-            )
+            OracleKnowledgeArticle(o.optString("title"), o.optString("url"), o.optString("excerpt"), o.optString("content"), o.optLong("publishedAt"), o.optLong("refreshedAt"))
         }
     }.getOrDefault(emptyList())
 
@@ -67,33 +65,21 @@ object OracleKnowledgeSync {
         }
     }
 
-    /**
-     * Canonical sync: WordPress REST API, category ID 1 (Capitolul 1).
-     * The public /knowledge/ page is presentation HTML and is intentionally not scraped.
-     */
     fun refreshBlocking(context: Context): List<OracleKnowledgeArticle> {
         val now = System.currentTimeMillis()
         val json = get(REST_URL)
         val apiItems = parseRestArticles(json, now)
-        if (apiItems.isEmpty()) throw IllegalStateException("WordPress REST API nu a returnat articole pentru Knowledge (categoria 1).")
-
+        if (apiItems.isEmpty()) throw IllegalStateException("Nu am găsit articole publicate în /knowledge/ în WordPress REST API.")
         val payload = JSONArray().apply {
             apiItems.forEach { a ->
                 put(JSONObject().apply {
-                    put("title", a.title)
-                    put("url", a.url)
-                    put("excerpt", a.excerpt)
-                    put("content", a.content)
-                    put("publishedAt", a.publishedAt)
-                    put("refreshedAt", a.refreshedAt)
+                    put("title", a.title); put("url", a.url); put("excerpt", a.excerpt); put("content", a.content)
+                    put("publishedAt", a.publishedAt); put("refreshedAt", a.refreshedAt)
                 })
             }
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(ITEMS, payload.toString())
-            .putLong(LAST_SUCCESS, now)
-            .remove(LAST_ERROR)
-            .apply()
+            .putString(ITEMS, payload.toString()).putLong(LAST_SUCCESS, now).remove(LAST_ERROR).apply()
         return apiItems
     }
 
@@ -103,8 +89,9 @@ object OracleKnowledgeSync {
         for (i in 0 until array.length()) {
             val item = array.getJSONObject(i)
             val title = decodeHtml(item.optJSONObject("title")?.optString("rendered", "") ?: "")
-            val url = item.optString("link", "").trim()
-            if (title.isBlank() || url.isBlank()) continue
+            val url = normalizeUrl(item.optString("link", "").trim())
+            // Only articles actually belonging to the public Knowledge section.
+            if (title.isBlank() || url.isBlank() || !isKnowledgeUrl(url)) continue
             val contentHtml = item.optJSONObject("content")?.optString("rendered", "") ?: ""
             val excerptHtml = item.optJSONObject("excerpt")?.optString("rendered", "") ?: ""
             val content = cleanText(contentHtml)
@@ -115,38 +102,34 @@ object OracleKnowledgeSync {
         return out.distinctBy { it.url }.sortedByDescending { it.publishedAt }.take(MAX_ARTICLES)
     }
 
+    private fun isKnowledgeUrl(url: String): Boolean = runCatching {
+        val u = URI(url)
+        val path = u.path.trimEnd('/')
+        path == "/knowledge" || path.startsWith("/knowledge/")
+    }.getOrDefault(false)
+
     fun scheduleDaily(context: Context) {
         val app = context.applicationContext
         val alarm = app.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
         val intent = Intent(app, OracleKnowledgeRefreshReceiver::class.java)
-        val pending = android.app.PendingIntent.getBroadcast(
-            app, 7107, intent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
+        val pending = android.app.PendingIntent.getBroadcast(app, 7107, intent, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
         alarm.cancel(pending)
         val first = System.currentTimeMillis() + 24L * 60L * 60L * 1000L
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
-            alarm.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, first, pending)
-        } else {
-            alarm.set(android.app.AlarmManager.RTC_WAKEUP, first, pending)
-        }
+        if (android.os.Build.VERSION.SDK_INT >= 23) alarm.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, first, pending)
+        else alarm.set(android.app.AlarmManager.RTC_WAKEUP, first, pending)
     }
 
     private fun get(url: String): String {
-        val separator = if (url.contains("?")) "&" else "?"
-        val finalUrl = url + separator + "oracle_knowledge_refresh=" + System.currentTimeMillis()
+        val finalUrl = url + "&oracle_knowledge_refresh=" + System.currentTimeMillis()
         val c = (URL(finalUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = REQUEST_TIMEOUT
-            readTimeout = REQUEST_TIMEOUT
-            useCaches = false
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "OracleKnowledge/2.0")
-            setRequestProperty("Accept", "application/json,text/html;q=0.9")
+            connectTimeout = REQUEST_TIMEOUT; readTimeout = REQUEST_TIMEOUT; useCaches = false; requestMethod = "GET"
+            setRequestProperty("User-Agent", "OracleKnowledge/3.0")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
             setRequestProperty("Pragma", "no-cache")
         }
         return try {
-            if (c.responseCode !in 200..299) throw IllegalStateException("HTTP ${c.responseCode} pentru $url")
+            if (c.responseCode !in 200..299) throw IllegalStateException("HTTP ${c.responseCode} pentru Knowledge REST API")
             c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally { c.disconnect() }
     }
@@ -154,25 +137,15 @@ object OracleKnowledgeSync {
     private fun decodeHtml(raw: String): String = cleanText(raw)
 
     private fun cleanText(raw: String): String {
-        var s = raw
-            .replace(Regex("<script[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
+        var s = raw.replace(Regex("<script[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("<style[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("</p>|</div>|</li>|</h[1-6]>", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("<[^>]+>"), " ")
-        mapOf(
-            "&nbsp;" to " ", "&amp;" to "&", "&quot;" to "\"", "&#8211;" to "–",
-            "&#8212;" to "—", "&#8217;" to "’", "&#8220;" to "“", "&#8221;" to "”",
-            "&#038;" to "&", "&#39;" to "'"
-        ).forEach { (a, b) -> s = s.replace(a, b, ignoreCase = true) }
+        mapOf("&nbsp;" to " ", "&amp;" to "&", "&quot;" to "\"", "&#8211;" to "–", "&#8212;" to "—", "&#8217;" to "’", "&#8220;" to "“", "&#8221;" to "”", "&#038;" to "&", "&#39;" to "'").forEach { (a,b) -> s = s.replace(a,b,ignoreCase=true) }
         return s.replace(Regex("\\s+"), " ").trim()
     }
 
-    // Kept as compatibility helpers for older builds/scripts; the REST API is authoritative.
-    @Suppress("UNUSED_PARAMETER") private fun extractArticleLinks(html: String): List<String> = emptyList()
-    @Suppress("UNUSED_PARAMETER") private fun extractTitle(html: String): String = ""
-    @Suppress("UNUSED_PARAMETER") private fun extractContent(html: String): String = ""
-    @Suppress("UNUSED_PARAMETER") private fun extractPublishedAt(html: String): Long = 0L
     private fun normalizeUrl(raw: String): String = runCatching {
         val u = URI(raw.trim())
         if (u.isAbsolute) u.toString().substringBefore('#') else URI(SOURCE_URL).resolve(u).toString().substringBefore('#')
@@ -182,21 +155,12 @@ object OracleKnowledgeSync {
 class OracleKnowledgeRefreshReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
-            OracleKnowledgeSync.scheduleDaily(context.applicationContext)
-            return
+            OracleKnowledgeSync.scheduleDaily(context.applicationContext); return
         }
         val pending = goAsync()
         Thread {
-            try {
-                runCatching { OracleKnowledgeSync.refreshBlocking(context.applicationContext) }
-                    .onFailure {
-                        context.applicationContext.getSharedPreferences("oracle_knowledge", Context.MODE_PRIVATE)
-                            .edit().putString("last_error", it.message ?: it.javaClass.simpleName).apply()
-                    }
-            } finally {
-                OracleKnowledgeSync.scheduleDaily(context.applicationContext)
-                pending.finish()
-            }
+            try { runCatching { OracleKnowledgeSync.refreshBlocking(context.applicationContext) }.onFailure { context.applicationContext.getSharedPreferences("oracle_knowledge", Context.MODE_PRIVATE).edit().putString("last_error", it.message ?: it.javaClass.simpleName).apply() } }
+            finally { OracleKnowledgeSync.scheduleDaily(context.applicationContext); pending.finish() }
         }.start()
     }
 }
