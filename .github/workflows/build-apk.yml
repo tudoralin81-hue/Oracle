@@ -24,6 +24,7 @@ jobs:
           analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
           bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
           growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
+          sector = Path('app/src/main/java/ro/alintudor/oracle/core/OracleSectorAllocation.kt').read_text(encoding='utf-8')
           local = Path('app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt').read_text(encoding='utf-8')
           if 'riskScore' not in analysis or 'val risk=when' not in analysis or 'riskFactor' not in analysis:
               raise SystemExit('Permanent dynamic risk/allocation calculation is missing from OracleAnalysisEngine')
@@ -33,8 +34,10 @@ jobs:
               raise SystemExit('Offline Risk/Allocation fallback is missing')
           if 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap and 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap:
               raise SystemExit('Growth snapshot is not sourced from the analysis engine when live data is available')
-          if 'risk=pick.risk' not in growth or 'allocationMax=pick.allocation' not in growth:
-              raise SystemExit('Growth engine is not using same-pass per-ticker risk/allocation')
+          if 'risk=pick.risk' not in growth or 'correctedAllocation' not in growth or 'OracleSectorAllocation.apply' not in growth:
+              raise SystemExit('Growth engine is not using same-pass risk plus sector-corrected allocation')
+          if 'const val STEP = 0.025' not in sector or 'factorFor' not in sector or 'apply' not in sector:
+              raise SystemExit('Sector allocation correction in 0.025 steps is missing')
           if 'val invalidRiskAllocation=' not in local or 'applyCalculatedRiskAllocation(current.growth)' not in local:
               raise SystemExit('Invalid frozen Risk/Allocation values are not forced through recalculation')
           print('Permanent Growth risk/allocation source fix verified')
