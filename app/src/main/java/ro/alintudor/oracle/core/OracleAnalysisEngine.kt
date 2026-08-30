@@ -16,23 +16,10 @@ object OracleAnalysisEngine {
     val longWeights = intArrayOf(6,6,20,7,5,8,18,4,9,7,9,2)
 
     data class Result(
-        val ticker:String,
-        val price:Double,
-        val shortScore:Int,
-        val mediumScore:Int,
-        val longScore:Int,
-        val signal:String,
-        val risk:String,
-        val allocation:Double,
-        val rsi:Double,
-        val momentum5D:Double,
-        val momentum20D:Double,
-        val volumeRatio:Double,
-        val sma50:Double?,
-        val sma200:Double?,
-        val adx:Double?,
-        val atrPct:Double,
-        val factors:List<Double>
+        val ticker:String,val price:Double,val shortScore:Int,val mediumScore:Int,val longScore:Int,
+        val signal:String,val risk:String,val allocation:Double,val rsi:Double,val momentum5D:Double,
+        val momentum20D:Double,val volumeRatio:Double,val sma50:Double?,val sma200:Double?,val adx:Double?,
+        val atrPct:Double,val factors:List<Double>
     )
 
     fun analyze(raw:String):Result? {
@@ -55,14 +42,24 @@ object OracleAnalysisEngine {
         val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0)
         val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0);val volume=(50+(vr-1)*45).coerceIn(0.0,100.0)
         val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0);val ichScore=if(ichi)90.0 else 30.0;val adxScore=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0);val rr=(70-atrPct*5+(if(breakout>=100)15 else 0)).coerceIn(0.0,100.0)
-        // Analysis excludes news from the information set, so News is neutral 50 rather than fetched.
         val factors=listOf(50.0,breakout,trend,momentum,volume,sr,50.0,boll,ichScore,50.0,rr,adxScore)
         fun score(w:IntArray):Int{val raw=factors.indices.sumOf{factors[it]*(w[it]/100.0)}.roundToInt().coerceIn(0,100);return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}}
         val ss=score(shortWeights);val ms=score(mediumWeights);val ls=score(longWeights)
-        val risk=if(rsi>75||vr>2.5||m5>12||atrPct>7)"RIDICAT" else if(trend>=75)"MEDIU" else "RIDICAT"
-        var alloc=when{trend>=90->8.0;trend>=85->7.0;trend>=80->6.0;trend>=75->5.0;trend>=70->4.0;else->2.0};if(risk=="RIDICAT")alloc=min(alloc,4.0);if(rsi>75)alloc=min(alloc,3.0);if(m5>12)alloc=min(alloc,3.0);if(atrPct>7)alloc=min(alloc,3.0)
+
+        // Risk and allocation are calculated independently for each ticker.
+        // Risk is no longer a default HIGH bucket, and allocation is not frozen at 3%.
+        val riskScore = (100.0 * (
+            ((rsi - 55.0) / 25.0).coerceIn(0.0, 1.0) * 0.30 +
+            ((vr - 1.0) / 2.0).coerceIn(0.0, 1.0) * 0.15 +
+            (m5 / 20.0).coerceIn(0.0, 1.0) * 0.30 +
+            (atrPct / 8.0).coerceIn(0.0, 1.0) * 0.25
+        )).coerceIn(0.0,100.0)
+        val risk=when { riskScore>=60.0 -> "RIDICAT"; riskScore>=35.0 -> "MEDIU"; else -> "SCĂZUT" }
+        val baseAllocation=when{trend>=90->8.0;trend>=85->7.0;trend>=80->6.0;trend>=75->5.0;trend>=70->4.0;else->2.0}
+        val riskMultiplier=when(risk){"RIDICAT"->0.55;"MEDIU"->0.75;else->1.0}
+        val allocation=(baseAllocation*riskMultiplier*2.0).roundToInt()/2.0
         val signal=when{ss>=85->"STRONG BUY";ss>=75->"BUY";ss>=65->"HOLD";ss>=55->"WATCH";else->"AVOID"}
-        return Result(ticker,p,ss,ms,ls,signal,risk,alloc,rsi,m5,m20,vr,s50,s200,adx,atrPct,factors)
+        return Result(ticker,p,ss,ms,ls,signal,risk,allocation,rsi,m5,m20,vr,s50,s200,adx,atrPct,factors)
     }
 
     private fun atr(h:List<Double>,l:List<Double>,c:List<Double>,n:Int):Double?{if(c.size<n+1)return null;val tr=(0 until c.size-1).map{i->maxOf(h[i]-l[i],abs(h[i]-c[i+1]),abs(l[i]-c[i+1]))};return tr.take(n).average()}
