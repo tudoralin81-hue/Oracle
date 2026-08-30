@@ -45,6 +45,9 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             }
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
             imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            isFocusable = true
+            isFocusableInTouchMode = true
+            showSoftInputOnFocus = true
         }
         host.fixedToolbar.addView(input, LinearLayout.LayoutParams(-1, host.dp(52)).apply { setMargins(0, host.dp(3), 0, host.dp(6)) })
 
@@ -79,7 +82,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             }.start()
         }
         button.setOnClickListener { run() }
-        input.setOnEditorActionListener { _, _, _ -> run(); true }
+        input.setOnEditorActionListener { _, actionId, _ -> if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { run(); true } else false }
     }
 
     private fun renderResult(r: OracleAnalysisEngine.Result?) {

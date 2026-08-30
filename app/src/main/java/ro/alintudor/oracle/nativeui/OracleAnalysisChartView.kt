@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -162,8 +163,8 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         val oscTop = volumeTop + volumeHeight + 12f
         val oscHeight = height - oscTop - 10f
 
-        drawGrid(c, 0f, 94f, chartBottom, 6)
-        drawCandles(c, d, 12f, 94f, width - 48f, chartBottom)
+        drawGrid(c, 0f, 84f, chartBottom, 6)
+        drawCandles(c, d, 12f, 84f, width - 48f, chartBottom)
         drawVolume(c, d, volumeTop, volumeHeight)
         if (showRSI) drawOscillator(c, d, oscTop, oscHeight * 0.48f, false)
         if (showADX) drawOscillator(c, d, oscTop + oscHeight * 0.52f, oscHeight * 0.44f, true)
@@ -171,14 +172,14 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
-        label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 18f)
-        if (d.isNotEmpty()) label(c, money(d.last().close), width - 125f, 27f, green, 16f)
+        label(c, "$ticker  •  $mode", 14f, 22f, Color.WHITE, 15f)
+        if (d.isNotEmpty()) label(c, money(d.last().close), width - 100f, 22f, green, 15f)
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
-            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 13f)
-            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 78f, text, 13f)
+            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 48f, if (p.close >= p.open) green else red, 14f)
+            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 70f, text, 14f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 54f, text, 13f)
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 48f, text, 13f)
         }
     }
 
@@ -393,7 +394,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun clampOffset() { offset = offset.coerceIn(0, max(0, data.size - visible)) }
-    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Typeface.DEFAULT_BOLD; paints.color = color; paints.textSize = size * resources.displayMetrics.scaledDensity; paints.isFakeBoldText = true; c.drawText(value, x, y, paints) }
+    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Typeface.DEFAULT_BOLD; paints.color = color; paints.textSize = size; paints.isFakeBoldText = true; c.drawText(value, x, y, paints) }
     private fun money(v: Double) = "%.2f".format(Locale.US, v)
     private fun volumeText(v: Double) = when { v >= 1_000_000_000 -> "%.2fB".format(Locale.US, v / 1e9); v >= 1_000_000 -> "%.2fM".format(Locale.US, v / 1e6); v >= 1_000 -> "%.1fK".format(Locale.US, v / 1e3); else -> "%.0f".format(Locale.US, v) }
     private fun dateTime(ts: Long): String = SimpleDateFormat("dd MMM yyyy HH:mm", Locale.US).format(Date(ts))
