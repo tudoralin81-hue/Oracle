@@ -27,7 +27,8 @@ object OracleMarketData {
             "30M" -> "5d" to "30m"
             "1H" -> "1mo" to "1h"
             "1D" -> "1y" to "1d"
-            "5D" -> "5d" to "1d"
+            // 5D must contain enough candles for the technical chart; daily data gives only ~5 points.
+            "5D" -> "5d" to "1h"
             "1M" -> "1mo" to "1d"
             "3M" -> "3mo" to "1d"
             "1Y" -> "1y" to "1d"
