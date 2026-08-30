@@ -15,9 +15,6 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply FINAL Watchlist direct-button patch
-        shell: bash
-        run: python3 scripts/final_watchlist_direct.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
