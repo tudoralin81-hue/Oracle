@@ -18,9 +18,6 @@ jobs:
       - name: Apply stable Watchlist navigation/eye fix
         shell: bash
         run: python3 scripts/fix_watchlist_eye.py
-      - name: Apply forced Watchlist touch navigation fix
-        shell: bash
-        run: python3 scripts/force_watchlist_navigation.py
       - name: Apply Watchlist V2 row-link fix
         shell: bash
         run: python3 scripts/fix_watchlist_clicks_v2.py
