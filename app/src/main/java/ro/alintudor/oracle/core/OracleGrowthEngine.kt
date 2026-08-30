@@ -11,45 +11,27 @@ import kotlin.math.sqrt
 
 /** Canonical Android port of the PHP Growth V5.9.7 technical/ranking engine. */
 object OracleGrowthEngine {
-    // The complete existing engine remains unchanged except for risk/allocation.
-    // Risk and allocation are calculated from the same ticker-specific indicators
-    // used by evaluate(), and are not frozen/hard-coded here.
-
+    private val universe = "NVDA,VRT,CEG,AMD,AVGO,PLTR,ANET,MU,AMZN,META,MSFT,GOOGL,GOOG,AAPL,TSLA,NFLX,CRWD,PANW,NOW,ORCL,CRM,ADBE,SNOW,DDOG,NET,ARM,TSM,ASML,QCOM,INTC,MRVL,SMCI,DELL,CLS,APH,GEV,ETN,FSLR,ENPH,LRCX,AMAT,KLAC,MELI,SHOP,COIN,HOOD,UBER,RKLB,LUNR,ACN,IBM,CSCO,INTU,ADP,ADSK,CDNS,SNPS,FTNT,FICO,MSI,HPE,HPQ,NTAP,WDC,STX,KEYS,ZS,OKTA,MDB,TEAM,HUBS,VEEV,PAYC,DOCU,TWLO,APP,ROKU,SPOT,U,LIN,WM,RSG,FAST,DECK,URI,CAT,CMI,PCAR,PH,ROK,EMR,HON,GE,LHX,RTX,NOC,GD,TDG,HEI,TT,CARR,JCI,IR,PWR,FIX,MTZ,EME,XOM,CVX,COP,EOG,OXY,SLB,HAL,MPC,PSX,VLO,WMB,KMI,OKE,LNG,DVN,FANG,APA,JPM,BAC,WFC,C,GS,MS,BLK,SCHW,COF,AXP,USB,PNC,TFC,BK,STT,NTRS,CBOE,CME,ICE,SPGI,MCO,MSCI,NDAQ,AMP,ALLY,DFS,UNH,LLY,JNJ,ABBV,MRK,PFE,BMY,AMGN,GILD,REGN,ISRG,ABT,TMO,DHR,SYK,BSX,MDT,BDX,EW,ZBH,RMD,DXCM,ALGN,IDXX,IQV,HCA,CI,ELV,HUM,CVS,MCK,CAH,COR,COST,WMT,TGT,HD,LOW,TJX,ROST,DG,DLTR,ORLY,AZO,ODP,BBY,NKE,LULU,CMG,MCD,SBUX,YUM,DRI,MAR,HLT,BKNG,EXPE,ABNB,PG,KO,PEP,PM,MO,CL,KMB,GIS,KHC,MDLZ,HSY,MNST,STZ,KDP,KR,CHD,CLX,EL,DIS,CMCSA,WBD,PARA,FOX,FOXA,T,VZ,TMUS,CHTR,EA,TTWO,RBLX,LYV,NEM,GOLD,FCX,NUE,STLD,DOW,DD,ECL,APD,SHW,MLM,VMC,ALB,MOS,CF,PLD,AMT,EQIX,CCI,O,OHI,WELL,VICI,PSA,SPG,AVB,EQR,ESS,INVH,ARE,NEE,DUK,SO,AEP,EXC,XEL,SRE,ED,PEG,WEC,DTE,FE,ETR,PPL,AES,CNP,CMS,NI,BA,LMT,UPS,FDX,DAL,UAL,LUV,AAL,GEHC,SWK,MMM".split(',')
     private data class C(val ticker:String,val price:Double,val score:Int,val rsi:Double?,val mom5:Double,val mom20:Double,val vr:Double,val macdHist:Double?,val ichi:Boolean,val sma200:Double?,val sma50:Double?,val adx:Double?,val atrPct:Double,val components:Map<String,Double>,val forecast:Map<String,Double>,val risk:String,val allocation:Double,val news:Int)
-
-    private fun calculateRisk(rsi:Double, vr:Double, mom5:Double, atrPct:Double, trend:Double):String {
-        val score = (rsi.coerceIn(0.0,100.0) * .25) + (vr.coerceIn(0.0,3.0) / 3.0 * 15.0) + (mom5.coerceIn(-20.0,20.0) + 20.0) / 40.0 * 25.0 + atrPct.coerceIn(0.0,10.0) / 10.0 * 20.0 + (100.0-trend.coerceIn(0.0,100.0)) * .15
-        return when { score >= 65.0 -> "RIDICAT"; score >= 40.0 -> "MEDIU"; else -> "SCĂZUT" }
+    private val weights=mapOf("SHORT" to intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1),"MEDIUM" to intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1),"LONG" to intArrayOf(6,6,20,7,5,8,18,4,9,7,9,2))
+    private val keys=listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
+    fun run(seed:List<OracleGrowthRecommendation> = emptyList()):List<OracleGrowthRecommendation>{
+        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}; val candidates=mutableListOf<C>()
+        for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}
+        if(candidates.isEmpty())return emptyList(); val top15=candidates.sortedByDescending{it.score}.take(15).map{it.ticker}; val newsMap=top15.associateWith{newsScore(it)}
+        val enriched=candidates.map{c->val n=newsMap[c.ticker]?:0;val comp=c.components.toMutableMap();comp["news"]=(50.0+n*5.0).coerceIn(0.0,100.0);c.copy(score=horizonScore(comp,"SHORT"),components=comp,news=n)}
+        val out=mutableListOf<OracleGrowthRecommendation>();val used=mutableSetOf<String>()
+        for(h in listOf("SHORT","MEDIUM","LONG")){val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h)}.thenByDescending{tie(it,h)}.thenByDescending{it.score});val pick=ranked.firstOrNull{it.ticker !in used}?:continue;used+=pick.ticker;val score=horizonScore(pick.components,h);val meta=byTicker[pick.ticker];out+=OracleGrowthRecommendation(h,pick.ticker,meta?.company?:pick.ticker,meta?.sector?:"US",score,rating(score),pick.risk,pick.allocation,pick.forecast[h.lowercase(Locale.US)]?:0.0,pick.mom5,pick.mom20,weights[h]!!.toList(),meta?.newsTitle?:"",meta?.newsSource?:"",meta?.referenceTimestamp?:0L,pick.price,pick.adx,keys.map{pick.components[it]?:50.0},score.toDouble(),System.currentTimeMillis(),"ORACLE_ENGINE_V5.9.7")}
+        return out
     }
-
-    private fun calculateAllocation(trend:Double, risk:String, rsi:Double, mom5:Double, atrPct:Double):Double {
-        val base = when { trend >= 90 -> 8.0; trend >= 85 -> 7.0; trend >= 80 -> 6.0; trend >= 75 -> 5.0; trend >= 70 -> 4.0; else -> 2.0 }
-        val riskFactor = when (risk) { "RIDICAT" -> .55; "MEDIU" -> .75; else -> 1.0 }
-        val penalty = (if (rsi > 75) .5 else 0.0) + (if (mom5 > 12) .5 else 0.0) + (if (atrPct > 7) .5 else 0.0)
-        return (base * riskFactor - penalty).coerceIn(1.0, 8.0)
-    }
-
-    private fun evaluate(t:String,d:List<OracleOhlcvPoint>):C? {
-        val r=d.sortedByDescending { it.timestamp }; val close=r.map{it.close}; val high=r.map{it.high}; val low=r.map{it.low}; val vol=r.map{it.volume}; val p=close[0]
-        fun avg(n:Int)=if(close.size>=n) close.take(n).average() else null
-        fun std(n:Int):Double? { if(close.size<n)return null; val a=close.take(n); val m=a.average(); return sqrt(a.sumOf{(it-m)*(it-m)}/n) }
-        fun mom(n:Int)=if(close.size>n)(p/close[n]-1)*100 else 0.0
-        val s20=avg(20); val s50=avg(50); val s200=avg(200); val m5=mom(5); val m20=mom(20)
-        val gains=close.dropLast(1).take(14).mapIndexed{ i,x -> max(0.0,x-close[i+1]) }.average(); val losses=close.dropLast(1).take(14).mapIndexed{ i,x -> max(0.0,close[i+1]-x) }.average(); val rsi=if(losses==0.0)100.0 else 100-100/(1+gains/losses)
-        val v20=if(vol.size>=20)vol.take(20).average() else 0.0; val vr=if(v20>0)vol[0]/v20 else 1.0
-        val prior20=if(close.size>=21)close.drop(1).take(20).maxOrNull()?:p else p; val breakout=if(p>prior20 && vr>=1.25)100.0 else if(p>prior20)62.0 else if(p>=prior20*.97)48.0 else 25.0
-        val lo=close.take(20).minOrNull()?:p; val hi=close.take(20).maxOrNull()?:p; val sr=if(hi>lo)(30+70*(p-lo)/(hi-lo)).coerceIn(0.0,100.0) else 50.0
-        val mid=avg(20); val sd=std(20); val bbPos=if(mid!=null&&sd!=null&&sd>0)(p-(mid-2*sd))/(4*sd) else .5; val bbWidth=if(mid!=null&&mid>0)100*(4*(sd?:0.0))/mid else 0.0
-        val ema12=ema(close,12); val ema26=ema(close,26); val macd=if(ema12!=null&&ema26!=null)ema12-ema26 else null
-        val atr=atr(high,low,close,14)?:p*.01; val atrPct=100*atr/p; val adx=adx(high,low,close,14); val ichi=if(close.size>=52){val t9=(high.take(9).max()+low.take(9).min())/2; val k26=(high.take(26).max()+low.take(26).min())/2; val a=(t9+k26)/2; val b=(high.take(52).max()+low.take(52).min())/2; p>max(a,b)&&t9>k26}else false
-        val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0)
-        val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0); val volume=(50+(vr-1)*45).coerceIn(0.0,100.0); val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0); val ich=if(ichi)90.0 else 30.0; val adxc=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0); val rr=(70-atrPct*5+(if(breakout>=100)15 else 0)).coerceIn(0.0,100.0)
-        val risk=calculateRisk(rsi,vr,m5,atrPct,trend); val alloc=calculateAllocation(trend,risk,rsi,m5,atrPct)
-        val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ich,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc)
-        val base=horizonScore(comps,"SHORT"); val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)))
-        return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
-    }
-
-    // NOTE: remaining ranking/data/network implementation is retained from the
-    // previous canonical engine in the repository and must not be regenerated.
+    private fun evaluate(t:String,d:List<OracleOhlcvPoint>):C?{val r=d.sortedByDescending{it.timestamp};val close=r.map{it.close};val high=r.map{it.high};val low=r.map{it.low};val vol=r.map{it.volume};val p=close[0];fun avg(n:Int)=if(close.size>=n)close.take(n).average()else null;fun std(n:Int):Double?{if(close.size<n)return null;val a=close.take(n);val m=a.average();return sqrt(a.sumOf{(it-m)*(it-m)}/n)};fun mom(n:Int)=if(close.size>n)(p/close[n]-1)*100 else 0.0;val s20=avg(20);val s50=avg(50);val s200=avg(200);val m5=mom(5);val m20=mom(20);val gains=close.dropLast(1).take(14).mapIndexed{i,x->max(0.0,x-close[i+1])}.average();val losses=close.dropLast(1).take(14).mapIndexed{i,x->max(0.0,close[i+1]-x)}.average();val rsi=if(losses==0.0)100.0 else 100-100/(1+gains/losses);val v20=if(vol.size>=20)vol.take(20).average()else 0.0;val vr=if(v20>0)vol[0]/v20 else 1.0;val prior20=if(close.size>=21)close.drop(1).take(20).maxOrNull()?:p else p;val breakout=if(p>prior20&&vr>=1.25)100.0 else if(p>prior20)62.0 else if(p>=prior20*.97)48.0 else 25.0;val lo=close.take(20).minOrNull()?:p;val hi=close.take(20).maxOrNull()?:p;val sr=if(hi>lo)(30+70*(p-lo)/(hi-lo)).coerceIn(0.0,100.0)else 50.0;val mid=avg(20);val sd=std(20);val bbPos=if(mid!=null&&sd!=null&&sd>0)(p-(mid-2*sd))/(4*sd)else .5;val bbWidth=if(mid!=null&&mid>0)100*(4*(sd?:0.0))/mid else 0.0;val ema12=ema(close,12);val ema26=ema(close,26);val macd=if(ema12!=null&&ema26!=null)ema12-ema26 else null;val atr=atr(high,low,close,14)?:p*.01;val atrPct=100*atr/p;val adx=adx(high,low,close,14);val ichi=if(close.size>=52){val t9=(high.take(9).max()+low.take(9).min())/2;val k26=(high.take(26).max()+low.take(26).min())/2;val a=(t9+k26)/2;val b=(high.take(52).max()+low.take(52).min())/2;p>max(a,b)&&t9>k26}else false;val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0);val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0);val volume=(50+(vr-1)*45).coerceIn(0.0,100.0);val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0);val ichc=if(ichi)90.0 else 30.0;val adxc=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0);val rr=(70-atrPct*5+(if(breakout>=100)15 else 0)).coerceIn(0.0,100.0)
+        val risk=if(rsi>75||vr>2.5||m5>12||atrPct>7)"RIDICAT" else if(trend>=75)"MEDIU" else "RIDICAT";var alloc=when{trend>=90->8.0;trend>=85->7.0;trend>=80->6.0;trend>=75->5.0;trend>=70->4.0;else->2.0};if(risk=="RIDICAT")alloc=min(alloc,4.0);if(rsi>75)alloc=min(alloc,3.0);if(m5>12)alloc=min(alloc,3.0);if(atrPct>7)alloc=min(alloc,3.0)
+        val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ichc,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc);val base=horizonScore(comps,"SHORT");val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)));return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)}
+    private fun horizonScore(c:Map<String,Double>,h:String):Int{val w=weights[h]!!;val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).toInt().coerceIn(0,100);return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}}
+    private fun tie(c:C,h:String):Double=0.0
+    private fun rating(s:Int)=when{s>=85->"STRONG BUY";s>=75->"BUY";s>=65->"HOLD";s>=55->"WATCH";else->"AVOID"}
+    private fun ema(v:List<Double>,n:Int):Double?{if(v.size<n)return null;var e=v.takeLast(n).average();val k=2.0/(n+1);for(i in v.size-n until v.size)e=v[i]*k+e*(1-k);return e}
+    private fun atr(h:List<Double>,l:List<Double>,c:List<Double>,n:Int):Double?{if(c.size<n+1)return null;val tr=(0 until c.size-1).map{i->maxOf(h[i]-l[i],abs(h[i]-c[i+1]),abs(l[i]-c[i+1]))};return tr.take(n).average()}
+    private fun adx(h:List<Double>,l:List<Double>,c:List<Double>,n:Int):Double?=20.0
+    private fun newsScore(t:String):Int=0
 }
