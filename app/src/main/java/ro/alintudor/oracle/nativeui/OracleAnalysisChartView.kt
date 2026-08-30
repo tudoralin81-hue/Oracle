@@ -22,7 +22,7 @@ import kotlin.math.sqrt
 class OracleAnalysisChartView(context: Context, private val ticker: String) : View(context) {
     private val bg = Color.rgb(2, 6, 12)
     private val grid = Color.rgb(25, 35, 50)
-    private val text = Color.rgb(205, 214, 232)
+    private val text = Color.rgb(225, 232, 245)
     private val green = Color.rgb(45, 232, 92)
     private val red = Color.rgb(255, 72, 72)
     private val blue = Color.rgb(35, 175, 255)
@@ -171,14 +171,14 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
-        label(c, "$ticker  •  $mode", 14f, 26f, Color.WHITE, 20f)
-        if (d.isNotEmpty()) label(c, money(d.last().close), width - 120f, 26f, green, 17f)
+        label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 21f)
+        if (d.isNotEmpty()) label(c, money(d.last().close), width - 125f, 27f, green, 18f)
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
-            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 52f, if (p.close >= p.open) green else red, 15f)
-            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 69f, text, 13f)
+            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 16f)
+            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 70f, text, 15f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 51f, text, 14f)
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 52f, text, 15f)
         }
     }
 
@@ -212,13 +212,27 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
                 val sd = sqrt(a.sumOf { (it - m) * (it - m) } / a.size)
                 upper += y(m + 2 * sd); mid += y(m); lower += y(m - 2 * sd)
             }
-            lineSeries(c, upper, blue, step, left, 2.2f)
-            lineSeries(c, mid, Color.rgb(85, 110, 160), step, left, 1.5f)
-            lineSeries(c, lower, blue, step, left, 2.2f)
+            // Very transparent Bollinger channel fill, matching the approved reference.
+            val cloud = Path()
+            upper.forEachIndexed { i, yy ->
+                val x = left + (i + .5f) * step
+                if (i == 0) cloud.moveTo(x, yy) else cloud.lineTo(x, yy)
+            }
+            for (i in lower.indices.reversed()) {
+                val x = left + (i + .5f) * step
+                cloud.lineTo(x, lower[i])
+            }
+            cloud.close()
+            paints.style = Paint.Style.FILL
+            paints.color = Color.argb(24, blue.red(), blue.green(), blue.blue())
+            c.drawPath(cloud, paints)
+            lineSeries(c, upper, blue, step, left, 2.6f)
+            lineSeries(c, mid, Color.rgb(85, 110, 160), step, left, 1.7f)
+            lineSeries(c, lower, blue, step, left, 2.6f)
         }
         if (showMA) {
-            lineSeries(c, moving(closes, 10).map { y(it) }, gold, step, left, 2.4f)
-            lineSeries(c, ema(closes, 10).map { y(it) }, purple, step, left, 2.4f)
+            lineSeries(c, moving(closes, 10).map { y(it) }, gold, step, left, 2.8f)
+            lineSeries(c, ema(closes, 10).map { y(it) }, purple, step, left, 2.8f)
         }
         if (showIchi) {
             val tenkan = mutableListOf<Float>(); val kijun = mutableListOf<Float>(); val spanA = mutableListOf<Float>(); val spanB = mutableListOf<Float>()
@@ -229,15 +243,15 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
                 val t = (h9 + l9) / 2; val k = (h26 + l26) / 2
                 tenkan += y(t); kijun += y(k); spanA += y((t + k) / 2); spanB += y((h52 + l52) / 2)
             }
-            lineSeries(c, tenkan, red, step, left, 2f); lineSeries(c, kijun, blue, step, left, 2f)
-            lineSeries(c, spanA, green, step, left, 1.7f); lineSeries(c, spanB, purple, step, left, 1.7f)
+            lineSeries(c, tenkan, red, step, left, 2.2f); lineSeries(c, kijun, blue, step, left, 2.2f)
+            lineSeries(c, spanA, green, step, left, 1.9f); lineSeries(c, spanB, purple, step, left, 1.9f)
         }
 
         d.forEachIndexed { i, p ->
             val x = left + (i + .5f) * step
             val yo = y(p.open); val yc = y(p.close); val yh = y(p.high); val yl = y(p.low)
             paints.color = if (p.close >= p.open) green else red
-            paints.strokeWidth = 2f
+            paints.strokeWidth = 2.2f
             c.drawLine(x, yh, x, yl, paints)
             c.drawRect(x - bodyW / 2, min(yo, yc), x + bodyW / 2, max(yo, yc).coerceAtLeast(min(yo, yc) + 2f), paints)
         }
@@ -246,7 +260,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
 
         if (selectedIndex in d.indices) {
             val x = left + (selectedIndex + .5f) * step
-            paints.color = Color.argb(210, 255, 255, 255); paints.strokeWidth = 1.5f
+            paints.color = Color.argb(210, 255, 255, 255); paints.strokeWidth = 2f
             c.drawLine(x, top, x, bottom, paints)
         }
     }
@@ -262,37 +276,50 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         val channelWidth = max(span * .045, abs(slope) * n * .65)
         val y1 = y(first); val y2 = y(last)
         paints.style = Paint.Style.STROKE
-        paints.strokeWidth = 3.2f
+        paints.strokeCap = Paint.Cap.ROUND
+        paints.strokeJoin = Paint.Join.ROUND
+        paints.strokeWidth = 4.0f
         paints.color = if (slope >= 0) green else red
         c.drawLine(left + start * step, y1, right - 5f, y2, paints)
-        paints.strokeWidth = 2.4f
-        paints.color = Color.argb(190, if (slope >= 0) 65 else 255, if (slope >= 0) 220 else 75, if (slope >= 0) 110 else 75)
+        paints.strokeWidth = 3.0f
+        paints.color = Color.argb(150, if (slope >= 0) 65 else 255, if (slope >= 0) 220 else 75, if (slope >= 0) 110 else 75)
         c.drawLine(left + start * step, y(y1Value(first, channelWidth, slope >= 0)), right - 5f, y(y2Value(last, channelWidth, slope >= 0)), paints)
 
         val recentLow = d.takeLast(min(35, d.size)).minOf { it.low }
         val recentHigh = d.takeLast(min(35, d.size)).maxOf { it.high }
-        paints.strokeWidth = 3.2f; paints.color = blue
+        paints.strokeWidth = 3.5f; paints.color = blue
         c.drawLine(left + 4f, y(recentLow), right - 5f, y(recentLow), paints)
         paints.color = gold
         c.drawLine(left + 4f, y(recentHigh), right - 5f, y(recentHigh), paints)
 
-        if (slope > 0) drawArrow(c, right - 135f, y(last + channelWidth * .15), right - 30f, y(last + channelWidth * .75), green)
-        else drawArrow(c, right - 135f, y(last - channelWidth * .15), right - 30f, y(last - channelWidth * .75), red)
+        if (slope > 0) drawArrow(c, right - 150f, y(last + channelWidth * .15), right - 28f, y(last + channelWidth * .75), green)
+        else drawArrow(c, right - 150f, y(last - channelWidth * .15), right - 28f, y(last - channelWidth * .75), red)
 
         if (showMACross) {
             val fast = moving(d.map { it.close }, 10); val slow = moving(d.map { it.close }, 20)
             for (i in 1 until d.size) {
                 val was = fast[i - 1] - slow[i - 1]; val now = fast[i] - slow[i]
                 if (was <= 0 && now > 0) {
-                    val x = left + (i + .5f) * step
-                    paints.style = Paint.Style.FILL; paints.color = green; c.drawCircle(x, y(d[i].close), 6f, paints)
+                    drawCross(c, left + (i + .5f) * step, y(d[i].close), green)
                 }
                 if (was >= 0 && now < 0) {
-                    val x = left + (i + .5f) * step
-                    paints.style = Paint.Style.FILL; paints.color = red; c.drawCircle(x, y(d[i].close), 6f, paints)
+                    drawCross(c, left + (i + .5f) * step, y(d[i].close), red)
                 }
             }
         }
+        paints.strokeCap = Paint.Cap.BUTT
+        paints.strokeJoin = Paint.Join.MITER
+        paints.style = Paint.Style.FILL
+    }
+
+    private fun drawCross(c: Canvas, x: Float, y: Float, color: Int) {
+        paints.style = Paint.Style.STROKE
+        paints.strokeWidth = 4.5f
+        paints.strokeCap = Paint.Cap.ROUND
+        paints.color = color
+        val s = 11f
+        c.drawLine(x - s, y - s, x + s, y + s, paints)
+        c.drawLine(x + s, y - s, x - s, y + s, paints)
         paints.style = Paint.Style.FILL
     }
 
@@ -300,18 +327,18 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     private fun y2Value(last: Double, width: Double, up: Boolean) = if (up) last + width else last - width
 
     private fun drawArrow(c: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, color: Int) {
-        paints.style = Paint.Style.STROKE; paints.strokeWidth = 5.5f; paints.strokeCap = Paint.Cap.ROUND; paints.strokeJoin = Paint.Join.ROUND; paints.color = color
+        paints.style = Paint.Style.STROKE; paints.strokeWidth = 6.0f; paints.strokeCap = Paint.Cap.ROUND; paints.strokeJoin = Paint.Join.ROUND; paints.color = color
         c.drawLine(x1, y1, x2, y2, paints)
         val dx = x2 - x1; val dy = y2 - y1; val len = max(1f, sqrt(dx * dx + dy * dy)); val ux = dx / len; val uy = dy / len
-        val px = -uy; val py = ux; val head = 24f
-        val path = Path(); path.moveTo(x2, y2); path.lineTo(x2 - ux * head + px * 12f, y2 - uy * head + py * 12f); path.moveTo(x2, y2); path.lineTo(x2 - ux * head - px * 12f, y2 - uy * head - py * 12f); c.drawPath(path, paints)
+        val px = -uy; val py = ux; val head = 32f
+        val path = Path(); path.moveTo(x2, y2); path.lineTo(x2 - ux * head + px * 16f, y2 - uy * head + py * 16f); path.moveTo(x2, y2); path.lineTo(x2 - ux * head - px * 16f, y2 - uy * head - py * 16f); c.drawPath(path, paints)
         paints.strokeCap = Paint.Cap.BUTT; paints.style = Paint.Style.FILL
     }
 
     private fun drawVolume(c: Canvas, d: List<OracleOhlcvPoint>, top: Float, height: Float) {
         val maxV = max(1.0, d.maxOf { it.volume })
         val step = width.toFloat() / max(1, d.size)
-        label(c, "VOLUM", 12f, top + 16f, text, 14f)
+        label(c, "VOLUM", 12f, top + 18f, text, 15f)
         d.forEachIndexed { i, p ->
             val x = (i + .5f) * step
             val h = ((p.volume / maxV) * (height - 24f)).toFloat()
@@ -319,7 +346,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
             paints.style = Paint.Style.FILL
             c.drawRect(x - max(2f, step * .30f), top + height - h, x + max(2f, step * .30f), top + height, paints)
         }
-        if (selectedIndex in d.indices) label(c, "VOL ${volumeText(d[selectedIndex].volume)}", width - 125f, top + 16f, cyan, 14f)
+        if (selectedIndex in d.indices) label(c, "VOL ${volumeText(d[selectedIndex].volume)}", width - 130f, top + 18f, cyan, 15f)
     }
 
     private fun drawOscillator(c: Canvas, d: List<OracleOhlcvPoint>, top: Float, height: Float, adx: Boolean) {
@@ -327,15 +354,15 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         paints.style = Paint.Style.STROKE; paints.strokeWidth = 1f; paints.color = grid
         c.drawRect(0f, top, width.toFloat() - 42f, top + height, paints)
         val values = if (adx) d.map { 20.0 + (it.close - it.low) / max(.0001, it.high - it.low) * 35.0 } else rsi(d.map { it.close })
-        val minV = if (adx) 0.0 else 0.0; val maxV = 100.0
+        val minV = 0.0; val maxV = 100.0
         val step = width.toFloat() / max(1, values.size)
         val path = Path()
         values.forEachIndexed { i, v ->
             val x = (i + .5f) * step; val y = top + height - ((v.coerceIn(minV, maxV) - minV) / (maxV - minV) * height).toFloat()
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        paints.color = if (adx) gold else purple; paints.strokeWidth = 2.4f; c.drawPath(path, paints)
-        label(c, if (adx) "ADX" else "RSI", 10f, top + 16f, text, 13f)
+        paints.color = if (adx) gold else purple; paints.strokeWidth = 2.8f; c.drawPath(path, paints)
+        label(c, if (adx) "ADX" else "RSI", 10f, top + 18f, text, 14f)
     }
 
     private fun rsi(closes: List<Double>): List<Double> {
@@ -366,7 +393,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun clampOffset() { offset = offset.coerceIn(0, max(0, data.size - visible)) }
-    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Paint().typeface; paints.color = color; paints.textSize = size * resources.displayMetrics.scaledDensity; paints.isFakeBoldText = size >= 15f; c.drawText(value, x, y, paints) }
+    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Typeface.DEFAULT_BOLD; paints.color = color; paints.textSize = size * resources.displayMetrics.scaledDensity; paints.isFakeBoldText = true; c.drawText(value, x, y, paints) }
     private fun money(v: Double) = "%.2f".format(Locale.US, v)
     private fun volumeText(v: Double) = when { v >= 1_000_000_000 -> "%.2fB".format(Locale.US, v / 1e9); v >= 1_000_000 -> "%.2fM".format(Locale.US, v / 1e6); v >= 1_000 -> "%.1fK".format(Locale.US, v / 1e3); else -> "%.0f".format(Locale.US, v) }
     private fun dateTime(ts: Long): String = SimpleDateFormat("dd MMM yyyy HH:mm", Locale.US).format(Date(ts))
