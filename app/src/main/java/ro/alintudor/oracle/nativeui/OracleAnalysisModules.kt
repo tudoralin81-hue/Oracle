@@ -421,6 +421,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { onWatchlistTickerClick(t) }
+                setOnTouchListener { _, event ->
+                    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        performClick()
+                        true
+                    } else true
+                }
             }
             row.addView(tickerView, LinearLayout.LayoutParams(0, -2, 1f))
             val arrowView = TextView(host.root.context).apply {
@@ -428,6 +434,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { onWatchlistTickerClick(t) }
+                setOnTouchListener { _, event ->
+                    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        performClick()
+                        true
+                    } else true
+                }
             }
             row.addView(arrowView, LinearLayout.LayoutParams(host.dp(30), host.dp(38)))
             val delete = TextView(host.root.context).apply {
@@ -439,6 +451,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             row.addView(delete, LinearLayout.LayoutParams(-2, -2))
             // Whole row is also a navigation target; delete remains its own clickable child.
             row.setOnClickListener { onWatchlistTickerClick(t) }
+            row.setOnTouchListener { v, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                    v.performClick()
+                    true
+                } else false
+            }
             host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
         }
     }
