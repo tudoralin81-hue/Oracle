@@ -18,11 +18,25 @@ object OracleMarketData {
     private const val CONNECT_TIMEOUT_MS = 8_000
     private const val READ_TIMEOUT_MS = 12_000
 
-    /** Fetches recent daily OHLCV directly from the public Yahoo Finance chart feed. */
-    fun fetchDaily(ticker: String, range: String = "6mo"): List<OracleOhlcvPoint> {
+    /** Fetches OHLCV at the requested Analysis timeframe. */
+    fun fetchForMode(ticker: String, mode: String): List<OracleOhlcvPoint> {
         val symbol = ticker.trim().uppercase()
         if (symbol.isBlank()) return emptyList()
-        val url = URL("https://query1.finance.yahoo.com/v8/finance/chart/$symbol?range=$range&interval=1d&events=history")
+        val (range, interval) = when (mode) {
+            "30M" -> "5d" to "30m"
+            "1H" -> "1mo" to "1h"
+            else -> "1y" to "1d"
+        }
+        return fetch(symbol, range, interval)
+    }
+
+    /** Backward-compatible daily feed used by existing Oracle components. */
+    fun fetchDaily(ticker: String, range: String = "6mo"): List<OracleOhlcvPoint> = fetch(ticker, range, "1d")
+
+    private fun fetch(ticker: String, range: String, interval: String): List<OracleOhlcvPoint> {
+        val symbol = ticker.trim().uppercase()
+        if (symbol.isBlank()) return emptyList()
+        val url = URL("https://query1.finance.yahoo.com/v8/finance/chart/$symbol?range=$range&interval=$interval&events=history")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
