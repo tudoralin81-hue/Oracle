@@ -2,7 +2,7 @@ package ro.alintudor.oracle.core
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    private const val VERSION = 16
+    private const val VERSION = 17
 
     /** Deterministic fallback used only when live OHLCV is unavailable. */
     fun fallbackRiskAllocation(item: OracleGrowthRecommendation): Pair<String, Double> {
@@ -32,7 +32,9 @@ object OracleBootstrap {
     }
 
     fun ensure(repository: OracleRepository) {
-        if (repository.bootstrapVersion() >= VERSION) return
+        val previousVersion = repository.bootstrapVersion()
+        if (previousVersion >= VERSION) return
+
         val positions = repository.cachedPositions().ifEmpty {
             listOf(
                 OraclePosition("CRM", "Salesforce", 4.0, 248.69, 252.05, "USD", status = "ACTIVE"),
@@ -51,21 +53,21 @@ object OracleBootstrap {
         fun recommendation(ticker: String, fallback: OracleGrowthRecommendation): OracleGrowthRecommendation {
             val a = runCatching { OracleAnalysisEngine.analyze(ticker) }.getOrNull()
             val (risk, allocation) = if (a != null) a.risk to a.allocation else fallbackRiskAllocation(fallback)
-            // Sector is a correction of allocation only; it must also be applied to
-            // migrated/offline snapshots, otherwise an existing cached snapshot
-            // would keep the pre-sector value forever on weekends.
+            // Sector is a correction of the existing Growth weights and also
+            // receives a small allocation correction. Score itself is recalculated
+            // by OracleGrowthEngine on the next refresh.
             val correctedAllocation = OracleSectorAllocation.apply(allocation, fallback.sector)
             return fallback.copy(risk = risk, allocationMax = correctedAllocation, referenceTimestamp = t0, generatedAt = t0)
         }
 
         val snps = recommendation("SNPS", OracleGrowthRecommendation(
-            horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Technology",
+            horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Semiconductors / EDA",
             score=86, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=6.1, momentum5D=16.8, momentum20D=24.9,
             weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1), referenceTimestamp=t0, generatedAt=t0
         ))
         val veev = recommendation("VEEV", OracleGrowthRecommendation(
-            horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
+            horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Healthcare / Life Sciences Software",
             score=85, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=18.2, momentum5D=12.6, momentum20D=40.0,
             weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
@@ -73,14 +75,23 @@ object OracleBootstrap {
             referenceTimestamp=t0, generatedAt=t0
         ))
         val crm = recommendation("CRM", OracleGrowthRecommendation(
-            horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
+            horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="AI / Enterprise Software",
             score=81, signal="BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=33.1, momentum5D=22.7, momentum20D=39.5,
             weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
             newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC",
             referenceTimestamp=t0, generatedAt=t0
         ))
-        repository.saveGrowth(listOf(snps, veev, crm))
+
+        val seed = listOf(snps, veev, crm)
+        repository.saveGrowth(seed)
+
+        // Model v17 changes the sector correction itself. Keep the metadata seed,
+        // but invalidate T0 so OracleLocalProcessor regenerates the Growth snapshot
+        // using the corrected sector weights on the next refresh.
+        if (previousVersion < 17) {
+            repository.saveGrowth(seed.map { it.copy(referenceTimestamp = 0L, generatedAt = 0L) })
+        }
         repository.markBootstrap(VERSION)
     }
 }
