@@ -78,23 +78,27 @@ jobs:
           required = [
               'onWatchlistTickerClick = { ticker -> openWatchlistTicker(ticker) }',
               'private fun openWatchlistTicker(ticker: String)',
+              'OracleSimpleModule.setTickerDraft(normalized)',
+              'openModule("analysis")',
+              'if (key == "analysis") return'
           ]
-          for x in required:
-              if x not in s:
-                  raise SystemExit(f'Missing Watchlist navigation guard: {x}')
-          print('Watchlist ticker navigation fix verified')
+          missing = [x for x in required if x not in s]
+          if missing:
+              raise SystemExit("Watchlist navigation fix is missing: " + ", ".join(missing))
+          print("Watchlist ticker navigation fix verified in source")
           PY
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
-      - name: Build release APK
-        run: ./gradlew :app:assembleRelease
-      - name: Upload debug APK
+      - name: Build signed release APK
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Verify release APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: oracle-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: oracle-release-apk
+          name: Oracle-APK-installable
           path: app/build/outputs/apk/release/*.apk
