@@ -75,7 +75,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     fun setMode(value: String) {
-        val next = when (value) { "30M", "1H", "1D" -> value; else -> "1D" }
+        val next = when (value) { "30M", "1H", "1D", "5D", "1M", "3M", "1Y" -> value; else -> "1D" }
         if (next == mode && data.isNotEmpty()) return
         mode = next
         visible = 100
@@ -168,16 +168,16 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
-        label(c, "$ticker  •  $mode", 12f, 20f, Color.WHITE, 15f)
+        label(c, "$ticker  •  $mode", 12f, 22f, Color.WHITE, 18f)
         if (d.isNotEmpty()) {
-            label(c, "${money(d.last().close)}", width - 88f, 20f, text, 11f)
+            label(c, "${money(d.last().close)}", width - 108f, 22f, text, 14f)
         }
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
             val info = "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}  •  ${dateTime(p.timestamp)}"
-            label(c, info, 12f, 40f, if (p.close >= p.open) green else red, 10f)
+            label(c, info, 12f, 45f, if (p.close >= p.open) green else red, 13f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + volum", 12f, 40f, text, 10f)
+            label(c, "Atinge o lumânare pentru OHLC + volum", 12f, 45f, text, 13f)
         }
     }
 
@@ -263,11 +263,11 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
             c.drawCircle(x, y(p.close), 3.5f, paints)
         }
 
-        label(c, "BB(20,2)", 12f, top + 14f, blue, 10f)
-        if (showMA) label(c, "EMA10 / MA10", 82f, top + 14f, gold, 10f)
-        if (showIchi) label(c, "Ichimoku", 178f, top + 14f, Color.rgb(80, 210, 150), 10f)
-        label(c, money(maxP), width - 82f, top + 28f, text, 10f)
-        label(c, money(minP), width - 82f, bottom - 6f, text, 10f)
+        label(c, "BB(20,2)", 12f, top + 16f, blue, 12f)
+        if (showMA) label(c, "EMA10 / MA10", 100f, top + 16f, gold, 12f)
+        if (showIchi) label(c, "Ichimoku", 205f, top + 16f, Color.rgb(80, 210, 150), 12f)
+        label(c, money(maxP), width - 92f, top + 32f, text, 12f)
+        label(c, money(minP), width - 92f, bottom - 8f, text, 12f)
     }
 
     private fun drawTrendAnalysis(c: Canvas, d: List<OracleOhlcvPoint>, left: Float, top: Float, right: Float, bottom: Float, minP: Double, maxP: Double, span: Double, step: Float) {

@@ -65,7 +65,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         val chart=OracleAnalysisChartView(host.root.context,ticker)
         box.addView(chart,LinearLayout.LayoutParams(-1,host.dp(620)))
         val ranges=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
-        listOf("1D","1H","30M").forEachIndexed{i,label->
+        listOf("1D","1H","30M","5D","1M","3M","1Y").forEachIndexed{i,label->
             val b=Button(host.root.context).apply{text=label;textSize=11f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);setPadding(0,0,0,0);alpha=if(i==0)1f else .72f;background=GradientDrawable().apply{setColor(if(i==0)Color.rgb(20,70,105) else Color.rgb(12,20,34));cornerRadius=host.dp(9).toFloat();setStroke(host.dp(1),Color.rgb(45,65,90))}}
             b.setOnClickListener{chart.setMode(label);for(j in 0 until ranges.childCount)(ranges.getChildAt(j) as Button).alpha=if(ranges.getChildAt(j)===b)1f else .72f}
             ranges.addView(b,LinearLayout.LayoutParams(0,host.dp(42),1f).apply{setMargins(host.dp(2),host.dp(6),host.dp(2),0)})
@@ -78,6 +78,15 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             indicators.addView(b,LinearLayout.LayoutParams(0,host.dp(34),1f).apply{setMargins(host.dp(2),host.dp(5),host.dp(2),0)})
         }
         box.addView(indicators)
+        val legend=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(10),host.dp(9),host.dp(10),host.dp(5));background=GradientDrawable().apply{setColor(Color.rgb(7,12,23));cornerRadius=host.dp(10).toFloat();setStroke(host.dp(1),Color.rgb(34,55,82))}}
+        listOf(
+            "— Linie verde/roșie: direcția trendului calculată pe ultimele lumânări.",
+            "— Liniile paralele: zona de variație a trendului (volatilitate).",
+            "— Linie albastră: suport tehnic recent.",
+            "— Linie aurie: rezistență tehnică recentă.",
+            "— BB / MA-EMA / Ichimoku: indicatorii activați din butoanele de mai sus."
+        ).forEach{t->legend.addView(TextView(host.root.context).apply{text=t;textSize=12f;setTextColor(Color.rgb(195,205,220));setPadding(0,host.dp(2),0,host.dp(2))})}
+        box.addView(legend)
         host.content.addView(box,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(14))})
     }
 
