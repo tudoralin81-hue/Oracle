@@ -18,9 +18,9 @@ jobs:
       - name: Apply stable Watchlist navigation/eye fix
         shell: bash
         run: python3 scripts/fix_watchlist_eye.py
-      - name: Apply Watchlist V2 row-link fix
+      - name: Apply Watchlist V3 independent-button fix
         shell: bash
-        run: python3 scripts/fix_watchlist_clicks_v2.py
+        run: python3 scripts/fix_watchlist_clicks_v3.py
       - name: Commit patched source
         shell: bash
         run: |
@@ -31,7 +31,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Watchlist fix already present."
           else
-            git commit -m "fix: make every Watchlist position a row link [skip ci]"
+            git commit -m "fix: independent Android buttons for Watchlist positions [skip ci]"
             git push
           fi
       - uses: actions/setup-java@v4
