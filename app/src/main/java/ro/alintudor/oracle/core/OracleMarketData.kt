@@ -25,6 +25,11 @@ object OracleMarketData {
         val (range, interval) = when (mode) {
             "30M" -> "5d" to "30m"
             "1H" -> "1mo" to "1h"
+            "1D" -> "1y" to "1d"
+            "5D" -> "5d" to "1d"
+            "1M" -> "1mo" to "1d"
+            "3M" -> "3mo" to "1d"
+            "1Y" -> "1y" to "1d"
             else -> "1y" to "1d"
         }
         return fetch(symbol, range, interval)
