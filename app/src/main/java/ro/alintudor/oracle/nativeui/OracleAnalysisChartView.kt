@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -153,7 +152,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     private fun drawOscillator(c: Canvas, d: List<OracleOhlcvPoint>, top: Float, h: Float, adxMode: Boolean) {
         paints.color=grid;paints.strokeWidth=1f;c.drawLine(0f,top,width.toFloat(),top,paints);c.drawLine(0f,top+h,width.toFloat(),top+h,paints)
         val vals=if(adxMode) adx(d.map{it.high},d.map{it.low},d.map{it.close},14) else rsi(d.map{it.close},14)
-        lineSeries(c,vals.map{top+h-(it/100f)*h},if(adxMode)gold:blue,width/max(1,d.size).toFloat(),0f)
+        lineSeries(c,vals.map{top+h-(it/100f)*h},if(adxMode) gold else blue,width/max(1,d.size).toFloat(),0f)
         label(c,if(adxMode)"ADX(14)" else "RSI(14)",12f,top+12f,if(adxMode)gold else blue,10f)
         if(!adxMode){label(c,"70",width-28f,top+h*.3f,text,8f);label(c,"30",width-28f,top+h*.7f,text,8f)}
     }
