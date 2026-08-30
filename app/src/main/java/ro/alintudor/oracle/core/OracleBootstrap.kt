@@ -2,7 +2,8 @@ package ro.alintudor.oracle.core
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    private const val VERSION = 12
+    // Bump whenever the persisted Growth recommendation snapshot logic changes.
+    private const val VERSION = 13
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -19,20 +20,59 @@ object OracleBootstrap {
             val now = System.currentTimeMillis()
             repository.saveHistory(positions.map { OracleHistoryPoint(it.ticker, now, it.currentPrice, it.marketValue, it.pnl) })
         }
+
         val cachedGrowth = repository.cachedGrowth()
         val t0 = System.currentTimeMillis()
+
+        // Risk and allocation MUST be calculated independently for each ticker.
+        // They are never copied from a frozen/historical recommendation value.
         fun recommendation(ticker: String, fallback: OracleGrowthRecommendation): OracleGrowthRecommendation {
             val a = OracleAnalysisEngine.analyze(ticker)
-            return if (a != null) fallback.copy(risk = a.risk, allocationMax = a.allocation, referenceTimestamp = t0, generatedAt = t0)
-            else fallback.copy(risk = "NEEVALUAT", allocationMax = 0.0, referenceTimestamp = t0, generatedAt = t0)
+            return if (a != null) {
+                fallback.copy(
+                    risk = a.risk,
+                    allocationMax = a.allocation,
+                    referenceTimestamp = t0,
+                    generatedAt = t0
+                )
+            } else {
+                fallback.copy(
+                    risk = "NEEVALUAT",
+                    allocationMax = 0.0,
+                    referenceTimestamp = t0,
+                    generatedAt = t0
+                )
+            }
         }
-        val snps = recommendation("SNPS", OracleGrowthRecommendation(horizon="SHORT",ticker="SNPS",company="Synopsys, Inc.",sector="Technology",score=86,signal="STRONG BUY",risk="NEEVALUAT",allocationMax=0.0,forecastPct=6.1,momentum5D=16.8,momentum20D=24.9,weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1),referenceTimestamp=t0,generatedAt=t0))
-        val veev = recommendation("VEEV", OracleGrowthRecommendation(horizon="MEDIUM",ticker="VEEV",company="Veeva Systems Inc.",sector="Technology",score=85,signal="STRONG BUY",risk="NEEVALUAT",allocationMax=0.0,forecastPct=18.2,momentum5D=12.6,momentum20D=40.0,weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory",newsSource="StockStory",referenceTimestamp=t0,generatedAt=t0))
-        val crm = recommendation("CRM", OracleGrowthRecommendation(horizon="LONG",ticker="CRM",company="Salesforce, Inc.",sector="Technology",score=81,signal="BUY",risk="NEEVALUAT",allocationMax=0.0,forecastPct=33.1,momentum5D=22.7,momentum20D=39.5,weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC",newsSource="CNBC",referenceTimestamp=t0,generatedAt=t0))
-        val canonical = listOf(snps, veev, crm)
-        val oldTickers = cachedGrowth.map { it.ticker.uppercase() }.toSet()
-        val oldFrozenValues = cachedGrowth.any { it.allocationMax == 3.0 || it.risk == "RIDICAT" }
-        if (cachedGrowth.isEmpty() || oldTickers != setOf("SNPS", "VEEV", "CRM") || oldFrozenValues) repository.saveGrowth(canonical)
+
+        val snps = recommendation("SNPS", OracleGrowthRecommendation(
+            horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Technology",
+            score=86, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
+            forecastPct=6.1, momentum5D=16.8, momentum20D=24.9,
+            weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1),
+            referenceTimestamp=t0, generatedAt=t0
+        ))
+        val veev = recommendation("VEEV", OracleGrowthRecommendation(
+            horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
+            score=85, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
+            forecastPct=18.2, momentum5D=12.6, momentum20D=40.0,
+            weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
+            newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory",
+            newsSource="StockStory", referenceTimestamp=t0, generatedAt=t0
+        ))
+        val crm = recommendation("CRM", OracleGrowthRecommendation(
+            horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
+            score=81, signal="BUY", risk="NEEVALUAT", allocationMax=0.0,
+            forecastPct=33.1, momentum5D=22.7, momentum20D=39.5,
+            weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
+            newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC",
+            newsSource="CNBC", referenceTimestamp=t0, generatedAt=t0
+        ))
+
+        // VERSION 13 intentionally regenerates the persisted snapshot. This is the
+        // critical fix for installations that already passed VERSION 12 and therefore
+        // never executed the earlier Risk/Allocation migration again.
+        repository.saveGrowth(listOf(snps, veev, crm))
         repository.markBootstrap(VERSION)
     }
 }
