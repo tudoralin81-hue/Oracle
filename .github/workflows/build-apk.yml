@@ -24,6 +24,7 @@ jobs:
           analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
           bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
           growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
+          live = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt').read_text(encoding='utf-8')
           sector = Path('app/src/main/java/ro/alintudor/oracle/core/OracleSectorAllocation.kt').read_text(encoding='utf-8')
           local = Path('app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt').read_text(encoding='utf-8')
           if 'riskScore' not in analysis or 'val risk=when' not in analysis or 'riskFactor' not in analysis:
@@ -38,11 +39,11 @@ jobs:
               raise SystemExit('Growth engine is not using same-pass risk plus sector-corrected allocation')
           if 'const val STEP = 0.025' not in sector or 'factorFor' not in sector or 'apply' not in sector:
               raise SystemExit('Sector allocation correction in 0.025 steps is missing')
-          if 'val invalidRiskAllocation=' not in local or 'applyCalculatedRiskAllocation(current.growth)' not in local:
-              raise SystemExit('Invalid frozen Risk/Allocation values are not forced through recalculation')
-          if 'current.growth.all { it.referenceTimestamp == growthAnchor }' not in local:
-              raise SystemExit('Growth freshness gate is still bypassable on weekends')
-          print('Permanent Growth risk/allocation + sector score source fix verified')
+          if 'snapshotIsCurrent = current.growth.isNotEmpty()' not in local or 'current.growth.all { it.referenceTimestamp == growthAnchor }' not in local:
+              raise SystemExit('Growth immutable freshness gate is missing')
+          if 'return items' not in live or 'item.copy(sector' in live:
+              raise SystemExit('Growth UI adapter must be read-only and must not mutate recommendation state')
+          print('Permanent Growth risk/allocation + sector score source + immutable snapshot fix verified')
           PY
       - uses: actions/setup-java@v4
         with:
