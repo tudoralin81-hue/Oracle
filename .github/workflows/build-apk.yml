@@ -27,12 +27,12 @@ jobs:
           local = Path('app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt').read_text(encoding='utf-8')
           if 'riskScore' not in analysis or 'val risk=when' not in analysis or 'riskFactor' not in analysis:
               raise SystemExit('Permanent dynamic risk/allocation calculation is missing from OracleAnalysisEngine')
-          if 'private const val VERSION = 14' not in bootstrap:
-              raise SystemExit('Growth snapshot migration VERSION 14 is missing')
-          if 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap:
-              raise SystemExit('Frozen Growth snapshot is not sourced from the live analysis engine')
-          if 'allocationMax = 0.0' not in bootstrap:
-              raise SystemExit('Unavailable-analysis guard is missing')
+          if 'private const val VERSION = 15' not in bootstrap:
+              raise SystemExit('Growth snapshot migration VERSION 15 is missing')
+          if 'fallbackRiskAllocation' not in bootstrap:
+              raise SystemExit('Offline Risk/Allocation fallback is missing')
+          if 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap and 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap:
+              raise SystemExit('Growth snapshot is not sourced from the analysis engine when live data is available')
           if 'risk=pick.risk' not in growth or 'allocationMax=pick.allocation' not in growth:
               raise SystemExit('Growth engine is not using same-pass per-ticker risk/allocation')
           if 'val invalidRiskAllocation=' not in local or 'applyCalculatedRiskAllocation(current.growth)' not in local:
