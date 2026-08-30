@@ -27,7 +27,9 @@ object OracleGrowthEngine {
             // Risk and allocation come from the same per-ticker evaluation pass.
             // Do not perform a second market-data fetch here; that could return null
             // and overwrite valid values with NEEVALUAT / 0.0.
-            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=meta?.sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=pick.allocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=weights[h]!!.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7")
+            val sector=meta?.sector
+            val correctedAllocation=OracleSectorAllocation.apply(pick.allocation,sector)
+            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=weights[h]!!.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7")
         }
         return out
     }
