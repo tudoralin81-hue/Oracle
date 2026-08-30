@@ -13,34 +13,6 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Patch Watchlist delete refresh
-        shell: python
-        run: |
-          from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
-          s = p.read_text()
-          old = '''    private fun renderWatchlist(items: List<String>) {
-        host.addSectionLabel("WATCHLIST • TICKERE SALVATE")'''
-          new = '''    private fun renderWatchlist(items: List<String>) {
-        host.content.removeAllViews()
-        host.addSectionLabel("WATCHLIST • TICKERE SALVATE")'''
-          if old not in s:
-              raise SystemExit('Expected Watchlist render block not found')
-          p.write_text(s.replace(old, new, 1))
-
-      - name: Commit Watchlist source fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          if git diff --cached --quiet; then
-            echo "No Watchlist source changes needed."
-          else
-            git commit -m "fix: refresh Watchlist after delete [skip ci]"
-            git push
-          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
