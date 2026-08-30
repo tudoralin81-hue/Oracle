@@ -21,24 +21,115 @@ class OracleKnowledgeModule(private val host: OracleNativeModule) {
         onRefresh: () -> Unit = {}
     ) {
         host.content.removeAllViews()
-        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")
+        host.addSectionLabel("KNOWLEDGE")
 
         val context = host.root.context
         val last = OracleKnowledgeSync.lastSuccess(context)
         val error = OracleKnowledgeSync.lastError(context)
         val status = if (last == 0L) {
-            "Nesincronizat"
+            "Nesincronizat încă"
         } else {
             "Ultimul refresh: ${SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(last))}"
         }
 
-        host.addCard(
-            "SURSA CANONICĂ",
-            "${OracleKnowledgeSync.SOURCE_URL}\n$status\nActualizare automată: zilnic"
-        )
+        // Hero card — intentionally mirrors the visual language of the Oracle app:
+        // dark surface, gold border, centered identity and one obvious primary action.
+        val hero = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(host.dp(22), host.dp(24), host.dp(22), host.dp(22))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(7, 12, 23))
+                cornerRadius = host.dp(18).toFloat()
+                setStroke(host.dp(1), host.accent)
+            }
+        }
+
+        hero.addView(TextView(context).apply {
+            text = "▱"
+            textSize = 58f
+            gravity = Gravity.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            setTextColor(host.accent)
+        }, LinearLayout.LayoutParams(-1, host.dp(70)))
+
+        hero.addView(TextView(context).apply {
+            text = "KNOWLEDGE"
+            textSize = 28f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.12f
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(-1, host.dp(48)))
+
+        val divider = TextView(context).apply {
+            text = "━━━━━━━━━━━━━━━━"
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(host.accent)
+            alpha = 0.8f
+        }
+        hero.addView(divider, LinearLayout.LayoutParams(-1, host.dp(28)))
+
+        hero.addView(TextView(context).apply {
+            text = "Accesează articole, analize și idei\npentru investitori inteligenți."
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setLineSpacing(host.dp(2).toFloat(), 1f)
+            setTextColor(Color.rgb(220, 225, 235))
+        }, LinearLayout.LayoutParams(-1, host.dp(60)))
+
+        val openKnowledge = Button(context).apply {
+            text = "↗   DESCHIDE ALINTUDOR.RO/KNOWLEDGE"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            isAllCaps = false
+            setTextColor(Color.rgb(8, 12, 20))
+            background = GradientDrawable().apply {
+                setColor(host.accent)
+                cornerRadius = host.dp(12).toFloat()
+            }
+            setOnClickListener { onOpen(OracleKnowledgeSync.SOURCE_URL) }
+        }
+        hero.addView(openKnowledge, LinearLayout.LayoutParams(-1, host.dp(52)).apply {
+            setMargins(0, host.dp(12), 0, 0)
+        })
+
+        host.content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(12))
+        })
+
+        // Small information card below the hero, as in the proposed design.
+        val info = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(host.dp(16), host.dp(14), host.dp(16), host.dp(14))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(9, 15, 27))
+                cornerRadius = host.dp(15).toFloat()
+                setStroke(host.dp(1), Color.rgb(38, 55, 80))
+            }
+        }
+        info.addView(TextView(context).apply {
+            text = "✓"
+            textSize = 25f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(host.accent)
+        }, LinearLayout.LayoutParams(host.dp(42), host.dp(42)))
+        info.addView(TextView(context).apply {
+            text = "Conținut independent\nSe deschide în browser.\n$status"
+            textSize = 13f
+            setLineSpacing(host.dp(2).toFloat(), 1f)
+            setTextColor(Color.rgb(205, 212, 225))
+            setPadding(host.dp(10), 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        host.content.addView(info, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(14))
+        })
 
         val refresh = Button(context).apply {
-            text = "REFRESH KNOWLEDGE"
+            text = "⟳  REFRESH KNOWLEDGE"
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
@@ -60,8 +151,8 @@ class OracleKnowledgeModule(private val host: OracleNativeModule) {
 
         if (items.isEmpty()) {
             host.addCard(
-                "KNOWLEDGE GOL",
-                "Nu există încă articole în cache. Apasă REFRESH KNOWLEDGE pentru preluarea inițială."
+                "ARTICOLE",
+                "Nu există încă articole în cache. Folosește REFRESH KNOWLEDGE pentru preluarea inițială."
             )
             return
         }
