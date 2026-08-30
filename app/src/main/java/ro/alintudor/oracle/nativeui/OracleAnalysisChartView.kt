@@ -172,20 +172,22 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
-        label(c, "$ticker  •  $mode", 14f, 34f, Color.WHITE, 30f)
+        // Canvas text is in physical pixels; enlarge the chart header substantially for high-density phones.
+        label(c, "$ticker  •  $mode", 14f, 62f, Color.WHITE, 60f)
         if (d.isNotEmpty()) {
             paints.textAlign = Paint.Align.RIGHT
-            label(c, money(d.last().close), width - 14f, 34f, green, 30f)
+            label(c, money(d.last().close), width - 14f, 62f, green, 60f)
             paints.textAlign = Paint.Align.LEFT
         }
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
-            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 72f, if (p.close >= p.open) green else red, 15f)
-            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 100f, text, 15f)
+            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 96f, if (p.close >= p.open) green else red, 30f)
+            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 128f, text, 30f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 72f, text, 14f)
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 96f, text, 28f)
         }
     }
+
     private fun drawGrid(c: Canvas, left: Float, top: Float, bottom: Float, rows: Int) {
         paints.strokeWidth = 1f
         paints.color = grid
