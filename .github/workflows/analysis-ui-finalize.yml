@@ -30,8 +30,9 @@ jobs:
 
           chart = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt')
           s = chart.read_text()
+          nl = chr(10)
           if 'import android.graphics.Typeface' not in s:
-              s = s.replace('import android.graphics.Path\\n', 'import android.graphics.Path\\nimport android.graphics.Typeface\\n')
+              s = s.replace('import android.graphics.Path', 'import android.graphics.Path' + nl + 'import android.graphics.Typeface')
           s = s.replace('drawGrid(c, 0f, 94f, chartBottom, 6)', 'drawGrid(c, 0f, 84f, chartBottom, 6)')
           s = s.replace('drawCandles(c, d, 12f, 94f, width - 48f, chartBottom)', 'drawCandles(c, d, 12f, 84f, width - 48f, chartBottom)')
           s = s.replace('label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 18f)', 'label(c, "$ticker  •  $mode", 14f, 22f, Color.WHITE, 15f)')
@@ -44,11 +45,12 @@ jobs:
 
           modules = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           m = modules.read_text()
-          marker = '            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE\\n'
+          marker = '            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE'
           if marker not in m:
               raise SystemExit('ticker input marker not found')
           if 'showSoftInputOnFocus = true' not in m:
-              m = m.replace(marker, marker + '            isFocusable = true\\n            isFocusableInTouchMode = true\\n            showSoftInputOnFocus = true\\n', 1)
+              insertion = marker + nl + '            isFocusable = true' + nl + '            isFocusableInTouchMode = true' + nl + '            showSoftInputOnFocus = true'
+              m = m.replace(marker, insertion, 1)
           old = '        input.setOnEditorActionListener { _, _, _ -> run(); true }'
           new = '        input.setOnEditorActionListener { _, actionId, _ -> if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { run(); true } else false }'
           if old in m:
