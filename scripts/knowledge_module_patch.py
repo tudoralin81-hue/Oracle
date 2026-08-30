@@ -16,9 +16,11 @@ if start >= 0:
         raise SystemExit('Knowledge render branch end not found')
     s = s[:start] + '            "knowledge"->renderKnowledgeDirect(host)\n' + s[end + len('            )\n'):]
 
-# Add the simplest reliable entry point: a card whose click opens the real website.
-marker = '        host.content.removeAllViews()\n        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")'
-card = '''        host.content.removeAllViews()
+# Install the direct web card if not already present.
+if 'DESCHIDE KNOWLEDGE' not in s:
+    marker = '        host.content.removeAllViews()\n        val webCard = LinearLayout(context).apply {'
+    card = '''        host.content.removeAllViews()
+        val context = this
         val webCard = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(host.dp(16), host.dp(15), host.dp(16), host.dp(15))
@@ -27,8 +29,6 @@ card = '''        host.content.removeAllViews()
                 cornerRadius = host.dp(16).toFloat()
                 setStroke(host.dp(1), Color.rgb(255, 205, 55))
             }
-            isClickable = true
-            isFocusable = true
             setOnClickListener { openKnowledgeUrl("https://alintudor.ro/knowledge/") }
         }
         webCard.addView(TextView(context).apply {
@@ -56,10 +56,15 @@ card = '''        host.content.removeAllViews()
         }, LinearLayout.LayoutParams(-1, host.dp(44)))
         host.content.addView(webCard, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(14)) })
         host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")'''
-if 'DESCHIDE KNOWLEDGE' not in s:
     if marker not in s:
-        raise SystemExit('Knowledge renderer marker not found')
+        raise SystemExit('Knowledge web card marker not found')
     s = s.replace(marker, card, 1)
+
+# Repair the previous generated version: context was declared after first use.
+s = s.replace('        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")\n        val context = this\n        val last =', '        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")\n        val last =')
+
+if 'DESCHIDE KNOWLEDGE' not in s or 'https://alintudor.ro/knowledge/' not in s:
+    raise SystemExit('Knowledge web card was not installed')
 
 p.write_text(s)
 print('Knowledge direct web card installed')
