@@ -3,7 +3,7 @@ package ro.alintudor.oracle.core
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
     // Bump whenever the persisted Growth recommendation snapshot logic changes.
-    private const val VERSION = 13
+    private const val VERSION = 14
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -21,11 +21,10 @@ object OracleBootstrap {
             repository.saveHistory(positions.map { OracleHistoryPoint(it.ticker, now, it.currentPrice, it.marketValue, it.pnl) })
         }
 
-        val cachedGrowth = repository.cachedGrowth()
         val t0 = System.currentTimeMillis()
 
-        // Risk and allocation MUST be calculated independently for each ticker.
-        // They are never copied from a frozen/historical recommendation value.
+        // Risk and allocation are calculated independently from live analysis for
+        // each frozen Growth recommendation. They are never copied from a seed.
         fun recommendation(ticker: String, fallback: OracleGrowthRecommendation): OracleGrowthRecommendation {
             val a = OracleAnalysisEngine.analyze(ticker)
             return if (a != null) {
@@ -69,9 +68,8 @@ object OracleBootstrap {
             newsSource="CNBC", referenceTimestamp=t0, generatedAt=t0
         ))
 
-        // VERSION 13 intentionally regenerates the persisted snapshot. This is the
-        // critical fix for installations that already passed VERSION 12 and therefore
-        // never executed the earlier Risk/Allocation migration again.
+        // VERSION 14 forces existing installations to regenerate the persisted
+        // Risk/Allocation fields once, while preserving the frozen recommendation set.
         repository.saveGrowth(listOf(snps, veev, crm))
         repository.markBootstrap(VERSION)
     }
