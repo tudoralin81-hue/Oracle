@@ -8,7 +8,7 @@ package ro.alintudor.oracle.core
  * After migration the app remains local and does not contact the web for these records.
  */
 object OracleBootstrap {
-    private const val VERSION = 8
+    private const val VERSION = 9
 
     fun ensure(repository: OracleRepository) {
         if (repository.bootstrapVersion() >= VERSION) return
@@ -52,24 +52,36 @@ object OracleBootstrap {
         // trading day, so the active weekend snapshot must remain this Friday T0.
         val cachedGrowth = repository.cachedGrowth()
         val t0 = 1787922000000L // 28.08.2026 16:00 Europe/Bucharest
+
+        // Allocation is deliberately NOT taken from the historical snapshot.
+        // Calculate it independently for each ticker using the same single-ticker
+        // Oracle Analysis allocation formula. This prevents one hard-coded 3.0%
+        // value from being propagated to every Growth recommendation.
+        fun calculatedAllocation(ticker: String, fallback: Double): Double =
+            OracleAnalysisEngine.analyze(ticker)?.allocation ?: fallback
+
+        val snpsAllocation = calculatedAllocation("SNPS", 3.0)
+        val veevAllocation = calculatedAllocation("VEEV", 3.0)
+        val crmAllocation = calculatedAllocation("CRM", 3.0)
+
         val canonicalGrowthFallback = listOf(
             OracleGrowthRecommendation(
                 horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Technology",
-                score=86, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=6.1,
+                score=86, signal="STRONG BUY", risk="RIDICAT", allocationMax=snpsAllocation, forecastPct=6.1,
                 momentum5D=16.8, momentum20D=24.9,
                 weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1),
                 newsTitle="", newsSource="", referenceTimestamp=t0, generatedAt=t0
             ),
             OracleGrowthRecommendation(
                 horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
-                score=85, signal="STRONG BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=18.2,
+                score=85, signal="STRONG BUY", risk="RIDICAT", allocationMax=veevAllocation, forecastPct=18.2,
                 momentum5D=12.6, momentum20D=40.0,
                 weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
                 newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory", newsSource="StockStory", referenceTimestamp=t0, generatedAt=t0
             ),
             OracleGrowthRecommendation(
                 horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
-                score=81, signal="BUY", risk="RIDICAT", allocationMax=3.0, forecastPct=33.1,
+                score=81, signal="BUY", risk="RIDICAT", allocationMax=crmAllocation, forecastPct=33.1,
                 momentum5D=22.7, momentum20D=39.5,
                 weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
                 newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC", referenceTimestamp=t0, generatedAt=t0
@@ -78,7 +90,7 @@ object OracleBootstrap {
 
         // V5 cached Growth contained the previous VEEV/CRM/CRWD recommendation set.
         // Replace known legacy data and, for the canonical 28.08.2026 16:00 anchor,
-        // restore the approved snapshot so an old APK cannot leak a different set.
+        // restore the approved snapshot while calculating allocation per ticker.
         val legacyV5 = cachedGrowth.map { it.ticker.uppercase() }.toSet() == setOf("VEEV", "CRM", "CRWD")
         val sameSession = cachedGrowth.any { it.referenceTimestamp == t0 }
         if (cachedGrowth.isEmpty() || legacyV5 || sameSession) {
