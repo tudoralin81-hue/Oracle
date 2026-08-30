@@ -122,6 +122,8 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         }
         button.setOnClickListener { run() }
         input.setOnEditorActionListener { _, actionId, _ -> if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { run(); true } else false }
+        // AUTO_WATCHLIST_ANALYZE: a Watchlist navigation opens the actual ticker analysis, not only the input field.
+        if (tickerDraft.isNotBlank()) input.postDelayed({ run() }, 220L)
     }
 
     private fun renderResult(r: OracleAnalysisEngine.Result?) {
@@ -413,12 +415,21 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 isClickable = true
                 isFocusable = true
                 contentDescription = "$t — deschide în Analysis"
+            }
+            val tickerView = TextView(host.root.context).apply {
+                text = t; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { onWatchlistTickerClick(t) }
             }
-            row.addView(TextView(host.root.context).apply { text = t; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(TextView(host.root.context).apply {
+            row.addView(tickerView, LinearLayout.LayoutParams(0, -2, 1f))
+            val arrowView = TextView(host.root.context).apply {
                 text = "›"; textSize = 25f; typeface = Typeface.DEFAULT_BOLD; setTextColor(host.accent); gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(host.dp(30), host.dp(38)))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { onWatchlistTickerClick(t) }
+            }
+            row.addView(arrowView, LinearLayout.LayoutParams(host.dp(30), host.dp(38)))
             val delete = TextView(host.root.context).apply {
                 text = "ȘTERGE"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 90, 90)); setPadding(host.dp(8), host.dp(8), host.dp(8), host.dp(8))
                 isClickable = true
@@ -426,20 +437,9 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 setOnClickListener { val next = store.load().filterNot { it.equals(t, true) }; store.save(next); renderWatchlist(next) }
             }
             row.addView(delete, LinearLayout.LayoutParams(-2, -2))
-            // Explicit child navigation: ticker and arrow both open the same Analysis target.
-        for (j in 0 until row.childCount) {
-            val child = row.getChildAt(j)
-            if (child is TextView && child.text?.toString()?.trim() == t) {
-                child.isClickable = true
-                child.isFocusable = true
-                child.setOnClickListener { onWatchlistTickerClick(t) }
-            } else if (child is TextView && child.text?.toString()?.trim() == "›") {
-                child.isClickable = true
-                child.isFocusable = true
-                child.setOnClickListener { onWatchlistTickerClick(t) }
-            }
-        }
-        host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+            // Whole row is also a navigation target; delete remains its own clickable child.
+            row.setOnClickListener { onWatchlistTickerClick(t) }
+            host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
         }
     }
 
