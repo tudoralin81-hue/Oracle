@@ -3,6 +3,7 @@ package ro.alintudor.oracle.nativeui
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.InputType
 import android.widget.*
 import ro.alintudor.oracle.core.*
 import java.util.Locale
@@ -18,13 +19,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     private fun renderAnalysis(){
         host.addSectionLabel("ANALYSIS • SINGLE TICKER")
         host.addCard("ANALIZĂ TICKER","Introdu un ticker pentru cele 11 valori Oracle folosite și în Growth, fără News, plus analiza tehnică și opțiunea de Watchlist. Fără scoruri și fără ponderi.")
-        val input=EditText(host.root.context).apply{hint="Introdu tickerul (ex. NVDA)";setSingleLine(true);textSize=18f;setTextColor(Color.WHITE);setHintTextColor(Color.rgb(130,145,170));setPadding(host.dp(16),0,host.dp(16),0);background=GradientDrawable().apply{setColor(Color.rgb(8,14,28));cornerRadius=host.dp(14).toFloat();setStroke(host.dp(1),host.accent)};inputType=3}
+        val input=EditText(host.root.context).apply{hint="Introdu tickerul (ex. NVDA)";setSingleLine(true);textSize=18f;setTextColor(Color.WHITE);setHintTextColor(Color.rgb(130,145,170));setPadding(host.dp(16),0,host.dp(16),0);background=GradientDrawable().apply{setColor(Color.rgb(8,14,28));cornerRadius=host.dp(14).toFloat();setStroke(host.dp(1),host.accent)};inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_DONE}
         host.fixedToolbar.addView(input,LinearLayout.LayoutParams(-1,host.dp(52)).apply{setMargins(0,host.dp(3),0,host.dp(6))})
         val button=Button(host.root.context).apply{text="ANALIZEAZĂ TICKER";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(Color.rgb(15,75,110));cornerRadius=host.dp(13).toFloat()}}
         host.fixedToolbar.addView(button,LinearLayout.LayoutParams(-1,host.dp(48)).apply{setMargins(0,0,0,host.dp(8))})
         fun run(){val t=input.text.toString().trim().uppercase(Locale.US);if(t.isBlank()){input.error="Introdu un ticker";return};button.isEnabled=false;button.text="SE ANALIZEAZĂ…";Thread{val x=runCatching{OracleAnalysisEngine.analyze(t)};host.root.post{button.isEnabled=true;button.text="ANALIZEAZĂ TICKER";x.onSuccess{renderResult(it)}.onFailure{Toast.makeText(host.root.context,"Analiza a eșuat: ${it.message?:it.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()}
         button.setOnClickListener{run()};input.setOnEditorActionListener{_,_,_->run();true}
-        host.content.addView(TextView(host.root.context).apply{text="Caută un ticker și primești valorile Oracle și analiza tehnică, fără modul News.";textSize=12f;setTextColor(Color.rgb(150,165,188));setPadding(host.dp(4),host.dp(5),host.dp(4),host.dp(12))})
     }
 
     private fun renderResult(r:OracleAnalysisEngine.Result?){
