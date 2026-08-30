@@ -29,8 +29,10 @@ jobs:
               ('analysis helper', 'fun calculateRiskAllocation(' in analysis),
               ('analysis uses helper', 'calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in analysis),
               ('growth uses helper', 'OracleAnalysisEngine.calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in growth),
-              ('bootstrap version 10', 'private const val VERSION = 10' in bootstrap),
-              ('bootstrap risk calculated', 'val snpsRisk = OracleAnalysisEngine.analyze("SNPS")?.risk' in bootstrap),
+              ('bootstrap version 11', 'private const val VERSION = 11' in bootstrap),
+              ('bootstrap allocation calculated', 'val snpsAllocation = calculatedAllocation("SNPS", 3.0)' in bootstrap),
+              ('bootstrap VEEV allocation calculated', 'val veevAllocation = calculatedAllocation("VEEV", 3.0)' in bootstrap),
+              ('bootstrap CRM allocation calculated', 'val crmAllocation = calculatedAllocation("CRM", 3.0)' in bootstrap),
           ]
           missing = [name for name, ok in checks if not ok]
           if missing:
