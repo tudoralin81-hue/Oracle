@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import ro.alintudor.oracle.core.OracleWatchlistStore
 import java.util.Locale
 
 /**
@@ -23,10 +24,10 @@ object OracleAnalysisWatchlistStarOverlay {
             scanContent(host)
         }
         host.content.setOnHierarchyChangeListener(object : android.view.ViewGroup.OnHierarchyChangeListener {
-            override fun onChildViewAdded(parent: android.view.View?, child: android.view.View?) {
+            override fun onChildViewAdded(parent: View?, child: View?) {
                 child?.post { scan() }
             }
-            override fun onChildViewRemoved(parent: android.view.View?, child: android.view.View?) = Unit
+            override fun onChildViewRemoved(parent: View?, child: View?) = Unit
         })
         host.content.post { scan() }
     }
