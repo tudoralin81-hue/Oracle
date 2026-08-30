@@ -37,9 +37,12 @@ object OracleLocalProcessor {
         val marketTickers = (normalized.map { it.ticker } + current.growth.map { it.ticker }).distinct()
         for (ticker in marketTickers) OracleTechnicalIndicators.adx14(OracleMarketData.fetchDaily(ticker))?.let { adx -> computedTechnical[ticker]?.let { computedTechnical[ticker] = it.copy(adx = adx) } }
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
-        val growthAnchor=currentGrowthAnchor(now); val localDay=Instant.ofEpochMilli(now).atZone(BUCHAREST).dayOfWeek; val weekend=localDay==DayOfWeek.SATURDAY||localDay==DayOfWeek.SUNDAY
+        val growthAnchor=currentGrowthAnchor(now)
         val invalidRiskAllocation=current.growth.any { it.risk.equals("NEEVALUAT", true) || it.allocationMax <= 0.0 }
-        val snapshotIsCurrent=current.growth.isNotEmpty() && !invalidRiskAllocation && (current.growth.all{it.referenceTimestamp==growthAnchor}||weekend)
+        // Weekend snapshots still use the Friday anchor, so the anchor itself is the
+        // freshness gate. Do not bypass it on Saturday/Sunday: that used to allow an
+        // invalidated cached Growth snapshot to survive forever after a model change.
+        val snapshotIsCurrent=current.growth.isNotEmpty() && !invalidRiskAllocation && current.growth.all { it.referenceTimestamp == growthAnchor }
         val growth=if(snapshotIsCurrent)current.growth else {
             val generated=OracleGrowthEngine.run(current.growth)
             if(generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
