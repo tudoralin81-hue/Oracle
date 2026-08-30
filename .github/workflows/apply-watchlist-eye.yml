@@ -1,0 +1,33 @@
+name: Apply Analysis Watchlist eye
+on:
+  push:
+    branches: [ 'feature/watchlist-eye-safe' ]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Analysis-only eye hook
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s = p.read_text()
+          marker = '        host.restoreScrollY(preservedScrollY)'
+          insertion = '        if (key == "analysis") OracleAnalysisWatchlistEyeOverlay.install(host)\n' + marker
+          if 'OracleAnalysisWatchlistEyeOverlay.install(host)' not in s:
+              if marker not in s:
+                  raise SystemExit('MainActivity insertion marker not found')
+              p.write_text(s.replace(marker, insertion, 1))
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-watchlist-eye.yml
+          git add app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          git commit -m 'feat: connect Analysis-only Watchlist eye [skip ci]'
+          git push
