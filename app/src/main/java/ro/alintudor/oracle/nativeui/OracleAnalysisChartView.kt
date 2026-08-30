@@ -313,7 +313,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         label(c, "REZIST. ${money(resistance)}", 12f, y(resistance) + 10f, gold, 8f)
 
         val lastX = x(n - 1)
-        val futureBars = min(12, max(4, (right - lastX) / max(1f, step)).toInt())
+        val futureBars = min(12, max(4f, (right - lastX) / max(1f, step)).toInt())
         val target = intercept + slope * (n - 1 + futureBars)
         val endX = min(right - 6f, lastX + futureBars * step)
         val endY = y(target)
