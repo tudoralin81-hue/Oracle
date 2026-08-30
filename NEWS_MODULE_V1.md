@@ -27,3 +27,7 @@ Oracle remains the single intelligence layer. External providers/feed connectors
 ## Acceptance
 
 Do not merge to `main` until the project compiles successfully and the News module is verified on the current stable Oracle baseline.
+
+## Analysis chart update
+
+Analysis technical chart now supports 1D, 1H, 30M, 5D, 1M, 3M and 1Y ranges, with enlarged chart labels and an explanation block for the trend/support/resistance lines.
