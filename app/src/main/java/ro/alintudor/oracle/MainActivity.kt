@@ -20,6 +20,7 @@ import ro.alintudor.oracle.core.OracleGrowthLiveData
 import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
 import ro.alintudor.oracle.core.OracleWatchlistStore
+import ro.alintudor.oracle.core.OracleKnowledgeSync
 import ro.alintudor.oracle.core.snapshot
 import ro.alintudor.oracle.nativeui.*
 
@@ -37,6 +38,7 @@ class MainActivity : Activity() {
         window.statusBarColor = Color.rgb(1,3,8); window.navigationBarColor = Color.rgb(1,3,8)
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(1,3,8)) }
         setContentView(root)
+        OracleKnowledgeSync.scheduleDaily(this)
         runCatching { OracleBootstrap.ensure(repository); showHub() }.onFailure { showFatalError("Pornirea Oracle a eșuat",it) }
     }
 
@@ -66,6 +68,16 @@ class MainActivity : Activity() {
         currentModule=key
         runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
         if (key == "analysis") return
+        if (key == "knowledge") {
+            if (OracleKnowledgeSync.isStale(this)) {
+                OracleKnowledgeSync.refreshAsync(this) { ok, error ->
+                    if (currentModule != "knowledge" || isFinishing) return@refreshAsync
+                    if (ok) runCatching { renderModule("knowledge", false) }.onFailure { showModuleError("knowledge", it) }
+                    else if (error != null) Toast.makeText(this, "Knowledge refresh eșuat: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
         Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
     }
 
@@ -104,7 +116,7 @@ class MainActivity : Activity() {
             "growth"->{ val liveGrowth=OracleGrowthLiveData.refresh(data.growth); OracleGrowthModule(host).render(liveGrowth,data.news) }
             "analysis"->OracleSimpleModule(host,title).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)
             "watchlist"->renderWatchlistDirect()
-            "knowledge"->OracleSimpleModule(host,title).render(actions=data.actions,knowledge=data.knowledge,positions=data.positions,history=data.history)
+            "knowledge"->OracleKnowledgeModule(host).render(OracleKnowledgeSync.load(this)) { url -> openKnowledgeUrl(url) }
         }
         host.restoreScrollY(preservedScrollY)
     }
@@ -298,6 +310,13 @@ class MainActivity : Activity() {
         }
         scroll.addView(page)
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+    }
+
+    private fun openKnowledgeUrl(url:String){
+        if (url.isBlank()) return
+        runCatching {
+            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        }.onFailure { Toast.makeText(this, "Nu se poate deschide articolul", Toast.LENGTH_SHORT).show() }
     }
 
     private fun showModuleError(key:String,error:Throwable){root.removeAllViews();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(32),dp(32),dp(32),dp(32));setBackgroundColor(Color.rgb(2,4,10))};box.addView(TextView(this).apply{text="ORACLE  •  ${titles[key]?:key.uppercase()}";textSize=22f;gravity=Gravity.CENTER;setTextColor(Color.WHITE)});box.addView(TextView(this).apply{text="Modulul nu s-a putut încărca.\n\n${error.message?:error.javaClass.simpleName}";textSize=16f;gravity=Gravity.CENTER;setTextColor(Color.LTGRAY);setPadding(0,dp(24),0,dp(24))});box.addView(Button(this).apply{text="REÎNCEARCĂ";setOnClickListener{openModule(key)}});box.addView(Button(this).apply{text="ÎNAPOI LA ORACLE";setOnClickListener{showHub()}});root.addView(box,FrameLayout.LayoutParams(-1,-1))}
