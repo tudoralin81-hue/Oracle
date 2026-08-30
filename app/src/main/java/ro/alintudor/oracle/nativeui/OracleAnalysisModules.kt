@@ -78,23 +78,61 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         val saved = watchlist.load()
         host.addCard("WATCHLIST • TICKERE SALVATE", if(saved.isEmpty()) "Niciun ticker selectat. Adaugă tickere din Analysis." else "${saved.size} ticker(e) salvate local • lista este separată de Portfolio.")
         if(saved.isEmpty()) return
-        val byTicker=p.associateBy{it.ticker.uppercase()}; val tr=OracleAnalytics.trends(h).associateBy{it.ticker}
+        val byTicker=p.associateBy{it.ticker.uppercase()}
+        val tr=OracleAnalytics.trends(h).associateBy{it.ticker}
         saved.forEach { ticker ->
-            val q=byTicker[ticker]; val trend=tr[ticker]?.let{"Trend ${it.direction}  •  ${fmt(it.changePct)}%"} ?: "Trend N/A"
+            val q=byTicker[ticker]
+            val trend=tr[ticker]?.let{"Trend ${it.direction}  •  ${fmt(it.changePct)}%"} ?: "Trend N/A"
             addWatchlistItem(ticker,q,trend,p,h)
         }
     }
 
     private fun addWatchlistItem(ticker:String,q:OraclePosition?,trend:String,p:List<OraclePosition>,h:List<OracleHistoryPoint>) {
-        val card=LinearLayout(context).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(host.dp(16),host.dp(12),host.dp(10),host.dp(12));background=GradientDrawable().apply{setColor(Color.rgb(6,10,20));cornerRadius=host.dp(14).toFloat();setStroke(host.dp(1),Color.rgb(34,43,65))};isClickable=true;isFocusable=true}
-        val info=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL}
+        val card=LinearLayout(context).apply{
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER_VERTICAL
+            setPadding(host.dp(14),host.dp(10),host.dp(8),host.dp(10))
+            background=GradientDrawable().apply{setColor(Color.rgb(6,10,20));cornerRadius=host.dp(14).toFloat();setStroke(host.dp(1),Color.rgb(34,43,65))}
+        }
+
+        val info=LinearLayout(context).apply{
+            orientation=LinearLayout.VERTICAL
+            isClickable=true
+            isFocusable=true
+            setOnClickListener{openTicker(ticker)}
+        }
         info.addView(TextView(context).apply{text=ticker;textSize=20f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)})
-        info.addView(TextView(context).apply{text=if(q!=null) "${q.status}  •  ${fmtMoney(q.currentPrice)}  •  P/L ${fmt(q.pnlPercent)}%\n$trend" else trend;textSize=14f;setTextColor(Color.rgb(175,183,201));setPadding(0,host.dp(3),0,0)})
-        card.addView(info,LinearLayout.LayoutParams(0,-2,1f));card.addView(TextView(context).apply{text="›";textSize=30f;setTextColor(host.accent);gravity=Gravity.CENTER},LinearLayout.LayoutParams(host.dp(34),host.dp(46)))
-        card.setOnClickListener{openTicker(ticker)}
-        host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(5))})
-        val delete=Button(context).apply{text="ȘTERGE";isAllCaps=false;textSize=13f;setTextColor(Color.rgb(255,90,90));setBackgroundColor(Color.TRANSPARENT);setOnClickListener{watchlist.remove(ticker);renderWatchlist(p,h)}}
-        host.content.addView(delete,LinearLayout.LayoutParams(-1,host.dp(42)).apply{setMargins(0,0,0,host.dp(8))})
+        info.addView(TextView(context).apply{
+            text=if(q!=null) "${q.status}  •  ${fmtMoney(q.currentPrice)}  •  P/L ${fmt(q.pnlPercent)}%\n$trend" else trend
+            textSize=14f
+            setTextColor(Color.rgb(175,183,201))
+            setPadding(0,host.dp(3),0,0)
+        })
+        card.addView(info,LinearLayout.LayoutParams(0,-2,1f))
+
+        card.addView(TextView(context).apply{
+            text="›"
+            textSize=30f
+            setTextColor(host.accent)
+            gravity=Gravity.CENTER
+            isClickable=true
+            setOnClickListener{openTicker(ticker)}
+        },LinearLayout.LayoutParams(host.dp(38),host.dp(52)))
+
+        card.addView(Button(context).apply{
+            text="ȘTERGE"
+            isAllCaps=false
+            textSize=13f
+            setTextColor(Color.rgb(255,90,90))
+            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(host.dp(4),0,host.dp(4),0)
+            setOnClickListener{
+                watchlist.remove(ticker)
+                renderWatchlist(p,h)
+            }
+        },LinearLayout.LayoutParams(host.dp(76),host.dp(52)))
+
+        host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(8))})
     }
 
     private fun openTicker(ticker:String){context.startActivity(Intent(context,OracleTickerAnalysisActivity::class.java).putExtra("ticker",ticker))}
