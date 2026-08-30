@@ -2,7 +2,7 @@ package ro.alintudor.oracle.core
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    private const val VERSION = 17
+    private const val VERSION = 18
 
     /** Deterministic fallback used only when live OHLCV is unavailable. */
     fun fallbackRiskAllocation(item: OracleGrowthRecommendation): Pair<String, Double> {
@@ -86,10 +86,10 @@ object OracleBootstrap {
         val seed = listOf(snps, veev, crm)
         repository.saveGrowth(seed)
 
-        // Model v17 changes the sector correction itself. Keep the metadata seed,
-        // but invalidate T0 so OracleLocalProcessor regenerates the Growth snapshot
-        // using the corrected sector weights on the next refresh.
-        if (previousVersion < 17) {
+        // Model v18 explicitly invalidates the previous Growth snapshot so the
+        // next local refresh cannot keep the old cached Score/Signal. The refresh
+        // then runs OracleGrowthEngine with live News + sector-weighted scoring.
+        if (previousVersion < 18) {
             repository.saveGrowth(seed.map { it.copy(referenceTimestamp = 0L, generatedAt = 0L) })
         }
         repository.markBootstrap(VERSION)
