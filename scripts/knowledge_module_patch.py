@@ -1,29 +1,29 @@
 from pathlib import Path
+import re
 
 p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 s = p.read_text()
-required = ['OracleKnowledgeSync', '"knowledge"', 'private fun renderModule']
-missing = [x for x in required if x not in s]
-if missing:
-    raise SystemExit('Knowledge source is incomplete: ' + ', '.join(missing))
 
-# Ensure the actual MainActivity route renders Knowledge.
-start = s.find('            "knowledge"->OracleKnowledgeModule(host).render(')
-if start >= 0:
-    end_marker = '            )\n        }\n        host.restoreScrollY(preservedScrollY)'
-    end = s.find(end_marker, start)
-    if end < 0:
-        raise SystemExit('Knowledge render branch end not found')
+# Keep the real MainActivity route, but replace the entire Knowledge renderer
+# with a minimal, independent web-link card. No API/cache/sync is involved.
+if '"knowledge"->OracleKnowledgeModule(host).render(' in s:
+    start = s.find('            "knowledge"->OracleKnowledgeModule(host).render(')
+    end = s.find('            )\n        }\n        host.restoreScrollY(preservedScrollY)', start)
+    if start < 0 or end < 0:
+        raise SystemExit('Knowledge route boundaries not found')
     s = s[:start] + '            "knowledge"->renderKnowledgeDirect(host)\n' + s[end + len('            )\n'):]
 
-# Install the direct web card if not already present.
-if 'DESCHIDE KNOWLEDGE' not in s:
-    marker = '        host.content.removeAllViews()\n        val webCard = LinearLayout(context).apply {'
-    card = '''        host.content.removeAllViews()
+fn_start = s.find('    private fun renderKnowledgeDirect(host: OracleNativeModule) {')
+fn_end = s.find('    private fun renderWatchlistDirect() {', fn_start)
+if fn_start < 0 or fn_end < 0:
+    raise SystemExit('Knowledge renderer boundaries not found')
+
+fn = '''    private fun renderKnowledgeDirect(host: OracleNativeModule) {
+        host.content.removeAllViews()
         val context = this
-        val webCard = LinearLayout(context).apply {
+        val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(host.dp(16), host.dp(15), host.dp(16), host.dp(15))
+            setPadding(host.dp(18), host.dp(18), host.dp(18), host.dp(18))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(Color.rgb(8, 14, 27))
                 cornerRadius = host.dp(16).toFloat()
@@ -33,21 +33,21 @@ if 'DESCHIDE KNOWLEDGE' not in s:
             isFocusable = true
             setOnClickListener { openKnowledgeUrl("https://alintudor.ro/knowledge/") }
         }
-        webCard.addView(TextView(context).apply {
-            text = "KNOWLEDGE • ALINTUDOR.RO"
-            textSize = 18f
+        card.addView(TextView(context).apply {
+            text = "KNOWLEDGE"
+            textSize = 20f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.rgb(255, 215, 45))
         })
-        webCard.addView(TextView(context).apply {
-            text = "Deschide biblioteca Knowledge"
+        card.addView(TextView(context).apply {
+            text = "Deschide alintudor.ro/knowledge/"
             textSize = 14f
             setTextColor(Color.WHITE)
-            setPadding(0, host.dp(7), 0, host.dp(11))
+            setPadding(0, host.dp(8), 0, host.dp(12))
         })
-        webCard.addView(Button(context).apply {
+        card.addView(Button(context).apply {
             text = "DESCHIDE KNOWLEDGE"
-            textSize = 12f
+            textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -55,20 +55,13 @@ if 'DESCHIDE KNOWLEDGE' not in s:
                 cornerRadius = host.dp(11).toFloat()
             }
             setOnClickListener { openKnowledgeUrl("https://alintudor.ro/knowledge/") }
-        }, LinearLayout.LayoutParams(-1, host.dp(44)))
-        host.content.addView(webCard, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(14)) })
-        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")'''
-    if marker not in s:
-        raise SystemExit('Knowledge web card marker not found')
-    s = s.replace(marker, card, 1)
+        }, LinearLayout.LayoutParams(-1, host.dp(46)))
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(14))
+        })
+    }
 
-# The generated direct renderer must always have a local Android Context.
-fn = '    private fun renderKnowledgeDirect(host: OracleNativeModule) {\n'
-if fn in s and '    private fun renderKnowledgeDirect(host: OracleNativeModule) {\n        val context = this\n' not in s:
-    s = s.replace(fn, fn + '        val context = this\n', 1)
-
-if 'DESCHIDE KNOWLEDGE' not in s or 'https://alintudor.ro/knowledge/' not in s:
-    raise SystemExit('Knowledge web card was not installed')
-
+'''
+s = s[:fn_start] + fn + s[fn_end:]
 p.write_text(s)
-print('Knowledge direct web card installed')
+print('Knowledge reduced to direct web-link card')
