@@ -18,6 +18,13 @@ object OracleLocalProcessor {
 
     private fun normalizeGrowthSnapshot(items: List<OracleGrowthRecommendation>, anchor: Long) = items.map { it.copy(referenceTimestamp = anchor, generatedAt = anchor) }
 
+    private fun applyCalculatedRiskAllocation(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> =
+        items.map { item ->
+            val analysis = runCatching { OracleAnalysisEngine.analyze(item.ticker) }.getOrNull()
+            if (analysis != null) item.copy(risk = analysis.risk, allocationMax = analysis.allocation)
+            else item.copy(risk = "NEEVALUAT", allocationMax = 0.0)
+        }
+
     fun refresh(repository: OracleRepository): OracleModuleData {
         OracleBootstrap.ensure(repository); val current = repository.snapshot(); val normalized = OracleAnalytics.normalize(current.positions); val now = System.currentTimeMillis()
         val recentHistory = current.history.filter { now - it.timestamp < 30L * 24L * 60L * 60L * 1000L }
@@ -31,16 +38,15 @@ object OracleLocalProcessor {
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
         val growthAnchor=currentGrowthAnchor(now); val localDay=Instant.ofEpochMilli(now).atZone(BUCHAREST).dayOfWeek; val weekend=localDay==DayOfWeek.SATURDAY||localDay==DayOfWeek.SUNDAY
         val snapshotIsCurrent=current.growth.isNotEmpty()&&(current.growth.all{it.referenceTimestamp==growthAnchor}||weekend)
-        val growth=if(snapshotIsCurrent)current.growth else { val generated=OracleGrowthEngine.run(current.growth); if(generated.isNotEmpty())normalizeGrowthSnapshot(generated,growthAnchor) else current.growth }
+        val growth=if(snapshotIsCurrent)current.growth else {
+            val generated=OracleGrowthEngine.run(current.growth)
+            if(generated.isNotEmpty()) normalizeGrowthSnapshot(applyCalculatedRiskAllocation(generated),growthAnchor) else current.growth
+        }
         val oldAlerts=current.alerts.filter{it.active}; val generated=actions.filter{it.action=="BUY"||it.action=="SELL"}.map{OracleAlert(it.ticker,if(it.action=="SELL")"HIGH"else"INFO","${it.action} signal","Score ${"%.1f".format(it.score)} — ${it.reason}",now,true)}
         val alertsByTicker=(oldAlerts+generated).groupBy{it.ticker}.mapValues{(_,v)->v.maxByOrNull{it.timestamp}!!}.values.sortedByDescending{it.timestamp}.take(100)
         val journal=OracleActivityJournal.merge(current.journal,actions)
-
-        // NEWS: every explicit refresh performs a network fetch and replaces the old feed snapshot.
-        // This prevents stale articles from reappearing and keeps the publisher order in the UI stable.
         val fetchedNews=runCatching{OracleNewsFetcher.fetch(150)}.getOrDefault(emptyList())
         val news=if(fetchedNews.isNotEmpty()) fetchedNews else current.news
-
         repository.saveNews(news); repository.savePositions(normalized); repository.saveActions(actions); repository.saveTechnical(technical); repository.saveHistory(history); repository.saveAlerts(alertsByTicker); repository.saveJournal(journal); repository.saveGrowth(growth)
         return repository.snapshot().copy(news=news)
     }
