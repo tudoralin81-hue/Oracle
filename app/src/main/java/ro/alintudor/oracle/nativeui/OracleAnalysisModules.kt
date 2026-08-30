@@ -8,6 +8,7 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.inputmethod.InputMethodManager
+import android.view.WindowManager
 import android.widget.*
 import ro.alintudor.oracle.core.*
 import java.util.Locale
@@ -81,6 +82,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             }
         }
 
+        input.postDelayed({
+            input.requestFocus()
+            val imm = host.root.context.getSystemService(InputMethodManager::class.java)
+            imm?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+            (host.root.context as? android.app.Activity)?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        }, 180L)
         val button = Button(host.root.context).apply {
             text = "ANALIZEAZĂ TICKER"
             textSize = 13f

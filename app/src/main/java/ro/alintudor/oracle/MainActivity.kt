@@ -63,7 +63,9 @@ class MainActivity : Activity() {
     private fun dp(v:Int)= (v*resources.displayMetrics.density).toInt()
 
     private fun openModule(key:String){
-        currentModule=key;runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        currentModule=key
+        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        if (key == "analysis") return
         Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
     }
 
