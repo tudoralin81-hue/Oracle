@@ -2,7 +2,6 @@ package ro.alintudor.oracle.core
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    // Bump whenever the persisted Growth recommendation snapshot logic changes.
     private const val VERSION = 15
 
     /** Deterministic fallback used only when live OHLCV is unavailable. */
@@ -17,7 +16,7 @@ object OracleBootstrap {
             else -> "SCĂZUT"
         }
         val conviction = item.score.coerceIn(0, 100) / 100.0
-        val base = (2.0 + conviction * 6.0)
+        val base = 2.0 + conviction * 6.0
         val riskFactor = when (risk) {
             "RIDICAT" -> 0.55
             "MEDIU" -> 0.78
@@ -28,7 +27,8 @@ object OracleBootstrap {
             kotlin.math.abs(item.momentum5D) >= 12.0 -> 0.35
             else -> 0.0
         }
-        return risk to (base * riskFactor - momentumPenalty).coerceIn(1.0, 8.0).roundToInt().toDouble()
+        val allocation = (base * riskFactor - momentumPenalty).coerceIn(1.0, 8.0)
+        return risk to kotlin.math.round(allocation).toInt().toDouble()
     }
 
     fun ensure(repository: OracleRepository) {
@@ -48,42 +48,34 @@ object OracleBootstrap {
         }
 
         val t0 = System.currentTimeMillis()
-
         fun recommendation(ticker: String, fallback: OracleGrowthRecommendation): OracleGrowthRecommendation {
             val a = runCatching { OracleAnalysisEngine.analyze(ticker) }.getOrNull()
             val (risk, allocation) = if (a != null) a.risk to a.allocation else fallbackRiskAllocation(fallback)
-            return fallback.copy(
-                risk = risk,
-                allocationMax = allocation,
-                referenceTimestamp = t0,
-                generatedAt = t0
-            )
+            return fallback.copy(risk = risk, allocationMax = allocation, referenceTimestamp = t0, generatedAt = t0)
         }
 
         val snps = recommendation("SNPS", OracleGrowthRecommendation(
             horizon="SHORT", ticker="SNPS", company="Synopsys, Inc.", sector="Technology",
             score=86, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=6.1, momentum5D=16.8, momentum20D=24.9,
-            weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1),
-            referenceTimestamp=t0, generatedAt=t0
+            weights=listOf(21,18,12,16,12,8,3,4,2,2,1,1), referenceTimestamp=t0, generatedAt=t0
         ))
         val veev = recommendation("VEEV", OracleGrowthRecommendation(
             horizon="MEDIUM", ticker="VEEV", company="Veeva Systems Inc.", sector="Technology",
             score=85, signal="STRONG BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=18.2, momentum5D=12.6, momentum20D=40.0,
             weights=listOf(12,12,16,12,9,9,9,5,6,5,4,1),
-            newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory",
-            newsSource="StockStory", referenceTimestamp=t0, generatedAt=t0
+            newsTitle="Why Veeva Systems (VEEV) Stock Is Trading Up Today - StockStory", newsSource="StockStory",
+            referenceTimestamp=t0, generatedAt=t0
         ))
         val crm = recommendation("CRM", OracleGrowthRecommendation(
             horizon="LONG", ticker="CRM", company="Salesforce, Inc.", sector="Technology",
             score=81, signal="BUY", risk="NEEVALUAT", allocationMax=0.0,
             forecastPct=33.1, momentum5D=22.7, momentum20D=39.5,
             weights=listOf(6,6,20,7,5,8,18,4,9,7,9,2),
-            newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC",
-            newsSource="CNBC", referenceTimestamp=t0, generatedAt=t0
+            newsTitle="Salesforce stock jumps 18% on AI growth and Anthropic investment gain - CNBC", newsSource="CNBC",
+            referenceTimestamp=t0, generatedAt=t0
         ))
-
         repository.saveGrowth(listOf(snps, veev, crm))
         repository.markBootstrap(VERSION)
     }
