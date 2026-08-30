@@ -121,6 +121,7 @@ class MainActivity : Activity() {
         host.restoreScrollY(preservedScrollY)
     }
     private fun renderKnowledgeDirect(host: OracleNativeModule) {
+        val context = this
         host.content.removeAllViews()
         val webCard = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
