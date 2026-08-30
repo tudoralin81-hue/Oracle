@@ -2,8 +2,8 @@ name: Knowledge Direct Test
 
 on:
   push:
-    paths:
-      - '.github/workflows/knowledge-direct-test.yml'
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
