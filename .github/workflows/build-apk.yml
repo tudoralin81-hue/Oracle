@@ -15,35 +15,23 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Growth risk/allocation repair
+      - name: Verify permanent Growth source fix
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/fix_growth_risk_allocation.py
           python3 - <<'PY'
           from pathlib import Path
           analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
-          growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
           bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
-          checks = [
-              ('analysis helper', 'fun calculateRiskAllocation(' in analysis),
-              ('analysis uses helper', 'calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in analysis),
-              ('growth uses helper', 'OracleAnalysisEngine.calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in growth),
-              ('bootstrap version 12', 'private const val VERSION = 12' in bootstrap),
-              ('bootstrap allocation calculated', 'val snpsAllocation = calculatedAllocation("SNPS", 3.0)' in bootstrap),
-              ('bootstrap VEEV allocation calculated', 'val veevAllocation = calculatedAllocation("VEEV", 3.0)' in bootstrap),
-              ('bootstrap CRM allocation calculated', 'val crmAllocation = calculatedAllocation("CRM", 3.0)' in bootstrap),
-              ('bootstrap SNPS risk calculated', 'val snpsRisk = OracleAnalysisEngine.analyze("SNPS")?.risk' in bootstrap),
-              ('bootstrap VEEV risk calculated', 'val veevRisk = OracleAnalysisEngine.analyze("VEEV")?.risk' in bootstrap),
-              ('bootstrap CRM risk calculated', 'val crmRisk = OracleAnalysisEngine.analyze("CRM")?.risk' in bootstrap),
-              ('bootstrap SNPS risk wired', 'score=86, signal="STRONG BUY", risk=snpsRisk' in bootstrap),
-              ('bootstrap VEEV risk wired', 'score=85, signal="STRONG BUY", risk=veevRisk' in bootstrap),
-              ('bootstrap CRM risk wired', 'score=81, signal="BUY", risk=crmRisk' in bootstrap),
-          ]
-          missing = [name for name, ok in checks if not ok]
-          if missing:
-              raise SystemExit('Growth repair verification failed: ' + ', '.join(missing))
-          print('Growth risk/allocation repair verified')
+          if 'val riskScore = ' not in analysis or 'val risk=when' not in analysis or 'val riskMultiplier=' not in analysis:
+              raise SystemExit('Permanent risk/allocation calculation is missing from OracleAnalysisEngine')
+          if 'private const val VERSION = 11' not in bootstrap:
+              raise SystemExit('Growth snapshot migration VERSION 11 is missing')
+          if 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap:
+              raise SystemExit('Frozen Growth snapshot is not sourced from the live analysis engine')
+          if 'allocationMax = 0.0' not in bootstrap:
+              raise SystemExit('Unavailable-analysis guard is missing')
+          print('Permanent Growth source fix verified')
           PY
       - uses: actions/setup-java@v4
         with:
