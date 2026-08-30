@@ -21,6 +21,9 @@ jobs:
       - name: Apply forced Watchlist touch navigation fix
         shell: bash
         run: python3 scripts/force_watchlist_navigation.py
+      - name: Apply Watchlist V2 row-link fix
+        shell: bash
+        run: python3 scripts/fix_watchlist_clicks_v2.py
       - name: Commit patched source
         shell: bash
         run: |
@@ -31,7 +34,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Watchlist fix already present."
           else
-            git commit -m "fix: force Watchlist ticker touch navigation [skip ci]"
+            git commit -m "fix: make every Watchlist position a row link [skip ci]"
             git push
           fi
       - uses: actions/setup-java@v4
