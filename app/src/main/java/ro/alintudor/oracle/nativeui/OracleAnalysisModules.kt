@@ -49,12 +49,36 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("ANALIZĂ ORACLE")
         val card=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(15),host.dp(13),host.dp(15),host.dp(13));background=GradientDrawable().apply{setColor(Color.rgb(7,12,23));cornerRadius=host.dp(15).toFloat();setStroke(host.dp(1),Color.rgb(34,55,82))}}
         analysisLines(r).forEach{line->card.addView(TextView(host.root.context).apply{text="— $line";textSize=13f;setTextColor(Color.rgb(205,213,228));setPadding(0,host.dp(4),0,host.dp(4))})}
-        host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(10))})
+        host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(12))})
+
+        addTechnicalChart(r.ticker)
 
         val store=OracleWatchlistStore(host.root.context);val list=store.load().toMutableList();val inWatch=list.any{it.equals(r.ticker,true)}
         val w=Button(host.root.context).apply{text=if(inWatch)"✓  ESTE ÎN WATCHLIST" else "＋  ADAUGĂ ÎN WATCHLIST";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);background=GradientDrawable().apply{setColor(if(inWatch)Color.rgb(25,75,45) else Color.rgb(95,55,10));cornerRadius=host.dp(13).toFloat()};isEnabled=!inWatch}
         w.setOnClickListener{if(list.none{it.equals(r.ticker,true)}){list.add(r.ticker);store.save(list);w.text="✓  ADAUGAT ÎN WATCHLIST";w.isEnabled=false;Toast.makeText(host.root.context,"${r.ticker} adăugat în Watchlist",Toast.LENGTH_SHORT).show()}}
         host.content.addView(w,LinearLayout.LayoutParams(-1,host.dp(50)).apply{setMargins(0,0,0,host.dp(16))})
+    }
+
+    private fun addTechnicalChart(ticker:String){
+        host.addSectionLabel("GRAFIC TEHNIC • DATE REALE")
+        val box=LinearLayout(host.root.context).apply{orientation=LinearLayout.VERTICAL;setPadding(host.dp(8),host.dp(8),host.dp(8),host.dp(8));background=GradientDrawable().apply{setColor(Color.rgb(3,7,14));cornerRadius=host.dp(15).toFloat();setStroke(host.dp(1),Color.rgb(34,55,82))}}
+        val chart=OracleAnalysisChartView(host.root.context,ticker)
+        box.addView(chart,LinearLayout.LayoutParams(-1,host.dp(560)))
+        val ranges=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
+        listOf("5D","1M","3M","6M","1Y").forEachIndexed{i,label->
+            val b=Button(host.root.context).apply{text=label;textSize=10f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE);setPadding(0,0,0,0);background=GradientDrawable().apply{setColor(if(i==3)Color.rgb(20,70,105) else Color.rgb(12,20,34));cornerRadius=host.dp(9).toFloat();setStroke(host.dp(1),Color.rgb(45,65,90))}}
+            b.setOnClickListener{chart.setMode(label);for(j in 0 until ranges.childCount)(ranges.getChildAt(j) as Button).alpha=if(ranges.getChildAt(j)===b)1f:.72f}
+            ranges.addView(b,LinearLayout.LayoutParams(0,host.dp(38),1f).apply{setMargins(host.dp(2),host.dp(6),host.dp(2),0)})
+        }
+        box.addView(ranges)
+        val indicators=LinearLayout(host.root.context).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
+        listOf("BB","MA/EMA","ICHI","RSI","ADX").forEach{label->
+            val b=Button(host.root.context).apply{text=label;textSize=9f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.rgb(205,213,228));setPadding(0,0,0,0);background=GradientDrawable().apply{setColor(Color.rgb(8,14,25));cornerRadius=host.dp(8).toFloat();setStroke(host.dp(1),Color.rgb(40,55,78))}}
+            b.setOnClickListener{chart.toggleIndicator(label);b.alpha=if(b.alpha>.9f).55f else 1f}
+            indicators.addView(b,LinearLayout.LayoutParams(0,host.dp(34),1f).apply{setMargins(host.dp(2),host.dp(5),host.dp(2),0)})
+        }
+        box.addView(indicators)
+        host.content.addView(box,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(14))})
     }
 
     private fun analysisLines(r:OracleAnalysisEngine.Result):List<String>{
