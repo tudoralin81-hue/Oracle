@@ -23,15 +23,18 @@ jobs:
           from pathlib import Path
           analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
           bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
-          if 'val riskScore = ' not in analysis or 'val risk=when' not in analysis or 'val riskMultiplier=' not in analysis:
-              raise SystemExit('Permanent risk/allocation calculation is missing from OracleAnalysisEngine')
-          if 'private const val VERSION = 13' not in bootstrap:
-              raise SystemExit('Growth snapshot migration VERSION 13 is missing')
+          growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
+          if 'val riskScore = ' not in analysis or 'val risk=when' not in analysis or 'val riskFactor=' not in analysis:
+              raise SystemExit('Permanent dynamic risk/allocation calculation is missing from OracleAnalysisEngine')
+          if 'private const val VERSION = 14' not in bootstrap:
+              raise SystemExit('Growth snapshot migration VERSION 14 is missing')
           if 'OracleAnalysisEngine.analyze(ticker)' not in bootstrap:
               raise SystemExit('Frozen Growth snapshot is not sourced from the live analysis engine')
           if 'allocationMax = 0.0' not in bootstrap:
               raise SystemExit('Unavailable-analysis guard is missing')
-          print('Permanent Growth source fix verified')
+          if 'val canonical=OracleAnalysisEngine.analyze(pick.ticker)' not in growth:
+              raise SystemExit('Growth engine is not using canonical dynamic risk/allocation')
+          print('Permanent Growth risk/allocation source fix verified')
           PY
       - uses: actions/setup-java@v4
         with:
