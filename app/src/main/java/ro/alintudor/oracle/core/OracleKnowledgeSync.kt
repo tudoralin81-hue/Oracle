@@ -36,10 +36,7 @@ object OracleKnowledgeSync {
     fun load(context: Context): List<OracleKnowledgeArticle> = runCatching {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(ITEMS, "[]") ?: "[]"
         val a = JSONArray(raw)
-        List(a.length()) { i ->
-            val o = a.getJSONObject(i)
-            OracleKnowledgeArticle(o.optString("title"), o.optString("url"), o.optString("excerpt"), o.optString("content"), o.optLong("publishedAt"), o.optLong("refreshedAt"))
-        }
+        List(a.length()) { i -> val o = a.getJSONObject(i); OracleKnowledgeArticle(o.optString("title"), o.optString("url"), o.optString("excerpt"), o.optString("content"), o.optLong("publishedAt"), o.optLong("refreshedAt")) }
     }.getOrDefault(emptyList())
 
     fun lastSuccess(context: Context): Long = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(LAST_SUCCESS, 0L)
@@ -97,11 +94,7 @@ object OracleKnowledgeSync {
         val out = LinkedHashSet<String>()
         val p = Pattern.compile("<a\\s+[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", Pattern.CASE_INSENSITIVE or Pattern.DOTALL)
         val m = p.matcher(html)
-        while (m.find()) {
-            val href = normalizeUrl(m.group(1) ?: continue)
-            val text = cleanText(m.group(2) ?: "")
-            if (href.startsWith(SOURCE_URL) && href != SOURCE_URL && text.length >= 4 && !href.contains("/page/")) out.add(href)
-        }
+        while (m.find()) { val href = normalizeUrl(m.group(1) ?: continue); val text = cleanText(m.group(2) ?: ""); if (href.startsWith(SOURCE_URL) && href != SOURCE_URL && text.length >= 4 && !href.contains("/page/")) out.add(href) }
         return out.toList()
     }
 
@@ -134,6 +127,10 @@ object OracleKnowledgeSync {
 
 class OracleKnowledgeRefreshReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+            OracleKnowledgeSync.scheduleDaily(context.applicationContext)
+            return
+        }
         val pending = goAsync()
         Thread {
             try {
