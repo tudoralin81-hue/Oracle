@@ -6,8 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     env:
       ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
       ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
@@ -15,32 +13,6 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Fix Watchlist delete refresh
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
-          s = p.read_text()
-          needle = '    private fun renderWatchlist(items: List<String>) {\n'
-          if needle not in s:
-              raise SystemExit('Watchlist renderer not found')
-          if '        host.content.removeAllViews()\n        host.addSectionLabel("WATCHLIST • TICKERE SALVATE")' not in s:
-              s = s.replace(needle, needle + '        host.content.removeAllViews()\n', 1)
-              p.write_text(s)
-          PY
-      - name: Commit Watchlist fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: Watchlist delete refresh [skip ci]"
-            git push
-          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
