@@ -1,8 +1,8 @@
-name: Build Oracle Watchlist Fix
+name: Build Oracle Knowledge Link
 on:
-  workflow_dispatch:
   push:
     branches: [ main ]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -10,47 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Watchlist navigation fix
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
-          s = p.read_text(encoding='utf-8')
-          old = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
-          new = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(
-                host,
-                titles[key] ?: key.uppercase(),
-                onWatchlistTickerClick = { ticker -> openWatchlistTicker(ticker) }
-            ).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
-          if old not in s:
-              raise SystemExit('Watchlist callback target not found; refusing to build.')
-          s = s.replace(old, new, 1)
-          anchor = '''    private fun handleBack() {'''
-          fn = '''    private fun openWatchlistTicker(ticker: String) {
-        val normalized = ticker.trim().uppercase(java.util.Locale.US)
-        if (normalized.isBlank()) return
-        OracleSimpleModule.setTickerDraft(normalized)
-        openModule("analysis")
-    }
-
-'''
-          if fn.strip() not in s:
-              if anchor not in s:
-                  raise SystemExit('Watchlist function insertion anchor not found; refusing to build.')
-              s = s.replace(anchor, fn + anchor, 1)
-          marker = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
-        Thread {'''
-          guarded = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
-        // Analysis is auto-triggered from the selected Watchlist ticker.
-        // Do not let the background refresh immediately re-render it.
-        if (key == "analysis") return
-        Thread {'''
-          if marker not in s:
-              raise SystemExit('openModule guard target not found; refusing to build.')
-          s = s.replace(marker, guarded, 1)
-          p.write_text(s, encoding='utf-8')
-          print('Watchlist navigation fix + Analysis re-render guard applied successfully.')
-          PY
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -61,16 +20,37 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
+      - name: Verify Knowledge link implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          required = [
+              'private fun renderKnowledgeDirect(host: OracleNativeModule)',
+              'Deschide alintudor.ro/knowledge/',
+              'openKnowledgeUrl("https://alintudor.ro/knowledge/")',
+              'DESCHIDE KNOWLEDGE'
+          ]
+          missing = [x for x in required if x not in s]
+          if missing:
+              raise SystemExit('Knowledge link implementation missing: ' + ', '.join(missing))
+          print('Knowledge direct link implementation verified.')
+          PY
       - name: Build release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Verify APK
+        shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-      - name: Upload APK
+          echo "APK=$APK"
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-Watchlist-fix-latest
+          name: Oracle-Knowledge-link-latest
           path: app/build/outputs/apk/release/*.apk
