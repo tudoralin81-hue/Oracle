@@ -23,6 +23,7 @@ object OracleMarketData {
         val symbol = ticker.trim().uppercase()
         if (symbol.isBlank()) return emptyList()
         val (range, interval) = when (mode) {
+            "5M" -> "5d" to "5m"
             "30M" -> "5d" to "30m"
             "1H" -> "1mo" to "1h"
             "1D" -> "1y" to "1d"

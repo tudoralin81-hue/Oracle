@@ -214,10 +214,10 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         box.addView(chart, LinearLayout.LayoutParams(-1, host.dp(660)))
 
         val ranges = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        listOf("30M", "1H", "1D", "5D", "1M", "3M", "1Y").forEachIndexed { i, label ->
+        listOf("5M", "30M", "1H", "1D", "5D", "1M", "3M", "1Y").forEachIndexed { i, label ->
             val b = Button(host.root.context).apply {
                 text = label
-                textSize = 11f
+                textSize = 10f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 setPadding(0, 0, 0, 0)

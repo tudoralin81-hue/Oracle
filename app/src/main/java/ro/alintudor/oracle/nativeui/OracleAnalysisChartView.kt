@@ -79,7 +79,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
 
     fun setMode(value: String) {
         val next = when (value) {
-            "30M", "1H", "1D", "5D", "1M", "3M", "1Y" -> value
+            "5M", "30M", "1H", "1D", "5D", "1M", "3M", "1Y" -> value
             else -> "30M"
         }
         if (next == mode && data.isNotEmpty()) return
@@ -162,8 +162,8 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         val oscTop = volumeTop + volumeHeight + 12f
         val oscHeight = height - oscTop - 10f
 
-        drawGrid(c, 0f, 72f, chartBottom, 6)
-        drawCandles(c, d, 12f, 72f, width - 48f, chartBottom)
+        drawGrid(c, 0f, 94f, chartBottom, 6)
+        drawCandles(c, d, 12f, 94f, width - 48f, chartBottom)
         drawVolume(c, d, volumeTop, volumeHeight)
         if (showRSI) drawOscillator(c, d, oscTop, oscHeight * 0.48f, false)
         if (showADX) drawOscillator(c, d, oscTop + oscHeight * 0.52f, oscHeight * 0.44f, true)
@@ -171,14 +171,14 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     }
 
     private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
-        label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 21f)
-        if (d.isNotEmpty()) label(c, money(d.last().close), width - 125f, 27f, green, 18f)
+        label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 18f)
+        if (d.isNotEmpty()) label(c, money(d.last().close), width - 125f, 27f, green, 16f)
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
-            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 16f)
-            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 70f, text, 15f)
+            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 13f)
+            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 78f, text, 13f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 52f, text, 15f)
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 54f, text, 13f)
         }
     }
 
