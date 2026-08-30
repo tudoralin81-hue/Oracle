@@ -159,7 +159,6 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(-1, host.dp(44)))
         host.content.addView(webCard, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(14)) })
         host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")
-        val context = this
         val last = OracleKnowledgeSync.lastSuccess(context)
         val error = OracleKnowledgeSync.lastError(context)
         val status = if (last == 0L) "NESINCRONIZAT" else "ULTIMUL REFRESH: " + java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(last))
