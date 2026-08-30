@@ -1,0 +1,93 @@
+name: Finalize Analysis UI
+
+on:
+  push:
+    branches:
+      - feature/news-module-v1
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[analysis-final]')"
+    runs-on: ubuntu-latest
+    env:
+      ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+      ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+      ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+      ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/news-module-v1
+          fetch-depth: 0
+      - name: Apply final Analysis fixes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          chart = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt')
+          s = chart.read_text()
+          if 'import android.graphics.Typeface' not in s:
+              s = s.replace('import android.graphics.Path\\n', 'import android.graphics.Path\\nimport android.graphics.Typeface\\n')
+          s = s.replace('drawGrid(c, 0f, 94f, chartBottom, 6)', 'drawGrid(c, 0f, 84f, chartBottom, 6)')
+          s = s.replace('drawCandles(c, d, 12f, 94f, width - 48f, chartBottom)', 'drawCandles(c, d, 12f, 84f, width - 48f, chartBottom)')
+          s = s.replace('label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 18f)', 'label(c, "$ticker  •  $mode", 14f, 22f, Color.WHITE, 15f)')
+          s = s.replace('label(c, money(d.last().close), width - 125f, 27f, green, 16f)', 'label(c, money(d.last().close), width - 100f, 22f, green, 15f)')
+          s = s.replace('label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 13f)', 'label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 48f, if (p.close >= p.open) green else red, 14f)')
+          s = s.replace('label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 78f, text, 13f)', 'label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 70f, text, 14f)')
+          s = s.replace('label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 54f, text, 13f)', 'label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 48f, text, 13f)')
+          s = s.replace('paints.textSize = size * resources.displayMetrics.scaledDensity;', 'paints.textSize = size;')
+          chart.write_text(s)
+
+          modules = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          m = modules.read_text()
+          marker = '            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE\\n'
+          if marker not in m:
+              raise SystemExit('ticker input marker not found')
+          if 'showSoftInputOnFocus = true' not in m:
+              m = m.replace(marker, marker + '            isFocusable = true\\n            isFocusableInTouchMode = true\\n            showSoftInputOnFocus = true\\n', 1)
+          old = '        input.setOnEditorActionListener { _, _, _ -> run(); true }'
+          new = '        input.setOnEditorActionListener { _, actionId, _ -> if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { run(); true } else false }'
+          if old in m:
+              m = m.replace(old, new, 1)
+          modules.write_text(m)
+          PY
+      - name: Commit final source fix
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if git diff --cached --quiet; then
+            echo "No source changes required."
+          else
+            git commit -m "fix: prevent Analysis text overlap and keyboard reset [analysis-final]"
+            git push origin HEAD:feature/news-module-v1
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Build release APK
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+      - name: Upload final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-Analysis-final-UI-fix
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
