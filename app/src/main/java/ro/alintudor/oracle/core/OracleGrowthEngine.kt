@@ -15,24 +15,36 @@ object OracleGrowthEngine {
     private data class C(val ticker:String,val price:Double,val score:Int,val rsi:Double?,val mom5:Double,val mom20:Double,val vr:Double,val macdHist:Double?,val ichi:Boolean,val sma200:Double?,val sma50:Double?,val adx:Double?,val atrPct:Double,val components:Map<String,Double>,val forecast:Map<String,Double>,val risk:String,val allocation:Double,val news:Int)
     private val weights=mapOf("SHORT" to intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1),"MEDIUM" to intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1),"LONG" to intArrayOf(6,6,20,7,5,8,18,4,9,7,9,2))
     private val keys=listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
+
     fun run(seed:List<OracleGrowthRecommendation> = emptyList()):List<OracleGrowthRecommendation>{
-        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)};val candidates=mutableListOf<C>()
+        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
+        val candidates=mutableListOf<C>()
         for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}
-        if(candidates.isEmpty())return emptyList();val top15=candidates.sortedByDescending{it.score}.take(15).map{it.ticker};val newsMap=top15.associateWith{newsScore(it)}
-        val enriched=candidates.map{c->val n=newsMap[c.ticker]?:0;val comp=c.components.toMutableMap();comp["news"]=(50.0+n*5.0).coerceIn(0.0,100.0);c.copy(score=horizonScore(comp,"SHORT"),components=comp,news=n)}
+        if(candidates.isEmpty())return emptyList()
+        val top15=candidates.sortedByDescending{it.score}.take(15).map{it.ticker}
+        val newsMap=top15.associateWith{newsScore(it)}
+        val enriched=candidates.map{c->
+            val n=newsMap[c.ticker]?:0
+            val comp=c.components.toMutableMap()
+            comp["news"]=(50.0+n*5.0).coerceIn(0.0,100.0)
+            val sector=byTicker[c.ticker]?.sector
+            c.copy(score=horizonScore(comp,"SHORT",sector),components=comp,news=n)
+        }
         val out=mutableListOf<OracleGrowthRecommendation>();val used=mutableSetOf<String>()
         for(h in listOf("SHORT","MEDIUM","LONG")){
-            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h)}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
-            val pick=ranked.firstOrNull{it.ticker !in used}?:continue;used+=pick.ticker;val score=horizonScore(pick.components,h);val meta=byTicker[pick.ticker]
-            // Risk and allocation come from the same per-ticker evaluation pass.
-            // Do not perform a second market-data fetch here; that could return null
-            // and overwrite valid values with NEEVALUAT / 0.0.
+            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h,byTicker[it.ticker]?.sector)}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
+            val pick=ranked.firstOrNull{it.ticker !in used}?:continue
+            used+=pick.ticker
+            val score=horizonScore(pick.components,h,byTicker[pick.ticker]?.sector)
+            val meta=byTicker[pick.ticker]
             val sector=meta?.sector
             val correctedAllocation=OracleSectorAllocation.apply(pick.allocation,sector)
-            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=weights[h]!!.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7")
+            val correctedWeights=OracleSectorAllocation.correctedWeights(weights[h]!!,sector)
+            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=correctedWeights.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7_SECTOR_WEIGHTED")
         }
         return out
     }
+
     private fun evaluate(t:String,d:List<OracleOhlcvPoint>):C?{
         val r=d.sortedByDescending{it.timestamp}
         val close=r.map{it.close};val high=r.map{it.high};val low=r.map{it.low};val vol=r.map{it.volume};val p=close[0]
@@ -46,16 +58,25 @@ object OracleGrowthEngine {
         val ema12=ema(close,12);val ema26=ema(close,26);val macd=if(ema12!=null&&ema26!=null)ema12-ema26 else null;val atr=atr(high,low,close,14)?:p*.01;val atrPct=100*atr/p;val adx=adx(high,low,close,14)
         val ichi=if(close.size>=52){val t9=(high.take(9).max()+low.take(9).min())/2;val k26=(high.take(26).max()+low.take(26).min())/2;val a=(t9+k26)/2;val b=(high.take(52).max()+low.take(52).min())/2;p>max(a,b)&&t9>k26}else false
         val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0);val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0);val volume=(50+(vr-1)*45).coerceIn(0.0,100.0);val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0);val ichScore=if(ichi)90.0 else 30.0;val adxc=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0);val rr=(70-atrPct*5+(if(breakout>=100)15 else 0)).coerceIn(0.0,100.0)
-        val overextension=((rsi-65.0)/15.0).coerceIn(0.0,1.0);val volatility=(atrPct/8.0).coerceIn(0.0,1.0);val volumeShock=((vr-1.0)/2.0).coerceIn(0.0,1.0);val acceleration=(abs(m5)/20.0).coerceIn(0.0,1.0);val riskScore=(100.0*(overextension*.30+volatility*.35+volumeShock*.15+acceleration*.20)).coerceIn(0.0,100.0);val risk=when{riskScore>=65.0->"RIDICAT";riskScore>=35.0->"MEDIU";else->"SCĂZUT"};val conviction=0.0
-        val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ichScore,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc);val base=horizonScore(comps,"SHORT");val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)));val alloc=when{risk=="RIDICAT"->max(1.0,base*.04);risk=="MEDIU"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).roundToHalf()
+        val overextension=((rsi-65.0)/15.0).coerceIn(0.0,1.0);val volatility=(atrPct/8.0).coerceIn(0.0,1.0);val volumeShock=((vr-1.0)/2.0).coerceIn(0.0,1.0);val acceleration=(abs(m5)/20.0).coerceIn(0.0,1.0);val riskScore=(100.0*(overextension*.30+volatility*.35+volumeShock*.15+acceleration*.20)).coerceIn(0.0,100.0);val risk=when{riskScore>=65.0->"RIDICAT";riskScore>=35.0->"MEDIU";else->"SCĂZUT"}
+        val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ichScore,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc)
+        val base=horizonScore(comps,"SHORT",null)
+        val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)))
+        val alloc=when{risk=="RIDICAT"->max(1.0,base*.04);risk=="MEDIU"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).roundToHalf()
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
-    private fun horizonScore(c:Map<String,Double>,h:String):Int{val w=weights[h]!!;val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).toInt().coerceIn(0,100);return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}}
+
+    /** Sector modifies the relative importance of the existing 12 factors; no 13th factor is added. */
+    private fun horizonScore(c:Map<String,Double>,h:String,sector:String?):Int{
+        val w=OracleSectorAllocation.correctedWeights(weights[h]!!,sector)
+        val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).toInt().coerceIn(0,100)
+        return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}
+    }
+
     private fun tie(c:C,h:String):Double=0.0
     private fun rating(s:Int)=when{s>=85->"STRONG BUY";s>=75->"BUY";s>=65->"HOLD";s>=55->"WATCH";else->"AVOID"}
     private fun ema(v:List<Double>,n:Int):Double?{if(v.size<n)return null;var e=v.takeLast(n).average();val k=2.0/(n+1);for(i in v.size-n until v.size)e=v[i]*k+e*(1-k);return e}
     private fun atr(h:List<Double>,l:List<Double>,c:List<Double>,n:Int):Double?{if(c.size<n+1)return null;val tr=(0 until c.size-1).map{i->maxOf(h[i]-l[i],abs(h[i]-c[i+1]),abs(l[i]-c[i+1]))};return tr.take(n).average()}
     private fun adx(h:List<Double>,l:List<Double>,c:List<Double>,n:Int):Double?{if(c.size<n*2+2)return null;val tr=mutableListOf<Double>();val pd=mutableListOf<Double>();val md=mutableListOf<Double>();for(i in 0 until c.size-1){val up=h[i]-h[i+1];val dn=l[i+1]-l[i];tr+=maxOf(h[i]-l[i],abs(h[i]-c[i+1]),abs(l[i]-c[i+1]));pd+=if(up>dn&&up>0)up else 0.0;md+=if(dn>up&&dn>0)dn else 0.0};var atrv=tr.take(n).average();var p=pd.take(n).average();var m=md.take(n).average();val dx=mutableListOf<Double>();for(i in n until tr.size){atrv=(atrv*(n-1)+tr[i])/n;p=(p*(n-1)+pd[i])/n;m=(m*(n-1)+md[i])/n;val pi=if(atrv>0)100*p/atrv else 0.0;val mi=if(atrv>0)100*m/atrv else 0.0;dx+=if(pi+mi>0)100*abs(pi-mi)/(pi+mi)else 0.0};return if(dx.size<n)dx.average()else dx.takeLast(n).average()}
     private fun newsScore(t:String):Int{return try{val q=URLEncoder.encode("\"$t\" stock when:7d","UTF-8");val u=URL("https://news.google.com/rss/search?q=$q&hl=en-US&gl=US&ceid=US:en");val con=u.openConnection() as HttpURLConnection;con.connectTimeout=5000;con.readTimeout=7000;val body=con.inputStream.bufferedReader().use{it.readText()};con.disconnect();val pos=listOf("beat","upgrade","buy","bullish","record","strong","surge","contract","partnership","deal","approval","launch","growth","profit");val neg=listOf("miss","downgrade","sell","bearish","lawsuit","investigation","warning","cut guidance","recall","layoff","fraud","delay","loss","decline","plunge","offering","dilution","bankruptcy");val titles=Regex("<title>(.*?)</title>",RegexOption.IGNORE_CASE).findAll(body).map{it.groupValues[1].replace("&amp;","&").lowercase()}.take(8).toList();titles.sumOf{title->2*pos.count{title.contains(it)}-3*neg.count{title.contains(it)}}.coerceIn(-10,10)}catch(_:Exception){0}}
-    private fun Double.roundToHalf():Double = kotlin.math.round(this*2.0)/2.0
 }
