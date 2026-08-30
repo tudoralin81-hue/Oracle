@@ -1,4 +1,4 @@
-name: Build Oracle Knowledge Direct
+name: Build Oracle Watchlist Fix
 on:
   workflow_dispatch:
   push:
@@ -10,6 +10,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Apply Watchlist navigation fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
+          new = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(
+                host,
+                titles[key] ?: key.uppercase(),
+                onWatchlistTickerClick = { ticker -> openWatchlistTicker(ticker) }
+            ).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
+          if old not in s:
+              raise SystemExit('Watchlist callback target not found; refusing to build.')
+          s = s.replace(old, new, 1)
+          anchor = '''    private fun handleBack() {'''
+          fn = '''    private fun openWatchlistTicker(ticker: String) {
+        val normalized = ticker.trim().uppercase(java.util.Locale.US)
+        if (normalized.isBlank()) return
+        OracleSimpleModule.setTickerDraft(normalized)
+        openModule("analysis")
+    }
+
+'''
+          if fn.strip() not in s:
+              if anchor not in s:
+                  raise SystemExit('Watchlist function insertion anchor not found; refusing to build.')
+              s = s.replace(anchor, fn + anchor, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Watchlist fix applied successfully.')
+          PY
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,5 +62,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-Knowledge-direct-latest
+          name: Oracle-Watchlist-fix-latest
           path: app/build/outputs/apk/release/*.apk
