@@ -6,27 +6,35 @@ import android.content.Context
 class OracleWatchlistStore(context: Context) {
     private val prefs = context.getSharedPreferences("oracle_watchlist", Context.MODE_PRIVATE)
 
-    fun load(): List<String> = prefs.getStringSet(KEY, emptySet())
-        ?.map { it.trim().uppercase() }
-        ?.filter { it.isNotBlank() }
-        ?.distinct()
-        ?.sorted()
-        ?: emptyList()
+    fun load(): List<String> = prefs.getString(KEY, "")
+        .orEmpty()
+        .split('|')
+        .map { it.trim().uppercase() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
 
-    fun contains(ticker: String): Boolean = load().contains(ticker.trim().uppercase())
+    fun contains(ticker: String): Boolean = load().contains(normalize(ticker))
 
     fun add(ticker: String) {
-        val t = ticker.trim().uppercase()
+        val t = normalize(ticker)
         if (t.isBlank()) return
-        val next = load().toMutableSet().apply { add(t) }
-        prefs.edit().putStringSet(KEY, next).apply()
+        save(load().toMutableList().apply { if (!contains(t)) add(t) })
     }
 
     fun remove(ticker: String) {
-        val t = ticker.trim().uppercase()
-        val next = load().toMutableSet().apply { remove(t) }
-        prefs.edit().putStringSet(KEY, next).apply()
+        val t = normalize(ticker)
+        if (t.isBlank()) return
+        save(load().filterNot { it == t })
     }
 
-    companion object { private const val KEY = "selected_tickers" }
+    private fun save(items: List<String>) {
+        prefs.edit()
+            .putString(KEY, items.map { normalize(it) }.filter { it.isNotBlank() }.distinct().sorted().joinToString("|"))
+            .commit()
+    }
+
+    private fun normalize(ticker: String): String = ticker.trim().uppercase()
+
+    companion object { private const val KEY = "selected_tickers_v2" }
 }
