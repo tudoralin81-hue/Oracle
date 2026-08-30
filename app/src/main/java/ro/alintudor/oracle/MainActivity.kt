@@ -72,7 +72,7 @@ class MainActivity : Activity() {
         val normalized = ticker.trim().uppercase(java.util.Locale.US)
         if (normalized.isBlank()) return
         OracleSimpleModule.setTickerDraft(normalized)
-        openModule("analysis")
+        mainHandler.post { openModule("analysis") }
     }
 
     private fun refreshModule(key:String){
