@@ -147,6 +147,24 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        val watchStore = OracleWatchlistStore(host.root.context)
+        val watchTicker = r.ticker.trim().uppercase(Locale.US)
+        val watchEye = WatchlistEyeView(host.root.context, host.dp(42)).apply {
+            tag = "oracle_watchlist_eye_direct"
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Adaugă sau scoate $watchTicker din Watchlist"
+            setSelectedState(watchStore.load().any { it.equals(watchTicker, true) })
+            setOnClickListener {
+                val current = watchStore.load().toMutableList()
+                val present = current.any { it.equals(watchTicker, true) }
+                if (present) current.removeAll { it.equals(watchTicker, true) } else current.add(watchTicker)
+                watchStore.save(current)
+                setSelectedState(!present)
+                Toast.makeText(host.root.context, if (!present) "$watchTicker adăugat în Watchlist" else "$watchTicker scos din Watchlist", Toast.LENGTH_SHORT).show()
+            }
+        }
+        headline.addView(watchEye, LinearLayout.LayoutParams(host.dp(42), host.dp(42)).apply { setMargins(host.dp(4), 0, host.dp(8), 0) })
         headline.addView(TextView(host.root.context).apply {
             text = money(r.price)
             textSize = 17f
@@ -408,7 +426,20 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 setOnClickListener { val next = store.load().filterNot { it.equals(t, true) }; store.save(next); renderWatchlist(next) }
             }
             row.addView(delete, LinearLayout.LayoutParams(-2, -2))
-            host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+            // Explicit child navigation: ticker and arrow both open the same Analysis target.
+        for (j in 0 until row.childCount) {
+            val child = row.getChildAt(j)
+            if (child is TextView && child.text?.toString()?.trim() == t) {
+                child.isClickable = true
+                child.isFocusable = true
+                child.setOnClickListener { onWatchlistTickerClick(t) }
+            } else if (child is TextView && child.text?.toString()?.trim() == "›") {
+                child.isClickable = true
+                child.isFocusable = true
+                child.setOnClickListener { onWatchlistTickerClick(t) }
+            }
+        }
+        host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
         }
     }
 
@@ -446,4 +477,35 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     private fun moneyOrDash(v: Double?) = v?.let { money(it) } ?: "—"
     private fun signed(v: Double) = if (v >= 0) "+${fmt(v)}" else fmt(v)
     private fun factorColor(v: Double) = when { v >= 75 -> Color.rgb(105, 245, 35); v >= 55 -> Color.rgb(255, 210, 55); else -> Color.rgb(255, 90, 90) }
+    private class WatchlistEyeView(context: android.content.Context, private val sizePx: Int) : android.view.View(context) {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = (sizePx * 0.055f).coerceAtLeast(2f)
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
+        }
+        private var selected = false
+
+        fun setSelectedState(value: Boolean) {
+            selected = value
+            paint.color = if (selected) Color.rgb(255, 210, 45) else Color.rgb(125, 135, 155)
+            invalidate()
+        }
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            super.onDraw(canvas)
+            val cx = width / 2f
+            val cy = height / 2f
+            val rx = width * 0.32f
+            val ry = height * 0.22f
+            canvas.drawOval(cx - rx, cy - ry, cx + rx, cy + ry, paint)
+            canvas.drawCircle(cx, cy, width * 0.105f, paint)
+            if (selected) {
+                paint.style = android.graphics.Paint.Style.FILL
+                canvas.drawCircle(cx, cy, width * 0.052f, paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+            }
+        }
+    }
+
 }
