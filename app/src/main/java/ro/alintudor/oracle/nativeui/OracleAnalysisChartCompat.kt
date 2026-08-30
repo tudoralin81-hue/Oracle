@@ -7,7 +7,12 @@ fun Int.red(): Int = Color.red(this)
 fun Int.green(): Int = Color.green(this)
 fun Int.blue(): Int = Color.blue(this)
 
-/** Keeps the existing chart source independent of an extra android.graphics import. */
+/** Compatibility facade for the existing Typeface references in the project. */
 object Typeface {
     val DEFAULT_BOLD: android.graphics.Typeface = android.graphics.Typeface.DEFAULT_BOLD
+    val SERIF: android.graphics.Typeface = android.graphics.Typeface.SERIF
+    const val BOLD: Int = android.graphics.Typeface.BOLD
+
+    fun create(family: android.graphics.Typeface?, style: Int): android.graphics.Typeface =
+        android.graphics.Typeface.create(family, style)
 }
