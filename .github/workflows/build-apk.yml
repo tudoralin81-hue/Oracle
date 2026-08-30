@@ -1,5 +1,4 @@
 name: Build Oracle APK
-# Watchlist navigation fix: ticker -> Analysis is patched before compilation.
 on:
   push:
     branches: [ main, 'ui/**', 'feature/**' ]
@@ -41,45 +40,6 @@ jobs:
           else
             echo "WARNING: production signing secrets are not configured; this build will use the non-production debug certificate fallback."
           fi
-      - name: Apply Knowledge external link fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt")
-          s = p.read_text(encoding="utf-8")
-          if "import android.content.Intent" not in s:
-              s = s.replace("package ro.alintudor.oracle.nativeui\n\n", "package ro.alintudor.oracle.nativeui\n\nimport android.content.Intent\nimport android.net.Uri\n")
-          old = '''    private fun renderKnowledge(items: List<OracleKnowledgeItem>) {
-          host.addCard("KNOWLEDGE", "Biblioteca Oracle — conținut local")
-          if (items.isEmpty()) return
-          items.sortedByDescending { it.publishedAt }.forEach { addItem(it.title, "${it.category}\\n${it.content}") }
-      }'''
-          new = '''    private fun renderKnowledge(items: List<OracleKnowledgeItem>) {
-          host.addCard("KNOWLEDGE", "Biblioteca Oracle — conținut local")
-          val linkCard = LinearLayout(host.root.context).apply {
-              orientation = LinearLayout.HORIZONTAL
-              gravity = Gravity.CENTER_VERTICAL
-              setPadding(host.dp(16), host.dp(13), host.dp(16), host.dp(13))
-              background = GradientDrawable().apply {
-                  setColor(Color.rgb(7, 12, 23)); cornerRadius = host.dp(15).toFloat(); setStroke(host.dp(1), host.accent)
-              }
-              isClickable = true
-              isFocusable = true
-              setOnClickListener { runCatching { host.root.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/"))) } }
-          }
-          linkCard.addView(TextView(host.root.context).apply { text = "KNOWLEDGE ONLINE"; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
-          linkCard.addView(TextView(host.root.context).apply { text = "alintudor.ro/knowledge  ›"; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(host.accent); gravity = Gravity.END })
-          host.content.addView(linkCard, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(12)) })
-          if (items.isEmpty()) return
-          items.sortedByDescending { it.publishedAt }.forEach { addItem(it.title, "${it.category}\\n${it.content}") }
-      }'''
-          if old not in s:
-              raise SystemExit("Expected renderKnowledge() was not found; refusing to build a different source.")
-          p.write_text(s.replace(old, new, 1), encoding="utf-8")
-          print("Knowledge link fix applied")
-          PY
       - name: Verify Watchlist ticker navigation fix
         shell: bash
         run: |
