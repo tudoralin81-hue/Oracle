@@ -3,6 +3,8 @@ on:
   push:
     branches: [ main, 'ui/**', 'feature/**' ]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +15,95 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Patch Analysis UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          chart = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt')
+          s = chart.read_text()
+          if 'import android.graphics.Typeface' not in s:
+              s = s.replace('import android.graphics.Path\n', 'import android.graphics.Path\nimport android.graphics.Typeface\n')
+
+          s = s.replace('drawGrid(c, 0f, 94f, chartBottom, 6)\n        drawCandles(c, d, 12f, 94f, width - 48f, chartBottom)',
+                      'drawGrid(c, 0f, 84f, chartBottom, 6)\n        drawCandles(c, d, 12f, 84f, width - 48f, chartBottom)')
+
+          old = '''    private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
+        label(c, "$ticker  •  $mode", 14f, 27f, Color.WHITE, 18f)
+        if (d.isNotEmpty()) label(c, money(d.last().close), width - 125f, 27f, green, 16f)
+        if (selectedIndex in d.indices) {
+            val p = d[selectedIndex]
+            label(c, "O ${money(p.open)}   H ${money(p.high)}   L ${money(p.low)}   C ${money(p.close)}", 14f, 53f, if (p.close >= p.open) green else red, 13f)
+            label(c, "${dateTime(p.timestamp)}   •   VOL ${volumeText(p.volume)}", 14f, 78f, text, 13f)
+        } else {
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 54f, text, 13f)
+        }
+    }'''
+          new = '''    private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
+        label(c, "$ticker  •  $mode", 14f, 22f, Color.WHITE, 15f)
+        if (d.isNotEmpty()) label(c, money(d.last().close), width - 100f, 22f, green, 15f)
+        if (selectedIndex in d.indices) {
+            val p = d[selectedIndex]
+            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 48f, if (p.close >= p.open) green else red, 14f)
+            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 70f, text, 14f)
+        } else {
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 48f, text, 13f)
+        }
+    }'''
+          if old not in s:
+              raise SystemExit('Expected chart header block not found')
+          s = s.replace(old, new)
+
+          old_label = '''    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Typeface.DEFAULT_BOLD; paints.color = color; paints.textSize = size * resources.displayMetrics.scaledDensity; paints.isFakeBoldText = true; c.drawText(value, x, y, paints) }'''
+          new_label = '''    private fun label(c: Canvas, value: String, x: Float, y: Float, color: Int, size: Float) { paints.style = Paint.Style.FILL; paints.typeface = Typeface.DEFAULT_BOLD; paints.color = color; paints.textSize = size; paints.isFakeBoldText = true; c.drawText(value, x, y, paints) }'''
+          if old_label not in s:
+              raise SystemExit('Expected chart label block not found')
+          s = s.replace(old_label, new_label)
+          chart.write_text(s)
+
+          modules = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          m = modules.read_text()
+          old_input = '''            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+        }'''
+          new_input = '''            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            isFocusable = true
+            isFocusableInTouchMode = true
+            showSoftInputOnFocus = true
+        }'''
+          if old_input not in m:
+              raise SystemExit('Expected ticker input block not found')
+          m = m.replace(old_input, new_input, 1)
+
+          old_listener = '''        input.setOnEditorActionListener { _, _, _ -> run(); true }'''
+          new_listener = '''        input.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+                (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)) {
+                run()
+                true
+            } else false
+        }'''
+          if old_listener not in m:
+              raise SystemExit('Expected editor listener not found')
+          m = m.replace(old_listener, new_listener, 1)
+          modules.write_text(m)
+          PY
+      - name: Commit Analysis UI source fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if git diff --cached --quiet; then
+            echo "Analysis UI source already patched."
+          else
+            git commit -m "fix: prevent Analysis text overlap and keyboard reset [skip ci]"
+            git push
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
