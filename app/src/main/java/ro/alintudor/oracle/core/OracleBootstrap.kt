@@ -2,7 +2,7 @@ package ro.alintudor.oracle.core
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    private const val VERSION = 15
+    private const val VERSION = 16
 
     /** Deterministic fallback used only when live OHLCV is unavailable. */
     fun fallbackRiskAllocation(item: OracleGrowthRecommendation): Pair<String, Double> {
@@ -51,7 +51,11 @@ object OracleBootstrap {
         fun recommendation(ticker: String, fallback: OracleGrowthRecommendation): OracleGrowthRecommendation {
             val a = runCatching { OracleAnalysisEngine.analyze(ticker) }.getOrNull()
             val (risk, allocation) = if (a != null) a.risk to a.allocation else fallbackRiskAllocation(fallback)
-            return fallback.copy(risk = risk, allocationMax = allocation, referenceTimestamp = t0, generatedAt = t0)
+            // Sector is a correction of allocation only; it must also be applied to
+            // migrated/offline snapshots, otherwise an existing cached snapshot
+            // would keep the pre-sector value forever on weekends.
+            val correctedAllocation = OracleSectorAllocation.apply(allocation, fallback.sector)
+            return fallback.copy(risk = risk, allocationMax = correctedAllocation, referenceTimestamp = t0, generatedAt = t0)
         }
 
         val snps = recommendation("SNPS", OracleGrowthRecommendation(
