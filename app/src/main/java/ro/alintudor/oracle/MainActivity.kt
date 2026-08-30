@@ -70,8 +70,9 @@ class MainActivity : Activity() {
 
     private fun openWatchlistTicker(ticker: String) {
         val normalized = ticker.trim().uppercase(java.util.Locale.US)
+        if (normalized.isBlank()) return
         OracleSimpleModule.setTickerDraft(normalized)
-        root.post { openModule("analysis") }
+        openModule("analysis")
     }
 
     private fun refreshModule(key:String){
