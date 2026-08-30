@@ -29,6 +29,8 @@ if 'DESCHIDE KNOWLEDGE' not in s:
                 cornerRadius = host.dp(16).toFloat()
                 setStroke(host.dp(1), Color.rgb(255, 205, 55))
             }
+            isClickable = true
+            isFocusable = true
             setOnClickListener { openKnowledgeUrl("https://alintudor.ro/knowledge/") }
         }
         webCard.addView(TextView(context).apply {
@@ -60,8 +62,10 @@ if 'DESCHIDE KNOWLEDGE' not in s:
         raise SystemExit('Knowledge web card marker not found')
     s = s.replace(marker, card, 1)
 
-# Repair the previous generated version: context was declared after first use.
-s = s.replace('        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")\n        val context = this\n        val last =', '        host.addSectionLabel("KNOWLEDGE • ALINTUDOR.RO")\n        val last =')
+# The generated direct renderer must always have a local Android Context.
+fn = '    private fun renderKnowledgeDirect(host: OracleNativeModule) {\n'
+if fn in s and '    private fun renderKnowledgeDirect(host: OracleNativeModule) {\n        val context = this\n' not in s:
+    s = s.replace(fn, fn + '        val context = this\n', 1)
 
 if 'DESCHIDE KNOWLEDGE' not in s or 'https://alintudor.ro/knowledge/' not in s:
     raise SystemExit('Knowledge web card was not installed')
