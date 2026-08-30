@@ -14,9 +14,10 @@ import ro.alintudor.oracle.core.*
 import java.util.Locale
 import kotlin.math.abs
 
-class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String) {
+class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String, private val onWatchlistTickerClick: (String) -> Unit = {}) {
     companion object {
         @Volatile private var tickerDraft: String = ""
+        fun setTickerDraft(ticker: String) { tickerDraft = ticker.trim().uppercase(Locale.US) }
     }
 
     fun render(actions: List<OracleAction> = emptyList(), knowledge: List<OracleKnowledgeItem> = emptyList(), positions: List<OraclePosition> = emptyList(), history: List<OracleHistoryPoint> = emptyList(), watchlist: List<String> = OracleWatchlistStore(host.root.context).load()) {
@@ -385,17 +386,27 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("WATCHLIST • TICKERE SALVATE")
         if (items.isEmpty()) { host.addCard("WATCHLIST GOALĂ", "Adaugă un ticker din Analysis. Lista este separată de Portofoliu."); return }
         val store = OracleWatchlistStore(host.root.context)
-        items.distinct().sorted().forEach { t ->
+        items.distinct().forEach { t ->
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(host.dp(15), host.dp(12), host.dp(10), host.dp(12))
                 background = GradientDrawable().apply { setColor(Color.rgb(7, 12, 23)); cornerRadius = host.dp(14).toFloat(); setStroke(host.dp(1), Color.rgb(45, 70, 105)) }
+                isClickable = true
+                isFocusable = true
+                contentDescription = "$t — deschide în Analysis"
+                setOnClickListener { onWatchlistTickerClick(t) }
             }
             row.addView(TextView(host.root.context).apply { text = t; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(TextView(host.root.context).apply {
+                text = "›"; textSize = 25f; typeface = Typeface.DEFAULT_BOLD; setTextColor(host.accent); gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(host.dp(30), host.dp(38)))
+            val delete = TextView(host.root.context).apply {
                 text = "ȘTERGE"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 90, 90)); setPadding(host.dp(8), host.dp(8), host.dp(8), host.dp(8))
+                isClickable = true
+                isFocusable = true
                 setOnClickListener { val next = store.load().filterNot { it.equals(t, true) }; store.save(next); renderWatchlist(next) }
-            }, LinearLayout.LayoutParams(-2, -2))
+            }
+            row.addView(delete, LinearLayout.LayoutParams(-2, -2))
             host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
         }
     }
