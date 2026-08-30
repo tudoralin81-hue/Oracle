@@ -38,16 +38,19 @@ object OracleLocalProcessor {
         for (ticker in marketTickers) OracleTechnicalIndicators.adx14(OracleMarketData.fetchDaily(ticker))?.let { adx -> computedTechnical[ticker]?.let { computedTechnical[ticker] = it.copy(adx = adx) } }
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
         val growthAnchor=currentGrowthAnchor(now)
-        val invalidRiskAllocation=current.growth.any { it.risk.equals("NEEVALUAT", true) || it.allocationMax <= 0.0 }
-        // Weekend snapshots still use the Friday anchor, so the anchor itself is the
-        // freshness gate. Do not bypass it on Saturday/Sunday: that used to allow an
-        // invalidated cached Growth snapshot to survive forever after a model change.
-        val snapshotIsCurrent=current.growth.isNotEmpty() && !invalidRiskAllocation && current.growth.all { it.referenceTimestamp == growthAnchor }
-        val growth=if(snapshotIsCurrent)current.growth else {
+
+        // Growth is a frozen daily 16:00 snapshot. Once a valid snapshot exists for
+        // the current anchor, local refreshes must NEVER rerun the ranking engine,
+        // even if risk/allocation are missing or live market/news data has changed.
+        // A new calculation is allowed only when there is no snapshot for this anchor.
+        val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
+        val growth=if(snapshotIsCurrent) current.growth else {
             val generated=OracleGrowthEngine.run(current.growth)
             if(generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
-            else normalizeGrowthSnapshot(applyCalculatedRiskAllocation(current.growth), growthAnchor)
+            else if (current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp > 0L }) current.growth
+            else applyCalculatedRiskAllocation(current.growth)
         }
+
         val oldAlerts=current.alerts.filter{it.active}; val generated=actions.filter{it.action=="BUY"||it.action=="SELL"}.map{OracleAlert(it.ticker,if(it.action=="SELL")"HIGH"else"INFO","${it.action} signal","Score ${"%.1f".format(it.score)} — ${it.reason}",now,true)}
         val alertsByTicker=(oldAlerts+generated).groupBy{it.ticker}.mapValues{(_,v)->v.maxByOrNull{it.timestamp}!!}.values.sortedByDescending{it.timestamp}.take(100)
         val journal=OracleActivityJournal.merge(current.journal,actions)
