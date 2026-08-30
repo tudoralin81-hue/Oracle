@@ -18,22 +18,6 @@ jobs:
       - name: Apply FINAL Watchlist direct-button patch
         shell: bash
         run: python3 scripts/final_watchlist_direct.py
-      - name: Apply Knowledge module patch
-        shell: bash
-        run: python3 scripts/knowledge_module_patch.py
-      - name: Commit generated source patches
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/ro/alintudor/oracle/MainActivity.kt
-          if git diff --cached --quiet; then
-            echo "Source patches already present."
-          else
-            git commit -m "feat: wire Knowledge module into Oracle [skip ci]"
-            git push
-          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
