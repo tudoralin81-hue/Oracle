@@ -18,7 +18,6 @@ new = '        val riskAllocation=calculateRiskAllocation(rsi,vr,m5,atrPct,trend
 if old in s:
     s = s.replace(old, new, 1)
 else:
-    # Already patched source: replace the helper body with the current canonical version.
     start = s.find('    data class RiskAllocation(')
     end = s.find('    fun analyze(raw:String):Result? {', start)
     if start < 0 or end < 0:
@@ -36,9 +35,18 @@ else:
 GROWTH.write_text(s, encoding='utf-8')
 
 s = BOOT.read_text(encoding='utf-8')
-s = s.replace('private const val VERSION = 9', 'private const val VERSION = 11', 1)
-s = s.replace('private const val VERSION = 10', 'private const val VERSION = 11', 1)
-s = s.replace('val snpsAllocation = calculatedAllocation("SNPS", 3.0)', 'val snpsAllocation = calculatedAllocation("SNPS", 3.0)', 1)
+s = s.replace('private const val VERSION = 9', 'private const val VERSION = 12', 1)
+s = s.replace('private const val VERSION = 10', 'private const val VERSION = 12', 1)
+s = s.replace('private const val VERSION = 11', 'private const val VERSION = 12', 1)
+marker = '        val crmAllocation = calculatedAllocation("CRM", 3.0)'
+risk_lines = '''        val snpsRisk = OracleAnalysisEngine.analyze("SNPS")?.risk ?: "RIDICAT"\n        val veevRisk = OracleAnalysisEngine.analyze("VEEV")?.risk ?: "RIDICAT"\n        val crmRisk = OracleAnalysisEngine.analyze("CRM")?.risk ?: "RIDICAT"'''
+if 'val snpsRisk = OracleAnalysisEngine.analyze("SNPS")?.risk' not in s:
+    if marker not in s:
+        raise SystemExit('Bootstrap allocation marker not found')
+    s = s.replace(marker, marker + '\n\n' + risk_lines, 1)
+s = s.replace('score=86, signal="STRONG BUY", risk="RIDICAT", allocationMax=snpsAllocation', 'score=86, signal="STRONG BUY", risk=snpsRisk, allocationMax=snpsAllocation', 1)
+s = s.replace('score=85, signal="STRONG BUY", risk="RIDICAT", allocationMax=veevAllocation', 'score=85, signal="STRONG BUY", risk=veevRisk, allocationMax=veevAllocation', 1)
+s = s.replace('score=81, signal="BUY", risk="RIDICAT", allocationMax=crmAllocation', 'score=81, signal="BUY", risk=crmRisk, allocationMax=crmAllocation', 1)
 BOOT.write_text(s, encoding='utf-8')
 
-print('Growth risk/allocation patch applied: continuous ticker-specific allocation, shared by Analysis and Growth, bootstrap bumped to 11.')
+print('Growth risk/allocation patch applied: continuous ticker-specific allocation and calculated risk, shared by Analysis and Growth, bootstrap bumped to 12.')
