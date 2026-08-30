@@ -3,14 +3,21 @@ package ro.alintudor.oracle.nativeui
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import ro.alintudor.oracle.core.*
 import java.util.Locale
 import kotlin.math.abs
 
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String) {
+    companion object {
+        @Volatile private var tickerDraft: String = ""
+    }
+
     fun render(actions: List<OracleAction> = emptyList(), knowledge: List<OracleKnowledgeItem> = emptyList(), positions: List<OraclePosition> = emptyList(), history: List<OracleHistoryPoint> = emptyList(), watchlist: List<String> = OracleWatchlistStore(host.root.context).load()) {
         host.content.removeAllViews()
         val p = OracleAnalytics.normalize(positions)
@@ -48,8 +55,31 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             isFocusable = true
             isFocusableInTouchMode = true
             showSoftInputOnFocus = true
+            if (tickerDraft.isNotBlank()) setText(tickerDraft)
         }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                tickerDraft = s?.toString() ?: ""
+                if (tickerDraft.isNotBlank()) {
+                    input.post {
+                        if (input.windowToken != null) {
+                            input.requestFocus()
+                            (host.root.context.getSystemService(InputMethodManager::class.java))?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                        }
+                    }
+                }
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
         host.fixedToolbar.addView(input, LinearLayout.LayoutParams(-1, host.dp(52)).apply { setMargins(0, host.dp(3), 0, host.dp(6)) })
+        if (tickerDraft.isNotBlank()) {
+            input.setSelection(input.text.length)
+            input.post {
+                input.requestFocus()
+                (host.root.context.getSystemService(InputMethodManager::class.java))?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
 
         val button = Button(host.root.context).apply {
             text = "ANALIZEAZĂ TICKER"
@@ -69,6 +99,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 input.error = "Introdu un ticker"
                 return
             }
+            tickerDraft = t
             button.isEnabled = false
             button.text = "SE ANALIZEAZĂ…"
             Thread {
@@ -203,7 +234,15 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun addTechnicalChart(ticker: String) {
-        host.addSectionLabel("GRAFIC TEHNIC • DATE REALE")
+        val chartTitle = TextView(host.root.context).apply {
+            text = "GRAFIC TEHNIC • DATE REALE"
+            textSize = 22f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = .10f
+            setTextColor(host.accent)
+            setPadding(host.dp(5), host.dp(10), host.dp(5), host.dp(10))
+        }
+        host.content.addView(chartTitle, LinearLayout.LayoutParams(-1, -2))
         val box = LinearLayout(host.root.context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(host.dp(8), host.dp(8), host.dp(8), host.dp(8))
@@ -217,6 +256,16 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         box.addView(chart, LinearLayout.LayoutParams(-1, host.dp(660)))
 
         val ranges = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val activeRange = Color.rgb(20, 70, 105)
+        val inactiveRange = Color.rgb(12, 20, 34)
+        fun styleRange(b: Button, active: Boolean) {
+            b.alpha = 1f
+            b.background = GradientDrawable().apply {
+                setColor(if (active) activeRange else inactiveRange)
+                cornerRadius = host.dp(9).toFloat()
+                setStroke(host.dp(1), Color.rgb(45, 65, 90))
+            }
+        }
         listOf("5M", "30M", "1H", "1D", "5D", "1M", "3M", "1Y").forEachIndexed { i, label ->
             val b = Button(host.root.context).apply {
                 text = label
@@ -224,16 +273,14 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 setPadding(0, 0, 0, 0)
-                alpha = if (i == 0) 1f else .72f
-                background = GradientDrawable().apply {
-                    setColor(if (i == 0) Color.rgb(20, 70, 105) else Color.rgb(12, 20, 34))
-                    cornerRadius = host.dp(9).toFloat()
-                    setStroke(host.dp(1), Color.rgb(45, 65, 90))
-                }
             }
+            styleRange(b, i == 0)
             b.setOnClickListener {
                 chart.setMode(label)
-                for (j in 0 until ranges.childCount) (ranges.getChildAt(j) as Button).alpha = if (ranges.getChildAt(j) === b) 1f else .72f
+                for (j in 0 until ranges.childCount) {
+                    val other = ranges.getChildAt(j) as Button
+                    styleRange(other, other === b)
+                }
             }
             ranges.addView(b, LinearLayout.LayoutParams(0, host.dp(44), 1f).apply { setMargins(host.dp(2), host.dp(6), host.dp(2), 0) })
         }
@@ -247,15 +294,22 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.rgb(205, 213, 228))
                 setPadding(0, 0, 0, 0)
-                background = GradientDrawable().apply {
-                    setColor(Color.rgb(8, 14, 25))
+            }
+            val initiallyActive = label != "ICHI"
+            fun styleIndicator(active: Boolean) {
+                b.alpha = 1f
+                b.background = GradientDrawable().apply {
+                    setColor(if (active) activeRange else Color.rgb(8, 14, 25))
                     cornerRadius = host.dp(8).toFloat()
                     setStroke(host.dp(1), Color.rgb(40, 55, 78))
                 }
             }
+            styleIndicator(initiallyActive)
+            var active = initiallyActive
             b.setOnClickListener {
                 chart.toggleIndicator(label)
-                b.alpha = if (b.alpha > .9f) .55f else 1f
+                active = !active
+                styleIndicator(active)
             }
             indicators.addView(b, LinearLayout.LayoutParams(0, host.dp(38), 1f).apply { setMargins(host.dp(2), host.dp(5), host.dp(2), 0) })
         }
@@ -312,9 +366,11 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun companyName(t: String) = when (t) {
+        "AAOI" -> "Applied Optoelectronics, Inc."
         "NVDA" -> "NVIDIA Corporation"; "AAPL" -> "Apple Inc."; "MSFT" -> "Microsoft Corporation"; "AMZN" -> "Amazon.com, Inc."; "GOOGL" -> "Alphabet Inc."; "META" -> "Meta Platforms, Inc."; "TSLA" -> "Tesla, Inc."; "AMD" -> "Advanced Micro Devices, Inc."; "AVGO" -> "Broadcom Inc."; "NFLX" -> "Netflix, Inc."; else -> t
     }
     private fun sector(t: String) = when (t) {
+        "AAOI" -> "Technology / Optical Networking"
         "NVDA", "AMD", "AVGO" -> "Semiconductors"; "AAPL", "MSFT", "GOOGL", "META", "AMZN", "NFLX" -> "Technology / Internet"; "TSLA" -> "Automotive / Energy"; else -> "Sector indisponibil"
     }
 
