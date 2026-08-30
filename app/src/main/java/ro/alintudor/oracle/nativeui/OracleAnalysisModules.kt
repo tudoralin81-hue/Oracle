@@ -383,6 +383,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     }
 
     private fun renderWatchlist(items: List<String>) {
+        host.content.removeAllViews()
         host.addSectionLabel("WATCHLIST • TICKERE SALVATE")
         if (items.isEmpty()) { host.addCard("WATCHLIST GOALĂ", "Adaugă un ticker din Analysis. Lista este separată de Portofoliu."); return }
         val store = OracleWatchlistStore(host.root.context)
