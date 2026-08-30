@@ -404,7 +404,12 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 text = "ȘTERGE"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.rgb(255, 90, 90)); setPadding(host.dp(8), host.dp(8), host.dp(8), host.dp(8))
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { val next = store.load().filterNot { it.equals(t, true) }; store.save(next); renderWatchlist(next) }
+                setOnClickListener {
+                    val next = store.load().filterNot { it.equals(t, true) }
+                    store.save(next)
+                    host.content.removeAllViews()
+                    renderWatchlist(next)
+                }
             }
             row.addView(delete, LinearLayout.LayoutParams(-2, -2))
             host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
