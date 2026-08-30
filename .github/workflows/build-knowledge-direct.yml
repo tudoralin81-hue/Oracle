@@ -38,8 +38,18 @@ jobs:
               if anchor not in s:
                   raise SystemExit('Watchlist function insertion anchor not found; refusing to build.')
               s = s.replace(anchor, fn + anchor, 1)
+          marker = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+        Thread {'''
+          guarded = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+        // Analysis is auto-triggered from the selected Watchlist ticker.
+        // Do not let the background refresh immediately re-render it.
+        if (key == "analysis") return
+        Thread {'''
+          if marker not in s:
+              raise SystemExit('openModule guard target not found; refusing to build.')
+          s = s.replace(marker, guarded, 1)
           p.write_text(s, encoding='utf-8')
-          print('Watchlist fix applied successfully.')
+          print('Watchlist navigation fix + Analysis re-render guard applied successfully.')
           PY
       - uses: actions/setup-java@v4
         with:
