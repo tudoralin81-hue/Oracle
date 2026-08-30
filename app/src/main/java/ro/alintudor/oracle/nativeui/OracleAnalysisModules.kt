@@ -9,7 +9,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import ro.alintudor.oracle.OracleTickerAnalysisActivity
@@ -60,16 +59,34 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         }
         val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         row.addView(TextView(context).apply { text = ticker; textSize = 18f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0,-2,1f))
+        val star = TextView(context).apply {
+            text = if (selected) "★" else "☆"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(if (selected) Color.rgb(255,210,45) else Color.rgb(125,135,155))
+            isClickable = true
+            isFocusable = true
+            contentDescription = if (selected) "Scoate $ticker din Watchlist" else "Adaugă $ticker în Watchlist"
+            setOnClickListener {
+                if (watchlist.contains(ticker)) watchlist.remove(ticker) else watchlist.add(ticker)
+                val nowSelected = watchlist.contains(ticker)
+                text = if (nowSelected) "★" else "☆"
+                setTextColor(if (nowSelected) Color.rgb(255,210,45) else Color.rgb(125,135,155))
+                contentDescription = if (nowSelected) "Scoate $ticker din Watchlist" else "Adaugă $ticker în Watchlist"
+            }
+        }
+        row.addView(star, LinearLayout.LayoutParams(host.dp(48), host.dp(42)))
         row.addView(TextView(context).apply { text = "›"; textSize = 28f; setTextColor(host.accent); gravity = Gravity.CENTER }, LinearLayout.LayoutParams(host.dp(30),host.dp(38)))
         row.setOnClickListener { openTicker(ticker) }
+        star.setOnClickListener {
+            if (watchlist.contains(ticker)) watchlist.remove(ticker) else watchlist.add(ticker)
+            val nowSelected = watchlist.contains(ticker)
+            star.text = if (nowSelected) "★" else "☆"
+            star.setTextColor(if (nowSelected) Color.rgb(255,210,45) else Color.rgb(125,135,155))
+            star.contentDescription = if (nowSelected) "Scoate $ticker din Watchlist" else "Adaugă $ticker în Watchlist"
+        }
         card.addView(row)
         card.addView(TextView(context).apply { text = "${q.status}  •  Preț ${fmtMoney(q.currentPrice)}  •  Pondere ${fmt(q.weight)}%\nP/L ${fmtMoney(q.pnl)}  •  ${fmt(q.pnlPercent)}%\n$trend"; textSize=14f; setTextColor(Color.rgb(175,183,201)); setPadding(0,host.dp(5),0,host.dp(7)) })
-        val action = Button(context).apply {
-            text = if (selected) "✓ ÎN WATCHLIST" else "+ ADAUGĂ ÎN WATCHLIST"
-            setTextColor(Color.WHITE); isAllCaps=false; setBackgroundColor(Color.rgb(10,70,105))
-            setOnClickListener { if(watchlist.contains(ticker)) watchlist.remove(ticker) else watchlist.add(ticker); text=if(watchlist.contains(ticker)) "✓ ÎN WATCHLIST" else "+ ADAUGĂ ÎN WATCHLIST" }
-        }
-        card.addView(action, LinearLayout.LayoutParams(-1,host.dp(44)))
         host.content.addView(card,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,0,0,host.dp(9))})
     }
 
@@ -119,7 +136,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             setOnClickListener{openTicker(ticker)}
         },LinearLayout.LayoutParams(host.dp(38),host.dp(52)))
 
-        card.addView(Button(context).apply{
+        card.addView(android.widget.Button(context).apply{
             text="ȘTERGE"
             isAllCaps=false
             textSize=13f
