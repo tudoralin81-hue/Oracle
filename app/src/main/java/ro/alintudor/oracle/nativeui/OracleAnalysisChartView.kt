@@ -34,7 +34,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     private var data: List<OracleOhlcvPoint> = emptyList()
     private var visible = 90
     private var offset = 0
-    private var mode = "30M"
+    private var mode = "5M"
     private var showBB = true
     private var showMA = true
     private var showMACross = true
@@ -81,7 +81,7 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     fun setMode(value: String) {
         val next = when (value) {
             "5M", "30M", "1H", "1D", "5D", "1M", "3M", "1Y" -> value
-            else -> "30M"
+            else -> "5M"
         }
         if (next == mode && data.isNotEmpty()) return
         mode = next
@@ -163,8 +163,8 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         val oscTop = volumeTop + volumeHeight + 12f
         val oscHeight = height - oscTop - 10f
 
-        drawGrid(c, 0f, 84f, chartBottom, 6)
-        drawCandles(c, d, 12f, 84f, width - 48f, chartBottom)
+        drawGrid(c, 0f, 102f, chartBottom, 6)
+        drawCandles(c, d, 12f, 102f, width - 48f, chartBottom)
         drawVolume(c, d, volumeTop, volumeHeight)
         if (showRSI) drawOscillator(c, d, oscTop, oscHeight * 0.48f, false)
         if (showADX) drawOscillator(c, d, oscTop + oscHeight * 0.52f, oscHeight * 0.44f, true)
@@ -176,10 +176,11 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
         if (d.isNotEmpty()) label(c, money(d.last().close), width - 100f, 22f, green, 15f)
         if (selectedIndex in d.indices) {
             val p = d[selectedIndex]
-            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 48f, if (p.close >= p.open) green else red, 14f)
-            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 70f, text, 14f)
+            label(c, "O ${money(p.open)}   H ${money(p.high)}", 14f, 48f, if (p.close >= p.open) green else red, 14f)
+            label(c, "L ${money(p.low)}   C ${money(p.close)}", 14f, 70f, if (p.close >= p.open) green else red, 14f)
+            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 92f, text, 14f)
         } else {
-            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 48f, text, 13f)
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 50f, text, 13f)
         }
     }
 
@@ -213,7 +214,6 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
                 val sd = sqrt(a.sumOf { (it - m) * (it - m) } / a.size)
                 upper += y(m + 2 * sd); mid += y(m); lower += y(m - 2 * sd)
             }
-            // Very transparent Bollinger channel fill, matching the approved reference.
             val cloud = Path()
             upper.forEachIndexed { i, yy ->
                 val x = left + (i + .5f) * step
@@ -300,12 +300,8 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
             val fast = moving(d.map { it.close }, 10); val slow = moving(d.map { it.close }, 20)
             for (i in 1 until d.size) {
                 val was = fast[i - 1] - slow[i - 1]; val now = fast[i] - slow[i]
-                if (was <= 0 && now > 0) {
-                    drawCross(c, left + (i + .5f) * step, y(d[i].close), green)
-                }
-                if (was >= 0 && now < 0) {
-                    drawCross(c, left + (i + .5f) * step, y(d[i].close), red)
-                }
+                if (was <= 0 && now > 0) drawCross(c, left + (i + .5f) * step, y(d[i].close), green)
+                if (was >= 0 && now < 0) drawCross(c, left + (i + .5f) * step, y(d[i].close), red)
             }
         }
         paints.strokeCap = Paint.Cap.BUTT
@@ -328,12 +324,22 @@ class OracleAnalysisChartView(context: Context, private val ticker: String) : Vi
     private fun y2Value(last: Double, width: Double, up: Boolean) = if (up) last + width else last - width
 
     private fun drawArrow(c: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, color: Int) {
-        paints.style = Paint.Style.STROKE; paints.strokeWidth = 6.0f; paints.strokeCap = Paint.Cap.ROUND; paints.strokeJoin = Paint.Join.ROUND; paints.color = color
+        paints.style = Paint.Style.STROKE
+        paints.strokeWidth = 6.0f
+        paints.strokeCap = Paint.Cap.ROUND
+        paints.strokeJoin = Paint.Join.ROUND
+        paints.color = color
         c.drawLine(x1, y1, x2, y2, paints)
         val dx = x2 - x1; val dy = y2 - y1; val len = max(1f, sqrt(dx * dx + dy * dy)); val ux = dx / len; val uy = dy / len
         val px = -uy; val py = ux; val head = 32f
-        val path = Path(); path.moveTo(x2, y2); path.lineTo(x2 - ux * head + px * 16f, y2 - uy * head + py * 16f); path.moveTo(x2, y2); path.lineTo(x2 - ux * head - px * 16f, y2 - uy * head - py * 16f); c.drawPath(path, paints)
-        paints.strokeCap = Paint.Cap.BUTT; paints.style = Paint.Style.FILL
+        val path = Path()
+        path.moveTo(x2, y2)
+        path.lineTo(x2 - ux * head + px * 16f, y2 - uy * head + py * 16f)
+        path.moveTo(x2, y2)
+        path.lineTo(x2 - ux * head - px * 16f, y2 - uy * head - py * 16f)
+        c.drawPath(path, paints)
+        paints.strokeCap = Paint.Cap.BUTT
+        paints.style = Paint.Style.FILL
     }
 
     private fun drawVolume(c: Canvas, d: List<OracleOhlcvPoint>, top: Float, height: Float) {
