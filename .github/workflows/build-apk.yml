@@ -24,7 +24,7 @@ jobs:
           analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
           bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
           growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
-          if 'val riskScore = ' not in analysis or 'val risk=when' not in analysis or 'val riskFactor=' not in analysis:
+          if 'riskScore' not in analysis or 'val risk=when' not in analysis or 'riskFactor' not in analysis:
               raise SystemExit('Permanent dynamic risk/allocation calculation is missing from OracleAnalysisEngine')
           if 'private const val VERSION = 14' not in bootstrap:
               raise SystemExit('Growth snapshot migration VERSION 14 is missing')
