@@ -103,6 +103,47 @@ jobs:
           p.write_text(s, encoding="utf-8")
           print("Knowledge link fix applied to OracleAnalysisModules.kt")
           PY
+      - name: Apply Watchlist ticker navigation fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt")
+          s = p.read_text(encoding="utf-8")
+          old = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(host, titles[key] ?: key.uppercase()).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
+          new = '''            "growth", "analysis", "watchlist", "knowledge" -> OracleSimpleModule(
+                host,
+                titles[key] ?: key.uppercase(),
+                onWatchlistTickerClick = { ticker -> openWatchlistTicker(ticker) }
+            ).render(actions = data.actions, knowledge = data.knowledge, positions = data.positions, history = data.history)'''
+          if old not in s:
+              raise SystemExit("Expected Watchlist callback target was not found; refusing to build a different source.")
+          s = s.replace(old, new, 1)
+          anchor = '''    private fun handleBack() {'''
+          fn = '''    private fun openWatchlistTicker(ticker: String) {
+        val normalized = ticker.trim().uppercase(java.util.Locale.US)
+        if (normalized.isBlank()) return
+        OracleSimpleModule.setTickerDraft(normalized)
+        openModule("analysis")
+    }
+
+'''
+          if fn.strip() not in s:
+              if anchor not in s:
+                  raise SystemExit("Watchlist function insertion anchor was not found; refusing to build a different source.")
+              s = s.replace(anchor, fn + anchor, 1)
+          marker = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+        Thread {'''
+          guarded = '''        runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+        if (key == "analysis") return
+        Thread {'''
+          if marker not in s:
+              raise SystemExit("Analysis background-refresh guard target was not found; refusing to build a different source.")
+          s = s.replace(marker, guarded, 1)
+          p.write_text(s, encoding="utf-8")
+          print("Watchlist -> Analysis fix applied to OracleMysticActivity.kt")
+          PY
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Verify release APK signature
