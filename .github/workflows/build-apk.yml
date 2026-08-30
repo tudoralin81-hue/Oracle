@@ -15,6 +15,28 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Apply Growth risk/allocation repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fix_growth_risk_allocation.py
+          python3 - <<'PY'
+          from pathlib import Path
+          analysis = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt').read_text(encoding='utf-8')
+          growth = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt').read_text(encoding='utf-8')
+          bootstrap = Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt').read_text(encoding='utf-8')
+          checks = [
+              ('analysis helper', 'fun calculateRiskAllocation(' in analysis),
+              ('analysis uses helper', 'calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in analysis),
+              ('growth uses helper', 'OracleAnalysisEngine.calculateRiskAllocation(rsi,vr,m5,atrPct,trend)' in growth),
+              ('bootstrap version 10', 'private const val VERSION = 10' in bootstrap),
+              ('bootstrap risk calculated', 'val snpsRisk = OracleAnalysisEngine.analyze("SNPS")?.risk' in bootstrap),
+          ]
+          missing = [name for name, ok in checks if not ok]
+          if missing:
+              raise SystemExit('Growth repair verification failed: ' + ', '.join(missing))
+          print('Growth risk/allocation repair verified')
+          PY
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
