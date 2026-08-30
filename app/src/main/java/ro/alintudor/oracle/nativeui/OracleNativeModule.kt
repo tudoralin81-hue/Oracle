@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.widget.*
@@ -55,6 +54,10 @@ class OracleNativeModule(
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
 
+        // Deliberately use a plain ScrollView here. The old PullRefreshLayout could
+        // intercept a user's tap after a small finger movement, making controls in
+        // Watchlist appear clickable but fail to receive ACTION_UP. Refresh remains
+        // available through the explicit header button above.
         scrollView = ScrollView(context).apply {
             clipToPadding=false
             isFillViewport=true
@@ -63,9 +66,7 @@ class OracleNativeModule(
             addView(content)
             setOnScrollChangeListener { _, _, scrollY, _, _ -> scrollPositions[title] = scrollY }
         }
-        val pullContainer = PullRefreshLayout(context) { onRefresh() }
-        pullContainer.addView(scrollView, FrameLayout.LayoutParams(-1,-1))
-        root.addView(pullContainer, LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(scrollView, LinearLayout.LayoutParams(-1,0,1f))
         root.setOnApplyWindowInsetsListener { _, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.statusBars()).top else 0
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
@@ -100,70 +101,5 @@ class OracleNativeModule(
         private val scrollPositions = mutableMapOf<String, Int>()
         fun rememberedScroll(title:String): Int = scrollPositions[title] ?: 0
         fun rounded(fill:Int,radius:Int,stroke:Int=Color.TRANSPARENT,strokeWidth:Int=0)=GradientDrawable().apply{setColor(fill);cornerRadius=radius.toFloat();if(strokeWidth>0)setStroke(strokeWidth,stroke)}
-    }
-}
-
-/** Dependency-free pull-to-refresh. It takes the gesture only when the list is at the top. */
-private class PullRefreshLayout(
-    context: Context,
-    private val refresh: () -> Unit
-) : FrameLayout(context) {
-    private var downY = 0f
-    private var dragging = false
-    private var triggered = false
-    private val threshold = (72f * resources.displayMetrics.density)
-
-    init {
-        clipChildren = false
-        setWillNotDraw(false)
-    }
-
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        val child = getChildAt(0)
-        if (child == null) return false
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downY = ev.rawY
-                dragging = false
-                triggered = false
-                return false
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dy = ev.rawY - downY
-                // Only intercept a clear downward pull from the very top.
-                if (dy > (12f * resources.displayMetrics.density) && !child.canScrollVertically(-1)) {
-                    dragging = true
-                    return true
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dragging = false
-        }
-        return dragging
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        val child = getChildAt(0) ?: return false
-        when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> {
-                val pull = (event.rawY - downY).coerceAtLeast(0f)
-                child.translationY = pull * 0.55f
-                triggered = pull >= threshold
-                return true
-            }
-            MotionEvent.ACTION_UP -> {
-                if (triggered) refresh()
-                child.animate().translationY(0f).setDuration(180L).start()
-                dragging = false
-                triggered = false
-                return true
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                child.animate().translationY(0f).setDuration(120L).start()
-                dragging = false
-                triggered = false
-                return true
-            }
-        }
-        return true
     }
 }
