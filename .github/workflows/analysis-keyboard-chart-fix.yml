@@ -1,0 +1,85 @@
+name: Analysis Keyboard Chart Fix
+on:
+  push:
+    branches: [ 'feature/news-module-v1' ]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Analysis UI
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          chart = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt')
+          s = chart.read_text()
+          s = s.replace('drawGrid(c, 0f, 102f, chartBottom, 6)\n        drawCandles(c, d, 12f, 102f, width - 48f, chartBottom)', 'drawGrid(c, 0f, 132f, chartBottom, 6)\n        drawCandles(c, d, 12f, 132f, width - 48f, chartBottom)')
+          p = re.compile(r'    private fun drawHeader\(c: Canvas, d: List<OracleOhlcvPoint>\) \{.*?\n    \}\n\n    private fun drawGrid', re.S)
+          h = '''    private fun drawHeader(c: Canvas, d: List<OracleOhlcvPoint>) {
+        label(c, "$ticker  •  $mode", 14f, 34f, Color.WHITE, 30f)
+        if (d.isNotEmpty()) {
+            paints.textAlign = Paint.Align.RIGHT
+            label(c, money(d.last().close), width - 14f, 34f, green, 30f)
+            paints.textAlign = Paint.Align.LEFT
+        }
+        if (selectedIndex in d.indices) {
+            val p = d[selectedIndex]
+            label(c, "O ${money(p.open)}  H ${money(p.high)}  L ${money(p.low)}  C ${money(p.close)}", 14f, 72f, if (p.close >= p.open) green else red, 15f)
+            label(c, "${dateTime(p.timestamp)}  •  VOL ${volumeText(p.volume)}", 14f, 100f, text, 15f)
+        } else {
+            label(c, "Atinge o lumânare pentru OHLC + data/ora + volum", 14f, 72f, text, 14f)
+        }
+    }
+
+    private fun drawGrid'''
+          s, n = p.subn(h, s, 1)
+          if n != 1: raise SystemExit('drawHeader not found')
+          chart.write_text(s)
+
+          modules = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          m = modules.read_text()
+          if 'import android.view.WindowManager' not in m:
+              m = m.replace('import android.view.inputmethod.InputMethodManager\n', 'import android.view.inputmethod.InputMethodManager\nimport android.view.WindowManager\n')
+          marker = '        val button = Button(host.root.context).apply {\n'
+          focus = '''        input.postDelayed({
+            input.requestFocus()
+            val imm = host.root.context.getSystemService(InputMethodManager::class.java)
+            imm?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+            (host.root.context as? android.app.Activity)?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        }, 180L)
+
+'''
+          if 'SOFT_INPUT_STATE_ALWAYS_VISIBLE' not in m:
+              if marker not in m: raise SystemExit('Analysis button marker not found')
+              m = m.replace(marker, focus + marker, 1)
+          modules.write_text(m)
+
+          activity = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          a = activity.read_text()
+          old = '''    private fun openModule(key:String){
+        currentModule=key;runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
+    }
+'''
+          new = '''    private fun openModule(key:String){
+        currentModule=key
+        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        if (key == "analysis") return
+        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
+    }
+'''
+          if old not in a: raise SystemExit('openModule block not found')
+          activity.write_text(a.replace(old, new, 1))
+
+      - name: Commit patched source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: enlarge chart labels and keep ticker keyboard focused [analysis-patched]"
+          git push
