@@ -19,6 +19,7 @@ import ro.alintudor.oracle.core.OracleBootstrap
 import ro.alintudor.oracle.core.OracleGrowthLiveData
 import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
+import ro.alintudor.oracle.core.OracleWatchlistStore
 import ro.alintudor.oracle.core.snapshot
 import ro.alintudor.oracle.nativeui.*
 
@@ -194,6 +195,25 @@ class MainActivity : Activity() {
                     isAllCaps = false
                     contentDescription = "Deschide analiza pentru $ticker"
                     setOnClickListener { openWatchlistTicker(ticker) }
+                    // FINAL_WATCHLIST_DIRECT_TOUCH_V2
+                    setOnTouchListener { v, event ->
+                        when (event.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> {
+                                scroll.requestDisallowInterceptTouchEvent(true)
+                                false
+                            }
+                            MotionEvent.ACTION_UP -> {
+                                scroll.requestDisallowInterceptTouchEvent(false)
+                                v.performClick()
+                                true
+                            }
+                            MotionEvent.ACTION_CANCEL -> {
+                                scroll.requestDisallowInterceptTouchEvent(false)
+                                false
+                            }
+                            else -> false
+                        }
+                    }
                     setOnTouchListener { v, event ->
                         when (event.actionMasked) {
                             MotionEvent.ACTION_DOWN -> {
@@ -216,6 +236,26 @@ class MainActivity : Activity() {
                 row.addView(open, LinearLayout.LayoutParams(0, dp(76), 1f))
 
                 row.setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            scroll.requestDisallowInterceptTouchEvent(true)
+                            false
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            scroll.requestDisallowInterceptTouchEvent(false)
+                            openWatchlistTicker(ticker)
+                            true
+                        }
+                        MotionEvent.ACTION_CANCEL -> {
+                            scroll.requestDisallowInterceptTouchEvent(false)
+                            false
+                        }
+                        else -> false
+                    }
+                }
+
+                // FINAL_WATCHLIST_ROW_TOUCH_V2
+                row.setOnTouchListener { _, event ->
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN -> {
                             scroll.requestDisallowInterceptTouchEvent(true)
