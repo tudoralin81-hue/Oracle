@@ -25,21 +25,85 @@ object OracleRealData {
         return knownSector(ticker.trim().uppercase(Locale.US))
     }
 
-    fun fundamentals(ticker:String):OracleFundamentals? = try {
-        val root=getJson("https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker.uppercase(Locale.US)}?modules=price,summaryDetail,defaultKeyStatistics,financialData,assetProfile")
+    /**
+     * Fundamentals are real Yahoo Finance fields. Try both Yahoo quoteSummary hosts,
+     * then the quote endpoint for the subset it exposes. Never synthesize fundamentals.
+     */
+    fun fundamentals(ticker:String):OracleFundamentals? {
+        val symbol=ticker.uppercase(Locale.US)
+        val modules="price,summaryDetail,defaultKeyStatistics,financialData,assetProfile"
+        val roots=listOf(
+            "https://query2.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules",
+            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules"
+        ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
+
+        roots.mapNotNull { parseQuoteSummary(it,symbol) }.firstOrNull()?.let { return it }
+
+        val quoteRoots=listOf(
+            "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$symbol",
+            "https://query2.finance.yahoo.com/v7/finance/quote?symbols=$symbol"
+        ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
+        quoteRoots.mapNotNull { parseQuoteFallback(it,symbol) }.firstOrNull()?.let { return it }
+
+        val sector=resolvedSector(symbol) ?: return null
+        return OracleFundamentals(
+            sector,null,null,null,null,null,null,null,null,null,null,
+            "Sector=$sector; Industry=—; P/E=—; Fwd P/E=—; Revenue growth=—; Earnings growth=—; Net margin=—; Op margin=—; ROE=—; D/E=—; Market cap=—"
+        )
+    }
+
+    private fun parseQuoteSummary(root:JSONObject,ticker:String):OracleFundamentals? = try {
         val r=root.optJSONObject("quoteSummary")?.optJSONArray("result")?.optJSONObject(0) ?: return null
-        val profile=r.optJSONObject("assetProfile"); val sd=r.optJSONObject("summaryDetail"); val ks=r.optJSONObject("defaultKeyStatistics"); val fd=r.optJSONObject("financialData")
-        fun num(o:JSONObject?,key:String):Double?=o?.optJSONObject(key)?.optDouble("raw",Double.NaN)?.takeIf{it.isFinite()}
+        val profile=r.optJSONObject("assetProfile")
+        val sd=r.optJSONObject("summaryDetail")
+        val ks=r.optJSONObject("defaultKeyStatistics")
+        val fd=r.optJSONObject("financialData")
+        val price=r.optJSONObject("price")
         val sector=resolvedSector(ticker,profile?.optString("sector")?.takeIf{it.isNotBlank()})
         val industry=profile?.optString("industry")?.takeIf{it.isNotBlank()}
-        val pe=num(sd,"trailingPE")?:num(ks,"trailingPE"); val fpe=num(sd,"forwardPE")?:num(ks,"forwardPE")
-        val rg=num(fd,"revenueGrowth"); val eg=num(fd,"earningsGrowth"); val pm=num(fd,"profitMargins"); val om=num(fd,"operatingMargins"); val roe=num(fd,"returnOnEquity"); val de=num(fd,"debtToEquity")
-        val cap=num(sd,"marketCap")?:num(r.optJSONObject("price"),"marketCap")
-        val text=buildString{append("Sector=${sector?:"—"}; Industry=${industry?:"—"}; ");append("P/E=${pe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ");append("Fwd P/E=${fpe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ");append("Revenue growth=${pct(rg)}; Earnings growth=${pct(eg)}; ");append("Net margin=${pct(pm)}; Op margin=${pct(om)}; ROE=${pct(roe)}; D/E=${de?.let{"%.1f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")}
+        val pe=num(sd,"trailingPE")?:num(ks,"trailingPE")
+        val fpe=num(sd,"forwardPE")?:num(ks,"forwardPE")
+        val rg=num(fd,"revenueGrowth")
+        val eg=num(fd,"earningsGrowth")
+        val pm=num(fd,"profitMargins")
+        val om=num(fd,"operatingMargins")
+        val roe=num(fd,"returnOnEquity")
+        val de=num(fd,"debtToEquity")
+        val cap=num(sd,"marketCap")?:num(price,"marketCap")
+        val text=buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap)
         OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,text)
-    } catch(_:Exception) {
-        val sector=resolvedSector(ticker) ?: return null
-        OracleFundamentals(sector,null,null,null,null,null,null,null,null,null,null,"Sector=$sector; Industry=—; P/E=—; Fwd P/E=—; Revenue growth=—; Earnings growth=—; Net margin=—; Op margin=—; ROE=—; D/E=—; Market cap=—")
+    } catch(_:Exception) { null }
+
+    private fun parseQuoteFallback(root:JSONObject,ticker:String):OracleFundamentals? = try {
+        val q=root.optJSONObject("quoteResponse")?.optJSONArray("result")?.optJSONObject(0) ?: return null
+        val sector=resolvedSector(ticker)
+        val industry=q.optString("industry").takeIf{it.isNotBlank()}
+        val pe=num(q,"trailingPE")
+        val fpe=num(q,"forwardPE")
+        val cap=num(q,"marketCap")
+        val text=buildFundamentalText(sector,industry,pe,fpe,null,null,null,null,null,null,cap)
+        OracleFundamentals(sector,industry,pe,fpe,null,null,null,null,null,null,cap,text)
+    } catch(_:Exception) { null }
+
+    private fun num(o:JSONObject?,key:String):Double? {
+        val value=o?.opt(key) ?: return null
+        val x=when(value){
+            is Number -> value.toDouble()
+            is JSONObject -> value.optDouble("raw",Double.NaN)
+            else -> Double.NaN
+        }
+        return x.takeIf { it.isFinite() }
+    }
+
+    private fun buildFundamentalText(
+        sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?
+    ):String = buildString {
+        append("Sector=${sector?:"—"}; Industry=${industry?:"—"}; ")
+        append("P/E=${pe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
+        append("Fwd P/E=${fpe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
+        append("Revenue growth=${pct(rg)}; Earnings growth=${pct(eg)}; ")
+        append("Net margin=${pct(pm)}; Op margin=${pct(om)}; ROE=${pct(roe)}; ")
+        append("D/E=${de?.let{"%.1f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")
     }
 
     private fun knownSector(ticker:String):String?=when(ticker){
