@@ -1,8 +1,10 @@
 from pathlib import Path
 
-p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
-s = p.read_text(encoding='utf-8')
+app = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+s = app.read_text(encoding='utf-8')
 
+# Preserve the resolved sector display. The sector-resolution step may already have
+# applied this change, so both states are accepted.
 old_sector = 'text = "${companyName(r.ticker)}   •   Sector: ${sector(r.ticker)}"'
 new_sector = 'text = "${companyName(r.ticker)}   •   Sector: ${r.sector ?: "Sector indisponibil"}"'
 if old_sector in s:
@@ -19,7 +21,7 @@ if start < 0 or end < 0:
 end += len(end_marker)
 
 new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            // NEWS is intentionally not displayed in Analysis; it remains independent from the Growth engine.
+            // NEWS is intentionally not displayed in Analysis; it remains independent from Growth.
             if (i == 0) return@forEachIndexed
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -49,17 +51,18 @@ new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
 if 'r.rawValues.getOrNull(i)' not in s:
     s = s[:start] + new_block + s[end:]
 
-# Do not expose Oracle's synthetic ADX score in the Analysis value row.
+app.write_text(s, encoding='utf-8')
+
+# ADX's raw Analysis value must be the real indicator only. The Oracle score remains
+# an internal factor used by the engine and is not exposed in Analysis.
+engine = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt')
+e = engine.read_text(encoding='utf-8')
 old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
 new_adx = '"ADX(14) ${money(adx)}"'
-if old_adx in s:
-    s = s.replace(old_adx, new_adx, 1)
-elif new_adx not in s:
-    raise SystemExit('Analysis ADX display anchor not found')
+if old_adx in e:
+    e = e.replace(old_adx, new_adx, 1)
+elif new_adx not in e:
+    raise SystemExit('Analysis ADX raw-value anchor not found in OracleAnalysisEngine.kt')
+engine.write_text(e, encoding='utf-8')
 
-marker = '// ANALYSIS_RAW_VALUES_V3'
-if marker not in s:
-    s = s.replace('class OracleSimpleModule(', marker + '\n\nclass OracleSimpleModule(', 1)
-
-p.write_text(s, encoding='utf-8')
-print('Analysis display patch applied: News hidden, ADX Oracle score hidden, sector preserved')
+print('Analysis display patch applied: News hidden, fundamentals/raw values preserved, ADX Oracle score hidden')
