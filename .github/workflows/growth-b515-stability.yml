@@ -3,6 +3,9 @@ name: Oracle B515 Growth Stability APK
 'on':
   push:
     branches: [growth-b515-stability]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
