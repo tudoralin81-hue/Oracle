@@ -118,20 +118,10 @@ When a new version regresses a previously working screen:
 - Trailing/forward P/E may legitimately remain `—` when the source reports them unavailable; for APLD Yahoo currently reports both as unavailable because the company is not profitable.
 - Regression check: APLD at `$25.34` must show a real market cap around `$7.39B`, not `—`; sector must remain the resolved `Information Technology` classification.
 
-## Current recovery
-- Restored `OracleNativeModule.kt` from `88b5df7`.
-- Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
-- Portfolio functional baseline includes explicit position summary, add-position flow, local journal view/export and real PDF/XLSX exports.
-- Shared safe-area/header fix is now applied centrally in `OracleNativeModule.kt` so all modules receive the same top/bottom behavior.
-- Growth now has a dedicated native module backed by persisted Oracle Growth snapshots and the supplied WordPress reference values.
-- Growth UI cleanup is isolated to `OracleGrowthModule.kt`; Growth data migration is isolated to `OracleBootstrap.kt` V5.
-- Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
-- Latest Growth freeze fix is isolated to `OracleLocalProcessor.kt`: the engine now recomputes Growth only when the 16:00 trading-day snapshot anchor changes.
-- Latest weekend-anchor repair is isolated to `OracleBootstrap.kt` V8: the canonical 29.08.2026 weekend view is pinned to Friday 28.08.2026 16:00.
-
-## Build 492 — Analysis values/build identification
-
-- Analysis fundamentals remain raw provider values; no Growth weighting is displayed as a fundamental value.
-- APLD revenue growth is explicitly labeled YoY; the observed 406.60% value matches the latest reported quarter growth.
-- Shared module header displays the exact build number (`BUILD 492`).
-- Growth engine, frozen 12-factor weights and Growth scoring are not modified by this repair.
+## Rule 017 — Analysis build source must be the current main source
+- Evidence: `.github/workflows/b522-growth-only-from-b514-good.yml` checked out fixed commit `e1195536704f375f6a44f1ae5985bc464671ec0b` before building, then explicitly applied `scripts/b511_patch.py` to `OracleAnalysisModules.kt`.
+- Confirmed fact: `OracleAnalysisModules.kt` at `main` and at `e1195536704f375f6a44f1ae5985bc464671ec0b` currently have the same blob SHA `76210ed4db93147487bc59e01ced70ae54f44ff6`.
+- Consequence: the APK build path was not using `main` as the authoritative Analysis source; it was reconstructing Analysis from a frozen historical base.
+- Required behavior: build from `main`; Growth-only processing must leave `OracleAnalysisModules.kt` byte-for-byte unchanged.
+- Prevention: the approved build workflow must not apply a historical Analysis patch or checkout a historical Analysis baseline.
+- Revert point: the pre-change `main` commit immediately before this audit/fix.
