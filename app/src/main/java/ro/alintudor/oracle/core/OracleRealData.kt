@@ -19,37 +19,46 @@ data class OracleMarketContext(val market5D:Double?,val market20D:Double?,val se
 object OracleRealData {
     private const val TIMEOUT=7000
 
-    /** Yahoo assetProfile is primary; known tickers provide a deterministic fallback. */
     fun resolvedSector(ticker:String, remoteSector:String?=null):String? {
         remoteSector?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
         return knownSector(ticker.trim().uppercase(Locale.US))
     }
 
     /**
-     * Fundamentals are real Yahoo Finance fields. Try both Yahoo quoteSummary hosts,
-     * then the quote endpoint for the subset it exposes. Never synthesize fundamentals.
+     * Fundamentals use Yahoo quoteSummary when available, then the no-crumb
+     * fundamentals-timeseries endpoint, then the quote endpoint. Missing fields
+     * remain genuinely missing; no Oracle score is ever substituted into the data.
      */
     fun fundamentals(ticker:String):OracleFundamentals? {
         val symbol=ticker.uppercase(Locale.US)
         val modules="price,summaryDetail,defaultKeyStatistics,financialData,assetProfile"
-        val roots=listOf(
-            "https://query2.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules",
-            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules"
+        val summary= listOf(
+            "https://query2.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules&formatted=false&lang=en-US&region=US",
+            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules&formatted=false&lang=en-US&region=US"
         ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
+            .mapNotNull { parseQuoteSummary(it,symbol) }.firstOrNull()
 
-        roots.mapNotNull { parseQuoteSummary(it,symbol) }.firstOrNull()?.let { return it }
-
-        val quoteRoots=listOf(
+        val quote= listOf(
             "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$symbol",
             "https://query2.finance.yahoo.com/v7/finance/quote?symbols=$symbol"
         ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
-        quoteRoots.mapNotNull { parseQuoteFallback(it,symbol) }.firstOrNull()?.let { return it }
+            .mapNotNull { parseQuoteFallback(it,symbol) }.firstOrNull()
 
-        val sector=resolvedSector(symbol) ?: return null
-        return OracleFundamentals(
-            sector,null,null,null,null,null,null,null,null,null,null,
-            "Sector=$sector; Industry=—; P/E=—; Fwd P/E=—; Revenue growth=—; Earnings growth=—; Net margin=—; Op margin=—; ROE=—; D/E=—; Market cap=—"
-        )
+        val ts=runCatching { parseTimeseriesFundamentals(fetchTimeseries(symbol),symbol) }.getOrNull()
+        val sector=resolvedSector(symbol,summary?.sector ?: ts?.sector ?: quote?.sector)
+        val industry=summary?.industry ?: ts?.industry ?: quote?.industry ?: knownIndustry(symbol)
+        val pe=summary?.trailingPe ?: quote?.trailingPe ?: ts?.trailingPe
+        val fpe=summary?.forwardPe ?: quote?.forwardPe ?: ts?.forwardPe
+        val rg=summary?.revenueGrowth ?: ts?.revenueGrowth
+        val eg=summary?.earningsGrowth ?: ts?.earningsGrowth
+        val pm=summary?.profitMargin ?: ts?.profitMargin
+        val om=summary?.operatingMargin ?: ts?.operatingMargin
+        val roe=summary?.returnOnEquity ?: ts?.returnOnEquity
+        val de=summary?.debtToEquity ?: ts?.debtToEquity
+        val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap
+        if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap).all { it == null }) return null
+        return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,
+            buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap))
     }
 
     private fun parseQuoteSummary(root:JSONObject,ticker:String):OracleFundamentals? = try {
@@ -61,53 +70,95 @@ object OracleRealData {
         val price=r.optJSONObject("price")
         val sector=resolvedSector(ticker,profile?.optString("sector")?.takeIf{it.isNotBlank()})
         val industry=profile?.optString("industry")?.takeIf{it.isNotBlank()}
-        val pe=num(sd,"trailingPE")?:num(ks,"trailingPE")
-        val fpe=num(sd,"forwardPE")?:num(ks,"forwardPE")
-        val rg=num(fd,"revenueGrowth")
-        val eg=num(fd,"earningsGrowth")
-        val pm=num(fd,"profitMargins")
-        val om=num(fd,"operatingMargins")
-        val roe=num(fd,"returnOnEquity")
-        val de=num(fd,"debtToEquity")
-        val cap=num(sd,"marketCap")?:num(price,"marketCap")
-        val text=buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap)
-        OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,text)
+        OracleFundamentals(
+            sector,industry,
+            num(sd,"trailingPE")?:num(ks,"trailingPE"),
+            num(sd,"forwardPE")?:num(ks,"forwardPE"),
+            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            num(sd,"marketCap")?:num(price,"marketCap"), ""
+        )
     } catch(_:Exception) { null }
 
     private fun parseQuoteFallback(root:JSONObject,ticker:String):OracleFundamentals? = try {
         val q=root.optJSONObject("quoteResponse")?.optJSONArray("result")?.optJSONObject(0) ?: return null
-        val sector=resolvedSector(ticker)
-        val industry=q.optString("industry").takeIf{it.isNotBlank()}
-        val pe=num(q,"trailingPE")
-        val fpe=num(q,"forwardPE")
-        val cap=num(q,"marketCap")
-        val text=buildFundamentalText(sector,industry,pe,fpe,null,null,null,null,null,null,cap)
-        OracleFundamentals(sector,industry,pe,fpe,null,null,null,null,null,null,cap,text)
+        OracleFundamentals(
+            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,num(q,"marketCap"),""
+        )
     } catch(_:Exception) { null }
+
+    private fun fetchTimeseries(symbol:String):JSONObject {
+        val now=System.currentTimeMillis()/1000L
+        val period1=now-6L*365L*24L*60L*60L
+        val types=listOf(
+            "annualTotalRevenue","annualOperatingIncome","annualNetIncome","annualDilutedEPS",
+            "annualTotalDebt","annualStockholdersEquity",
+            "trailingTotalRevenue","trailingOperatingIncome","trailingNetIncome","trailingDilutedEPS",
+            "trailingTotalDebt","trailingStockholdersEquity"
+        ).joinToString(",")
+        val url="https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/$symbol?symbol=$symbol&type=$types&period1=$period1&period2=$now&padTimeSeries=true&lang=en-US&region=US"
+        return getJson(url)
+    }
+
+    private fun parseTimeseriesFundamentals(root:JSONObject,ticker:String):OracleFundamentals? {
+        val revenue=latestTwo(root,"annualTotalRevenue")
+        val income=latestTwo(root,"annualNetIncome")
+        val operating=latestTwo(root,"annualOperatingIncome")
+        val debt=latest(root,"annualTotalDebt")
+        val equity=latest(root,"annualStockholdersEquity")
+        val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
+        val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
+        val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!=0.0) income.first!!/income.second!!-1.0 else null
+        val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
+        val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
+        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val sector=resolvedSector(ticker)
+        val industry=knownIndustry(ticker)
+        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,null,"")
+    }
+
+    private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {
+        val values=timeseriesValues(root,key).sortedByDescending{it.first}
+        return Pair(values.getOrNull(0)?.second,values.getOrNull(1)?.second)
+    }
+    private fun latest(root:JSONObject,key:String):Double?=timeseriesValues(root,key).maxByOrNull{it.first}?.second
+    private fun timeseriesValues(root:JSONObject,key:String):List<Pair<Long,Double>> {
+        val result=root.optJSONObject("timeseries")?.optJSONArray("result") ?: return emptyList()
+        val out=mutableListOf<Pair<Long,Double>>()
+        for(i in 0 until result.length()) {
+            val obj=result.optJSONObject(i) ?: continue
+            val arr=obj.optJSONArray(key) ?: continue
+            for(j in 0 until arr.length()) {
+                val item=arr.optJSONObject(j) ?: continue
+                val raw=item.optJSONObject("reportedValue")?.opt("raw") ?: item.opt("raw")
+                val value=(raw as? Number)?.toDouble() ?: continue
+                val date=item.optString("asOfDate",item.optString("date",""))
+                val stamp=runCatching { java.time.Instant.parse(if(date.endsWith("Z")) date else "${date}T00:00:00Z").toEpochMilli() }.getOrDefault(j.toLong())
+                out += stamp to value
+            }
+        }
+        return out
+    }
 
     private fun num(o:JSONObject?,key:String):Double? {
         val value=o?.opt(key) ?: return null
-        val x=when(value){
-            is Number -> value.toDouble()
-            is JSONObject -> value.optDouble("raw",Double.NaN)
-            else -> Double.NaN
-        }
+        val x=when(value){is Number->value.toDouble();is JSONObject->value.optDouble("raw",Double.NaN);else->Double.NaN}
         return x.takeIf { it.isFinite() }
     }
 
-    private fun buildFundamentalText(
-        sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?
-    ):String = buildString {
+    private fun buildFundamentalText(sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?):String = buildString {
         append("Sector=${sector?:"—"}; Industry=${industry?:"—"}; ")
-        append("P/E=${pe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
-        append("Fwd P/E=${fpe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
-        append("Revenue growth=${pct(rg)}; Earnings growth=${pct(eg)}; ")
-        append("Net margin=${pct(pm)}; Op margin=${pct(om)}; ROE=${pct(roe)}; ")
-        append("D/E=${de?.let{"%.1f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")
+        append("P/E=${pe?.let{"%.2f".format(Locale.US,it)}?:"—"}; Fwd P/E=${fpe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
+        append("Revenue growth=${pct(rg)}; Earnings growth=${pct(eg)}; Net margin=${pct(pm)}; Op margin=${pct(om)}; ROE=${pct(roe)}; ")
+        append("D/E=${de?.let{"%.2f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")
     }
 
     private fun knownSector(ticker:String):String?=when(ticker){
-        "NVDA","AMD","AVGO","QCOM","MU","MRVL","ARM","INTC","TSM","ASML","LRCX","AMAT","KLAC","ON","MPWR","ADI","TXN","NXPI","MCHP","SWKS","STM","WDC","STX","SMCI","CRDO","AAOI","AAPL","MSFT","ORCL","CRM","NOW","ADBE","INTU","SNOW","PLTR","PANW","CRWD","NET","DDOG","MDB","SHOP","TEAM","VEEV","SNPS","CDNS","FTNT","ZS","WDAY","ROP","ACN","IBM","SAP","CSCO","ANET","DELL","HPE"->"Information Technology"
+        "NVDA","AMD","AVGO","QCOM","MU","MRVL","ARM","INTC","TSM","ASML","LRCX","AMAT","KLAC","ON","MPWR","ADI","TXN","NXPI","MCHP","SWKS","STM","WDC","STX","SMCI","CRDO","AAOI","AAPL","MSFT","ORCL","CRM","NOW","ADBE","INTU","SNOW","PLTR","PANW","CRWD","NET","DDOG","MDB","SHOP","TEAM","VEEV","SNPS","CDNS","FTNT","ZS","WDAY","ROP","ACN","IBM","SAP","CSCO","ANET","DELL","HPE","APLD"->"Information Technology"
         "GOOGL","GOOG","META","NFLX","DIS","CMCSA","TMUS","VZ","T","CHTR","WBD","SPOT"->"Communication Services"
         "AMZN","TSLA","HD","LOW","MCD","NKE","SBUX","BKNG","ABNB","TJX","TGT","GM","F","LULU"->"Consumer Discretionary"
         "WMT","COST","PG","KO","PEP","PM","MO","CL","KMB"->"Consumer Staples"
@@ -120,6 +171,7 @@ object OracleRealData {
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
     }
+    private fun knownIndustry(ticker:String):String?=when(ticker){"APLD"->"Information Technology Services";"AAOI"->"Semiconductors";else->null}
 
     fun newsContext(ticker:String):OracleNewsContext=try{
         val q=URLEncoder.encode("\"${ticker.uppercase(Locale.US)}\" stock when:7d","UTF-8"); val body=getText("https://news.google.com/rss/search?q=$q&hl=en-US&gl=US&ceid=US:en")
@@ -133,7 +185,7 @@ object OracleRealData {
     fun sectorScore(ctx:OracleMarketContext):Double?{val v=listOfNotNull(ctx.market5D,ctx.market20D,ctx.sector5D,ctx.sector20D);if(v.isEmpty())return null;return(50.0+v.map{it*100.0*2.2}.average()).coerceIn(0.0,100.0)}
     fun fundamentalScore(f:OracleFundamentals?):Double?{if(f==null)return null;val p=mutableListOf<Double>();f.revenueGrowth?.let{p+=(50+it*180).coerceIn(0.0,100.0)};f.earningsGrowth?.let{p+=(50+it*150).coerceIn(0.0,100.0)};f.profitMargin?.let{p+=(50+it*220).coerceIn(0.0,100.0)};f.operatingMargin?.let{p+=(50+it*180).coerceIn(0.0,100.0)};f.returnOnEquity?.let{p+=(50+it*100).coerceIn(0.0,100.0)};f.debtToEquity?.let{p+=(75-it*0.12).coerceIn(0.0,100.0)};f.forwardPe?.let{p+=when{it<=0->35.0;it<=15->85.0;it<=25->70.0;it<=40->55.0;else->35.0}};return p.takeIf{it.isNotEmpty()}?.average()?.coerceIn(0.0,100.0)}
     private fun returns(ticker:String):Pair<Double,Double>?{val d=OracleMarketData.fetchDaily(ticker,"3mo").sortedByDescending{it.timestamp};if(d.size<=20)return null;val p=d[0].close;val p5=d.getOrNull(5)?.close?:return null;val p20=d.getOrNull(20)?.close?:return null;return Pair(p/p5-1,p/p20-1)}
-    private fun sectorEtf(sector:String?):String?{val s=sector?.lowercase(Locale.US)?:return null;return when{ "semiconductor" in s||"technology" in s||"software" in s->"XLK";"communication" in s||"telecom" in s->"XLC";"health" in s||"biotech" in s->"XLV";"financial" in s||"bank" in s->"XLF";"industrial" in s->"XLI";"energy" in s->"XLE";"consumer" in s&&"cyclical" in s->"XLY";"consumer" in s&&"discretionary" in s->"XLY";"consumer" in s||"staples" in s->"XLP";"utility" in s->"XLU";"real estate" in s->"XLRE";"material" in s->"XLB";else->null}}
+    private fun sectorEtf(sector:String?):String?{val s=sector?.lowercase(Locale.US)?:return null;return when{"semiconductor" in s||"technology" in s||"software" in s->"XLK";"communication" in s||"telecom" in s->"XLC";"health" in s||"biotech" in s->"XLV";"financial" in s||"bank" in s->"XLF";"industrial" in s->"XLI";"energy" in s->"XLE";"consumer" in s&&"cyclical" in s->"XLY";"consumer" in s&&"discretionary" in s->"XLY";"consumer" in s||"staples" in s->"XLP";"utility" in s->"XLU";"real estate" in s->"XLRE";"material" in s->"XLB";else->null}}
     private fun getText(url:String):String{val c=(URL(url).openConnection() as HttpURLConnection).apply{connectTimeout=TIMEOUT;readTimeout=TIMEOUT;requestMethod="GET";setRequestProperty("User-Agent","Oracle-Stock-Intelligence/1.0")};return try{c.inputStream.bufferedReader().use{it.readText()}}finally{c.disconnect()}}
     private fun getJson(url:String):JSONObject{val c=(URL(url).openConnection() as HttpURLConnection).apply{connectTimeout=TIMEOUT;readTimeout=TIMEOUT;requestMethod="GET";setRequestProperty("User-Agent","Oracle-Stock-Intelligence/1.0");setRequestProperty("Accept","application/json")};return try{JSONObject(c.inputStream.bufferedReader().use{it.readText()})}finally{c.disconnect()}}
     private fun pct(v:Double?):String=v?.let{"%.2f%%".format(Locale.US,it*100)}?:"—"; private fun moneyCap(v:Double?):String=when{v==null->"—";v>=1e12->"%.2fT".format(Locale.US,v/1e12);v>=1e9->"%.2fB".format(Locale.US,v/1e9);v>=1e6->"%.2fM".format(Locale.US,v/1e6);else->"%.0f".format(Locale.US,v)}
