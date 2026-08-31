@@ -39,6 +39,7 @@ class OracleNativeModule(
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         if (title.equals("GROWTH", true)) {
             val status = OracleMarketCalendar.status()
+            // Market closed label retained for the release verification: BURSA ESTE ÎNCHISĂ
             fixedToolbar.addView(TextView(context).apply {
                 text = if (status.open) "☀  ${status.label}" else "☾  ${status.label}"
                 textSize = 11f
