@@ -113,6 +113,7 @@ object OracleRealData {
             "annualTotalRevenue","annualOperatingIncome","annualNetIncome","annualDilutedEPS",
             "annualTotalDebt","annualStockholdersEquity",
             "quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",
+            "quarterlyCurrentAssets","quarterlyCurrentLiabilities","quarterlyInventory","quarterlyStockholdersEquity",
             "trailingTotalRevenue","trailingOperatingIncome","trailingNetIncome","trailingDilutedEPS",
             "trailingTotalDebt","trailingStockholdersEquity"
         ).joinToString(",")
@@ -124,13 +125,17 @@ object OracleRealData {
         val revenue=latestTwo(root,"annualTotalRevenue")
         val income=latestTwo(root,"annualNetIncome")
         val operating=latestTwo(root,"annualOperatingIncome")
-        val debt=latest(root,"annualTotalDebt")
-        val equity=latest(root,"annualStockholdersEquity")
+        val debt=latest(root,"annualTotalDebt") ?: latest(root,"quarterlyTotalDebt")
+        val equity=latest(root,"quarterlyStockholdersEquity") ?: latest(root,"annualStockholdersEquity")
+        val currentAssets=latest(root,"quarterlyCurrentAssets")
+        val currentLiabilities=latest(root,"quarterlyCurrentLiabilities")
+        val inventory=latest(root,"quarterlyInventory") ?: 0.0
         val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
         val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
         val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val ttmEps=latest(root,"trailingDilutedEPS")
         val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
-        val eg=if(income.first!=null && income.second!=null && income.second!=0.0) income.first!!/income.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!! > 0.0 && income.first!! > 0.0) income.first!!/income.second!!-1.0 else null
         val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
         val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
         val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
@@ -138,9 +143,29 @@ object OracleRealData {
         val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
         val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
         val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
+        val pe=if(price!=null && ttmEps!=null && ttmEps>0.0) price/ttmEps else null
+        val pb=if(marketCap!=null && equity!=null && equity>0.0) marketCap/equity else null
+        val cr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) currentAssets/currentLiabilities else null
+        val qr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) (currentAssets-inventory)/currentLiabilities else null
+        val beta=computedBeta(ticker)
         val sector=resolvedSector(ticker)
         val industry=knownIndustry(ticker)
-        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,null,null,null,null,"")
+        return OracleFundamentals(sector,industry,pe,null,rg,eg,pm,om,roe,de,marketCap,pb,cr,qr,beta,"")
+    }
+
+    private fun computedBeta(ticker:String):Double? {
+        return runCatching {
+            val a=OracleMarketData.fetchDaily(ticker,"1y").sortedByDescending{it.timestamp}.map{it.close}
+            val b=OracleMarketData.fetchDaily("SPY","1y").sortedByDescending{it.timestamp}.map{it.close}
+            val n=minOf(a.size,b.size)-1
+            if(n<30) return@runCatching null
+            val ar=(0 until n).map{i->a[i]/a[i+1]-1.0}
+            val br=(0 until n).map{i->b[i]/b[i+1]-1.0}
+            val am=ar.average(); val bm=br.average()
+            val cov=ar.indices.sumOf{i->(ar[i]-am)*(br[i]-bm)}/n
+            val vari=br.sumOf{(it-bm)*(it-bm)}/n
+            if(vari>0.0) cov/vari else null
+        }.getOrNull()
     }
 
     private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {
