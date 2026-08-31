@@ -1,0 +1,116 @@
+name: Repair Analysis 474
+on:
+  push:
+    branches: [ main ]
+permissions:
+  contents: write
+jobs:
+  repair-build:
+    if: ${{ !contains(github.event.head_commit.message, '[analysis-repair-474]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch Analysis source
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text()
+          old = 'if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          new = 'name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          if old not in s:
+              raise SystemExit('Analysis factor list patch target not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
+          s = p.read_text()
+          s = s.replace('"quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",', '"quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",\n            "quarterlyCurrentAssets","quarterlyCurrentLiabilities","quarterlyInventory","quarterlyStockholdersEquity",')
+          old = '''        val debt=latest(root,"annualTotalDebt")
+        val equity=latest(root,"annualStockholdersEquity")
+        val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
+        val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
+        val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!=0.0) income.first!!/income.second!!-1.0 else null
+        val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
+        val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
+        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
+        val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
+        val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
+        val sector=resolvedSector(ticker)
+        val industry=knownIndustry(ticker)
+        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,null,null,null,null,"")'''
+          new = '''        val debt=latest(root,"annualTotalDebt") ?: latest(root,"quarterlyTotalDebt")
+        val equity=latest(root,"quarterlyStockholdersEquity") ?: latest(root,"annualStockholdersEquity")
+        val currentAssets=latest(root,"quarterlyCurrentAssets")
+        val currentLiabilities=latest(root,"quarterlyCurrentLiabilities")
+        val inventory=latest(root,"quarterlyInventory") ?: 0.0
+        val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
+        val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
+        val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val ttmEps=latest(root,"trailingDilutedEPS")
+        val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!! > 0.0 && income.first!! > 0.0) income.first!!/income.second!!-1.0 else null
+        val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
+        val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
+        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
+        val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
+        val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
+        val pe=if(price!=null && ttmEps!=null && ttmEps>0.0) price/ttmEps else null
+        val pb=if(marketCap!=null && equity!=null && equity>0.0) marketCap/equity else null
+        val cr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) currentAssets/currentLiabilities else null
+        val qr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) (currentAssets-inventory)/currentLiabilities else null
+        val beta=computedBeta(ticker)
+        val sector=resolvedSector(ticker)
+        val industry=knownIndustry(ticker)
+        return OracleFundamentals(sector,industry,pe,null,rg,eg,pm,om,roe,de,marketCap,pb,cr,qr,beta,"")'''
+          if old not in s:
+              raise SystemExit('Timeseries fundamentals patch target not found')
+          s = s.replace(old, new, 1)
+          marker = '''    private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {'''
+          insert = '''    private fun computedBeta(ticker:String):Double? {
+        return runCatching {
+            val a=OracleMarketData.fetchDaily(ticker,"1y").sortedByDescending{it.timestamp}.map{it.close}
+            val b=OracleMarketData.fetchDaily("SPY","1y").sortedByDescending{it.timestamp}.map{it.close}
+            val n=minOf(a.size,b.size)-1
+            if(n<30) return@runCatching null
+            val ar=(0 until n).map{i->a[i]/a[i+1]-1.0}
+            val br=(0 until n).map{i->b[i]/b[i+1]-1.0}
+            val am=ar.average(); val bm=br.average()
+            val cov=ar.indices.sumOf{i->(ar[i]-am)*(br[i]-bm)}/n
+            val vari=br.sumOf{(it-bm)*(it-bm)}/n
+            if(vari>0.0) cov/vari else null
+        }.getOrNull()
+    }
+
+'''
+          if marker not in s:
+              raise SystemExit('Beta insertion marker not found')
+          s = s.replace(marker, insert+marker, 1)
+          s = s.replace('"LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"', '"LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"', 1)
+          p.write_text(s)
+      - name: Commit repair
+        run: |
+          git config user.name 'oracle-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          git diff --cached --check
+          git commit -m 'Repair Analysis values and fundamentals [analysis-repair-474]'
+          git push
+      - name: Build repaired APK
+        run: |
+          git pull --ff-only
+          chmod +x gradlew || true
+          ./gradlew :app:assembleDebug --stacktrace
+      - name: Upload repaired APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-474-repaired
+          path: app/build/outputs/apk/debug/*.apk
