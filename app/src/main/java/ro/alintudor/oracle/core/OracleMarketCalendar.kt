@@ -2,14 +2,17 @@ package ro.alintudor.oracle.core
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.Month
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 
-/** Permanent, rule-based NYSE full-closure calendar. */
+/** Permanent, rule-based NYSE full-closure calendar plus regular session hours. */
 object OracleMarketCalendar {
     private val NEW_YORK = ZoneId.of("America/New_York")
+    private val OPEN_TIME = LocalTime.of(9, 30)
+    private val CLOSE_TIME = LocalTime.of(16, 0)
     data class Status(val open: Boolean, val label: String)
 
     fun isTradingDay(date: LocalDate): Boolean =
@@ -30,6 +33,8 @@ object OracleMarketCalendar {
         val now = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(nowMillis), NEW_YORK)
         if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) return Status(false, "BURSA ESTE ÎNCHISĂ — weekend")
         fullClosureName(now.toLocalDate())?.let { return Status(false, "BURSA ESTE ÎNCHISĂ — $it") }
+        if (now.toLocalTime().isBefore(OPEN_TIME)) return Status(false, "BURSA ESTE ÎNCHISĂ — înainte de deschidere")
+        if (!now.toLocalTime().isBefore(CLOSE_TIME)) return Status(false, "BURSA ESTE ÎNCHISĂ — după închidere")
         return Status(true, "BURSA ESTE DESCHISĂ")
     }
 
@@ -56,7 +61,7 @@ object OracleMarketCalendar {
     private fun nthWeekday(year: Int, month: Month, day: DayOfWeek, n: Int): LocalDate =
         LocalDate.of(year, month, 1).with(TemporalAdjusters.dayOfWeekInMonth(n, day))
 
-    private fun lastWeekday(year: Int, month: Month, day: DayOfWeek): LocalDate =
+    private fun lastWeekday(year: Int, month: Month, day: DayOfWeek, ): LocalDate =
         LocalDate.of(year, month, 1).with(TemporalAdjusters.lastInMonth(day))
 
     private fun easterSunday(year: Int): LocalDate {
