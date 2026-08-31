@@ -1,7 +1,6 @@
 from pathlib import Path
 
 GROWTH = Path("app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt")
-MAIN = Path("app/src/main/java/ro/alintudor/oracle/MainActivity.kt")
 
 g = GROWTH.read_text(encoding="utf-8")
 old = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews> = emptyList()) {
@@ -21,7 +20,6 @@ new = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: L
 if old in g:
     g = g.replace(old, new, 1)
 
-# Remove the old empty-list body if this script is re-run on an unpatched source.
 g = g.replace('''        if (items.isEmpty()) {
             host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
             return
@@ -57,30 +55,7 @@ g = g.replace('''        addHistory(items)
     }
 
     private fun addSummary''', 1)
-# Remove any hardcoded footer left by the previous B517 script.
 g = g.replace('''        host.content.addView(text("BUILD V6g-FINAL-B517", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
 ''', '', 1)
 GROWTH.write_text(g, encoding="utf-8")
-
-m = MAIN.read_text(encoding="utf-8")
-old_open = '''    private fun openModule(key:String){
-        currentModule=key
-        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}'''
-new_open = '''    private fun openModule(key:String){
-        currentModule=key
-        // Growth must never flash the previous trading-day recommendations.
-        // Render its loading state first; only the async refresh may publish cards.
-        if (key == "growth") {
-            runCatching {
-                root.removeAllViews()
-                val host = OracleNativeModule(this, titles[key] ?: "GROWTH", { showHub() }, { refreshModule(key) })
-                root.addView(host.root, FrameLayout.LayoutParams(-1, -1))
-                OracleGrowthModule(host).render(emptyList(), emptyList())
-            }.onFailure { showModuleError(key, it) }
-        } else {
-            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        }'''
-if old_open in m:
-    m = m.replace(old_open, new_open, 1)
-MAIN.write_text(m, encoding="utf-8")
 print("B518 Growth stale-render + dynamic build footer patch applied")
