@@ -74,4 +74,52 @@ if new_adx not in e:
     raise SystemExit('Analysis ADX raw-value anchor not found in OracleAnalysisEngine.kt')
 engine.write_text(e, encoding='utf-8')
 
-print('Analysis display patch applied: News hidden, sector preserved, R/R and ADX Oracle scores hidden')
+# Fundamentals must remain raw company data. If Yahoo omits marketCap but supplies
+# sharesOutstanding and current price, derive market cap from those live values.
+real_data = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
+r = real_data.read_text(encoding='utf-8')
+old_summary = '''        OracleFundamentals(
+            sector,industry,
+            num(sd,"trailingPE")?:num(ks,"trailingPE"),
+            num(sd,"forwardPE")?:num(ks,"forwardPE"),
+            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            num(sd,"marketCap")?:num(price,"marketCap"), ""
+        )'''
+new_summary = '''        val marketCap = num(sd,"marketCap") ?: num(price,"marketCap") ?: run {
+            val shares = num(ks,"sharesOutstanding") ?: num(ks,"impliedSharesOutstanding")
+            val px = num(price,"regularMarketPrice") ?: num(price,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
+        OracleFundamentals(
+            sector,industry,
+            num(sd,"trailingPE")?:num(ks,"trailingPE"),
+            num(sd,"forwardPE")?:num(ks,"forwardPE"),
+            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            marketCap, ""
+        )'''
+if old_summary in r:
+    r = r.replace(old_summary, new_summary, 1)
+
+old_quote = '''        OracleFundamentals(
+            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,num(q,"marketCap"),""
+        )'''
+new_quote = '''        val marketCap = num(q,"marketCap") ?: run {
+            val shares = num(q,"sharesOutstanding") ?: num(q,"impliedSharesOutstanding")
+            val px = num(q,"regularMarketPrice") ?: num(q,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
+        OracleFundamentals(
+            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""
+        )'''
+if old_quote in r:
+    r = r.replace(old_quote, new_quote, 1)
+
+if 'sharesOutstanding' not in r or 'regularMarketPrice' not in r:
+    raise SystemExit('Fundamentals market-cap fallback was not applied')
+real_data.write_text(r, encoding='utf-8')
+
+print('Analysis raw values + fundamentals market-cap fallback patch applied')
