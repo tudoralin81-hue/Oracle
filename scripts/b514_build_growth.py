@@ -3,6 +3,7 @@ import re
 import hashlib
 import shutil
 
+# B514 FINAL: this script is the single Growth-only build recipe. Analysis is locked.
 ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
 MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
@@ -97,7 +98,6 @@ s = re.sub(r'versionCode\s+\d+', 'versionCode 32', s, count=1)
 s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
 GRADLE.write_text(s, encoding='utf-8')
 
-# Analysis must be byte-for-byte identical to the B514 base except for the visible build footer.
 before = BEFORE.read_text(encoding='utf-8')
 after = ANALYSIS.read_text(encoding='utf-8')
 if after.replace('ORACLE • V6g-FINAL-B514', 'ORACLE • V6g-FINAL-BUILD') != before.replace('ORACLE • V6g-FINAL-B513', 'ORACLE • V6g-FINAL-BUILD'):
