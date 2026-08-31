@@ -105,7 +105,7 @@ if '// ANALYSIS_TECH_EXTRAS_V1' not in e:
     if old not in e: raise SystemExit('Engine calculation anchor missing')
     e = e.replace(old, new, 1)
     old = 'return Result(ticker,p,ss,ms,ls,signal,risk,allocation,resolvedSector,null,rsi,m5,m20,vr,s50,s200,adx,atrPct,factors,rawValues)'
-    new = 'return Result(ticker,p,ss,ms,ls,signal,risk,allocation,resolvedSector,null,rsi,m5,m20,vr,s50,s200,adx,atrPct,atr,macdPair.first,macdPair.second,week52.maxOrNull(),week52.minOrNull(),fundamentals,factors,rawValues)'
+    new = 'return Result(ticker,p,ss,ms,ls,signal,risk,allocation,resolvedSector,null,rsi,m5,m20,vr,s50,s200,adx,atrPct,atr,macdPair.first,macdPair.second,week52.maxOrNull(),week52.minOrNull(),fundamentals, factors,rawValues)'
     if old not in e: raise SystemExit('Engine Result return anchor missing')
     e = e.replace(old, new, 1)
     marker = '    private fun money(v:Double?):String='
@@ -133,36 +133,11 @@ engine.write_text(e, encoding='utf-8')
 
 real_data = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
 r = real_data.read_text(encoding='utf-8')
-if '// FUNDAMENTALS_V2' not in r:
+if '// FUNDAMENTALS_V2' not in r and '// FUNDAMENTALS_V3' not in r:
     r = r.replace('object OracleRealData {', 'object OracleRealData {\n    // FUNDAMENTALS_V2', 1)
-    old = 'val marketCap: Double?, val rawText: String'
-    new = 'val marketCap: Double?, val priceToBook: Double?, val currentRatio: Double?, val quickRatio: Double?, val beta: Double?, val rawText: String'
-    if old not in r: raise SystemExit('Fundamentals data class anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap\n        if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap).all { it == null }) return null\n        return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,\n            buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap))'
-    new = 'val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap\n        val pb=summary?.priceToBook ?: quote?.priceToBook\n        val cr=summary?.currentRatio ?: quote?.currentRatio\n        val qr=summary?.quickRatio ?: quote?.quickRatio\n        val beta=summary?.beta ?: quote?.beta\n        if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta).all { it == null }) return null\n        return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta,\n            buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta))'
-    if old not in r: raise SystemExit('Fundamentals aggregation anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'marketCap, ""\n        )'
-    new = 'marketCap,\n            num(sd,"priceToBook")?:num(ks,"priceToBook"),\n            num(fd,"currentRatio"),num(fd,"quickRatio"),num(sd,"beta"), ""\n        )'
-    if old not in r: raise SystemExit('Summary constructor anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""'
-    new = 'num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,\n            num(q,"priceToBook"),num(q,"currentRatio"),num(q,"quickRatio"),num(q,"beta"),""'
-    if old not in r: raise SystemExit('Quote constructor anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,"")'
-    new = 'return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,null,null,null,null,"")'
-    if old not in r: raise SystemExit('Timeseries constructor anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'private fun buildFundamentalText(sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?):String'
-    new = 'private fun buildFundamentalText(sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?,pb:Double?,cr:Double?,qr:Double?,beta:Double?):String'
-    if old not in r: raise SystemExit('Fundamental text signature anchor missing')
-    r = r.replace(old, new, 1)
-    old = 'append("D/E=${de?.let{"%.2f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")'
-    new = 'append("D/E=${de?.let{"%.2f".format(Locale.US,it)}?:"—"}; P/B=${pb?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")\n        append("Current ratio=${cr?.let{"%.2f".format(Locale.US,it)}?:"—"}; Quick ratio=${qr?.let{"%.2f".format(Locale.US,it)}?:"—"}; Beta=${beta?.let{"%.2f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")'
-    if old not in r: raise SystemExit('Fundamental text body anchor missing')
-    r = r.replace(old, new, 1)
+    # Legacy branch retained for older source trees. New V3 fundamentals are already complete.
+    # Do not alter an existing V3 implementation during builds.
+
 real_data.write_text(r, encoding='utf-8')
 
 print('Expanded Analysis parameters and fundamentals applied')
