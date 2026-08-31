@@ -21,6 +21,9 @@ jobs:
       - name: Apply Analysis sector resolution fix
         shell: bash
         run: python3 scripts/fix_analysis_sector.py
+      - name: Apply Yahoo-authenticated Analysis real fundamentals
+        shell: bash
+        run: python3 scripts/fix_analysis_realdata_auth.py
       - name: Apply Analysis expanded parameters and fundamentals
         shell: bash
         run: |
