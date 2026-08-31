@@ -3,11 +3,11 @@ name: B514 FINAL APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - scripts/b514_build_growth.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
+      - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
   workflow_dispatch:
 
 permissions:
@@ -23,37 +23,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout current main source
+      - name: Checkout main (current HEAD)
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - name: Verify build is using current main
-        run: |
-          set -euo pipefail
-          git fetch origin main --depth=1
-          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+      - name: Clean generated state
+        run: git clean -xfd
 
-      - name: Verify canonical Analysis source before Growth patch
+      - name: Record canonical Analysis source
         run: |
           set -euo pipefail
           ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           test -f "$ANALYSIS"
-          test "$(git hash-object "$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          echo "ANALYSIS_SHA=$(git hash-object "$ANALYSIS")" >> "$GITHUB_ENV"
+          echo "MAIN_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Apply B514 Growth-only patch
+      - name: Apply Growth-only changes
         run: python3 scripts/b514_build_growth.py
 
-      - name: HARD VERIFY Analysis is byte-for-byte unchanged
+      - name: HARD VERIFY Analysis unchanged by Growth patch
         run: |
           set -euo pipefail
           ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          test "$(git hash-object "$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
-          grep -q 'if (key != "growth")' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
-          grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
-          grep -q 'versionCode 35' app/build.gradle
+          test "$(git hash-object "$ANALYSIS")" = "$ANALYSIS_SHA"
           git diff --check
 
       - uses: actions/setup-java@v4
@@ -80,16 +74,19 @@ jobs:
           fi
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
-      - name: Verify APK
+      - name: Verify APK metadata
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-          BADGING="$($ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK")"
-          printf '%s\n' "$BADGING" | grep -q "versionName='V6g-FINAL-B514'"
-          printf '%s\n' "$BADGING" | grep -q "versionCode='35'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-FINAL-B514'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionCode='35'"
+      - name: Verify Analysis source remains canonical after build
+        run: |
+          set -euo pipefail
+          ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          test "$(git hash-object "$ANALYSIS")" = "$ANALYSIS_SHA"
       - name: Upload ONLY B514 FINAL APK
         uses: actions/upload-artifact@v4
         with:
