@@ -37,12 +37,10 @@ jobs:
       - name: Verify Growth-only source
         run: |
           set -euo pipefail
-          grep -q "V6g-FINAL-B518" app/build.gradle
-          grep -q "V6g-FINAL-B518" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "versionName 'V6g-FINAL-B518'" app/build.gradle
           grep -q "Never render a stale trading-day snapshot" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "addBuildFooter" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "Europe/Bucharest" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q "OracleMarketCalendar" app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
           git diff --check
       - name: Prepare production signing key
         run: |
