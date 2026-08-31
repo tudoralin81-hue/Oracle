@@ -296,7 +296,6 @@ host.content.addView(TextView(host.root.context).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.FILL_VERTICAL
                     setMeasureWithLargestChildEnabled(true)
-                    baselineAligned = false
                 }
                 container.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
             }
