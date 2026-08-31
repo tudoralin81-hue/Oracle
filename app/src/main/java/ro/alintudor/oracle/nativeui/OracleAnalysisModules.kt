@@ -14,7 +14,7 @@ import ro.alintudor.oracle.core.*
 import java.util.Locale
 import kotlin.math.abs
 
-// ANALYSIS_RAW_VALUES_V3
+// ANALYSIS_RAW_VALUES_V4
 
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String, private val onWatchlistTickerClick: (String) -> Unit = {}) {
     companion object {
@@ -189,6 +189,8 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("PARAMETRII ORACLE • VALORI")
         val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
+            // NEWS remains an internal Growth factor but is intentionally hidden from Analysis.
+            if (i == 0) return@forEachIndexed
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
