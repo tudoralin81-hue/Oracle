@@ -9,7 +9,7 @@ import kotlin.math.roundToInt
 /** Single-ticker analysis using the same 12 Growth factors and horizon weights. */
 object OracleAnalysisEngine {
     // ANALYSIS_TECH_EXTRAS_V1
-    val factorNames = listOf("News","Breakout","Trend","Momentum","Volume","Support / Resistance","Fundamentals","Bollinger","Ichimoku","Market / Sector","Risk / Reward","ADX")
+    val factorNames = listOf("Breakout","Trend","Momentum","Volume","Support / Resistance","Fundamentals","Bollinger","Ichimoku","Market / Sector","Risk / Reward","ADX")
     val factorKeys = listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
     val shortWeights = intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1)
     val mediumWeights = intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1)
