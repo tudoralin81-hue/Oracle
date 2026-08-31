@@ -8,6 +8,9 @@ on:
       - scripts/b514_build_growth.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
       - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+      - app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
+      - app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
+      - app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
       - BUILD_B514_NOW.txt
   workflow_dispatch:
 
