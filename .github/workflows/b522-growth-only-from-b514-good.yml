@@ -19,19 +19,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact B514-good baseline
+      - name: Checkout current build recipe
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify exact B514 Analysis baseline
+      - name: Prepare EXACT B514-good source
         run: |
           set -euo pipefail
+          cp scripts/b514_build_growth.py "$RUNNER_TEMP/b514_build_growth.py"
+          git checkout "$BASE_COMMIT"
           test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+
+      - name: Verify Analysis baseline
+        run: |
+          set -euo pipefail
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
 
       - name: Apply ONLY Growth patch
-        run: python3 scripts/b514_build_growth.py
+        run: python3 "$RUNNER_TEMP/b514_build_growth.py"
 
       - name: HARD VERIFY Analysis unchanged
         run: |
