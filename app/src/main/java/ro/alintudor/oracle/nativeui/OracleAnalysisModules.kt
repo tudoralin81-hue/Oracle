@@ -278,7 +278,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
 
 // BUILD_VERSION_BOTTOM_V1
 host.content.addView(TextView(host.root.context).apply {
-    text = "ORACLE • V6g-FINAL-B508"
+    text = "ORACLE • V6g-FINAL-B510"
     textSize = 10f
     typeface = Typeface.DEFAULT_BOLD
     letterSpacing = .08f
@@ -292,7 +292,12 @@ host.content.addView(TextView(host.root.context).apply {
         var row: LinearLayout? = null
         items.forEachIndexed { index, item ->
             if (index % 2 == 0) {
-                row = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                row = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.FILL_VERTICAL
+                    setMeasureWithLargestChildEnabled(true)
+                    baselineAligned = false
+                }
                 container.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
             }
             val card = LinearLayout(host.root.context).apply {
@@ -316,10 +321,11 @@ host.content.addView(TextView(host.root.context).apply {
                 textSize = 12.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(metricValueColor(item.first, item.second))
-                setPadding(0, host.dp(4), 0, 0)
-                maxLines = 4
+                setPadding(0, host.dp(3), 0, 0)
+                includeFontPadding = true
+                setHorizontallyScrolling(false)
             })
-            row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {
+            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
                 else setMargins(0, 0, host.dp(4), 0)
             })
@@ -572,6 +578,7 @@ host.content.addView(TextView(host.root.context).apply {
 
     private fun companyName(t: String) = when (t) {
         "AAOI" -> "Applied Optoelectronics, Inc."
+        "APLD" -> "Applied Digital Corporation"
         "NVDA" -> "NVIDIA Corporation"; "AAPL" -> "Apple Inc."; "MSFT" -> "Microsoft Corporation"; "AMZN" -> "Amazon.com, Inc."; "GOOGL" -> "Alphabet Inc."; "META" -> "Meta Platforms, Inc."; "TSLA" -> "Tesla, Inc."; "AMD" -> "Advanced Micro Devices, Inc."; "AVGO" -> "Broadcom Inc."; "NFLX" -> "Netflix, Inc."; else -> t
     }
 
