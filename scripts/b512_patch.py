@@ -28,9 +28,10 @@ replacement = '''        top.addView(TextView(host.root.context).apply {
             setPadding(0, host.dp(2), 0, 0)
         })'''
 s2 = pattern.sub(replacement, s, count=1)
-if s2 == s:
-    raise SystemExit('B512: company header anchor not found')
-s = s2
+if s2 != s:
+    s = s2
+elif 'text = companyName(r.ticker)' not in s:
+    raise SystemExit('B512: company header could not be located')
 
 # Keep the visual yellow deliberately softer than the original saturated yellow.
 s = s.replace('Color.rgb(228, 178, 28)', 'Color.rgb(205, 165, 38)')
@@ -38,9 +39,10 @@ s = s.replace('Color.rgb(228, 178, 28)', 'Color.rgb(205, 165, 38)')
 # Ensure APLD displays its full company name.
 if '"APLD" -> "Applied Digital Corporation"' not in s:
     anchor = '"AAOI" -> "Applied Optoelectronics, Inc."'
-    if anchor not in s:
+    if anchor in s:
+        s = s.replace(anchor, anchor + '\n        "APLD" -> "Applied Digital Corporation"', 1)
+    else:
         raise SystemExit('B512: company-name map anchor not found')
-    s = s.replace(anchor, anchor + '\n        "APLD" -> "Applied Digital Corporation"', 1)
 
 # Replace the metric renderer with a true two-column matrix.
 start = s.find('    private fun addMetricGrid(')
@@ -94,32 +96,9 @@ grid = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pai
                 if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
                 else setMargins(0, 0, host.dp(4), 0)
             })
-
-            // Keep every pair in the matrix aligned to the tallest card in that row.
-            if (index % 2 == 1) {
-                row?.post {
-                    val rv = row ?: return@post
-                    var maxHeight = 0
-                    for (j in 0 until rv.childCount) {
-                        maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
-                    }
-                    if (maxHeight > 0) {
-                        for (j in 0 until rv.childCount) {
-                            val child = rv.getChildAt(j)
-                            val lp = child.layoutParams
-                            if (lp.height != maxHeight) {
-                                lp.height = maxHeight
-                                child.layoutParams = lp
-                            }
-                        }
-                        rv.requestLayout()
-                    }
-                }
-            }
         }
 
-        // Re-run after the whole grid has been measured so multiline Fundamentals
-        // cards cannot clip or leave their partner shorter.
+        // Equalize each row after Android has measured multiline content.
         container.post {
             for (i in 0 until container.childCount) {
                 val rv = container.getChildAt(i) as? LinearLayout ?: continue
