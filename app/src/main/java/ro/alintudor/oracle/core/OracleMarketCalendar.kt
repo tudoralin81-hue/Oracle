@@ -1,6 +1,8 @@
 package ro.alintudor.oracle.core
 
 import java.time.DayOfWeek
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.Month
@@ -8,15 +10,23 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 
-/** Permanent, rule-based NYSE full-closure calendar plus regular session hours. */
+/** Permanent, rule-based NYSE full-closure calendar plus regular/early-close session hours. */
 object OracleMarketCalendar {
     private val NEW_YORK = ZoneId.of("America/New_York")
     private val OPEN_TIME = LocalTime.of(9, 30)
     private val CLOSE_TIME = LocalTime.of(16, 0)
-    data class Status(val open: Boolean, val label: String)
+    private val EARLY_CLOSE_TIME = LocalTime.of(13, 0)
+
+    data class Status(
+        val open: Boolean,
+        val label: String,
+        val countdown: String
+    )
 
     fun isTradingDay(date: LocalDate): Boolean =
-        date.dayOfWeek != DayOfWeek.SATURDAY && date.dayOfWeek != DayOfWeek.SUNDAY && fullClosureName(date) == null
+        date.dayOfWeek != DayOfWeek.SATURDAY &&
+            date.dayOfWeek != DayOfWeek.SUNDAY &&
+            fullClosureName(date) == null
 
     fun fullClosureName(date: LocalDate): String? {
         observedFixedHolidays(date.year)[date]?.let { return it }
@@ -29,13 +39,51 @@ object OracleMarketCalendar {
         return null
     }
 
+    /** NYSE early-close sessions relevant to the published 2026 calendar. */
+    private fun earlyCloseTime(date: LocalDate): LocalTime? = when (date) {
+        LocalDate.of(2026, Month.JULY, 3),
+        LocalDate.of(2026, Month.NOVEMBER, 27),
+        LocalDate.of(2026, Month.DECEMBER, 24) -> EARLY_CLOSE_TIME
+        else -> null
+    }
+
+    fun sessionCloseTime(date: LocalDate): LocalTime = earlyCloseTime(date) ?: CLOSE_TIME
+
     fun status(nowMillis: Long = System.currentTimeMillis()): Status {
-        val now = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(nowMillis), NEW_YORK)
-        if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) return Status(false, "BURSA ESTE ÎNCHISĂ — weekend")
-        fullClosureName(now.toLocalDate())?.let { return Status(false, "BURSA ESTE ÎNCHISĂ — $it") }
-        if (now.toLocalTime().isBefore(OPEN_TIME)) return Status(false, "BURSA ESTE ÎNCHISĂ — înainte de deschidere")
-        if (!now.toLocalTime().isBefore(CLOSE_TIME)) return Status(false, "BURSA ESTE ÎNCHISĂ — după închidere")
-        return Status(true, "BURSA ESTE DESCHISĂ")
+        val now = ZonedDateTime.ofInstant(Instant.ofEpochMilli(nowMillis), NEW_YORK)
+        val date = now.toLocalDate()
+
+        if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) {
+            return closedStatus(now, nextTradingOpen(now), "weekend")
+        }
+        fullClosureName(date)?.let { reason ->
+            return closedStatus(now, nextTradingOpen(now), reason)
+        }
+
+        val open = ZonedDateTime.of(date, OPEN_TIME, NEW_YORK)
+        val close = ZonedDateTime.of(date, sessionCloseTime(date), NEW_YORK)
+        return when {
+            now.isBefore(open) -> closedStatus(now, open, "înainte de deschidere")
+            now.isBefore(close) -> Status(true, "BURSA ESTE DESCHISĂ", "Mai sunt ${formatRemaining(now, close)} până la închidere.")
+            else -> closedStatus(now, nextTradingOpen(now), "după închidere")
+        }
+    }
+
+    private fun closedStatus(now: ZonedDateTime, target: ZonedDateTime, reason: String): Status =
+        Status(false, "BURSA ESTE ÎNCHISĂ — $reason", "Mai sunt ${formatRemaining(now, target)} până la deschidere.")
+
+    private fun nextTradingOpen(now: ZonedDateTime): ZonedDateTime {
+        var date = now.toLocalDate().plusDays(1)
+        while (!isTradingDay(date)) date = date.plusDays(1)
+        return ZonedDateTime.of(date, OPEN_TIME, NEW_YORK)
+    }
+
+    private fun formatRemaining(from: ZonedDateTime, target: ZonedDateTime): String {
+        val seconds = Duration.between(from, target).seconds.coerceAtLeast(0L)
+        val totalMinutes = (seconds + 59L) / 60L
+        val hours = totalMinutes / 60L
+        val minutes = totalMinutes % 60L
+        return "$hours ore și $minutes minute"
     }
 
     private fun observedFixedHolidays(year: Int): Map<LocalDate, String> {
@@ -49,11 +97,12 @@ object OracleMarketCalendar {
             for ((pair, name) in fixed) {
                 val actual = LocalDate.of(year, pair.first, pair.second)
                 val observed = when (actual.dayOfWeek) {
-                    DayOfWeek.SATURDAY -> actual.minusDays(1)
+                    // Independence Day 2026 is an NYSE early-close day, not a full closure.
+                    DayOfWeek.SATURDAY -> if (pair.first == Month.JULY && pair.second == 4 && year == 2026) actual else actual.minusDays(1)
                     DayOfWeek.SUNDAY -> actual.plusDays(1)
                     else -> actual
                 }
-                put(observed, name)
+                if (!(year == 2026 && pair.first == Month.JULY && pair.second == 4)) put(observed, name)
             }
         }
     }
