@@ -17,11 +17,22 @@ object OracleLocalProcessor {
 
     private fun normalizeGrowthSnapshot(items: List<OracleGrowthRecommendation>, anchor: Long) = items.map { it.copy(referenceTimestamp = anchor, generatedAt = anchor) }
 
-    private fun applyCalculatedRiskAllocation(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> =
-        items.map { item ->
-            val analysis = runCatching { OracleAnalysisEngine.analyze(item.ticker) }.getOrNull()
-            if (analysis != null) item.copy(risk = analysis.risk, allocationMax = analysis.allocation) else item
-        }
+    /**
+     * Growth-only warm-up. It deliberately touches only the Growth snapshot so
+     * startup precomputation cannot alter Analysis, Portfolio, Alerts or Journal.
+     */
+    fun refreshGrowthOnly(repository: OracleRepository): List<OracleGrowthRecommendation> {
+        OracleBootstrap.ensure(repository)
+        val now = System.currentTimeMillis()
+        val anchor = currentGrowthAnchor(now)
+        val current = repository.cachedGrowth()
+        if (current.isNotEmpty() && current.all { it.referenceTimestamp == anchor }) return current
+
+        val generated = OracleGrowthEngine.run(current)
+        val growth = if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, anchor) else emptyList()
+        repository.saveGrowth(growth)
+        return growth
+    }
 
     fun refresh(repository: OracleRepository): OracleModuleData {
         OracleBootstrap.ensure(repository)
