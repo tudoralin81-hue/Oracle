@@ -44,14 +44,14 @@ object OracleRealData {
         val sector=resolvedSector(symbol,summary?.sector ?: ts?.sector ?: quote?.sector)
         val industry=summary?.industry ?: ts?.industry ?: quote?.industry ?: knownIndustry(symbol)
         val pe=(summary?.trailingPe ?: quote?.trailingPe ?: ts?.trailingPe)?.takeIf { it.isFinite() && it > 0.0 }
-        val fpe=(summary?.forwardPe ?: quote?.forwardPe ?: ts?.forwardPe)?.takeIf { it.isFinite() && it > 0.0 }
+        val fpe=listOf(summary?.forwardPe, quote?.forwardPe, ts?.forwardPe).firstOrNull { it != null && it.isFinite() && it > 0.0 }
         val rg=summary?.revenueGrowth ?: ts?.revenueGrowth
         val eg=summary?.earningsGrowth ?: ts?.earningsGrowth
         val pm=summary?.profitMargin ?: ts?.profitMargin
         val om=summary?.operatingMargin ?: ts?.operatingMargin
         val roe=summary?.returnOnEquity ?: ts?.returnOnEquity
         val de=summary?.debtToEquity ?: ts?.debtToEquity
-        val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap
+        val cap=ts?.marketCap ?: summary?.marketCap ?: quote?.marketCap
         val pb=summary?.priceToBook ?: quote?.priceToBook ?: ts?.priceToBook
         val cr=summary?.currentRatio ?: quote?.currentRatio ?: ts?.currentRatio
         val qr=summary?.quickRatio ?: quote?.quickRatio ?: ts?.quickRatio
