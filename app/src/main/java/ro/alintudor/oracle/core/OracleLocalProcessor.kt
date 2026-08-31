@@ -1,6 +1,5 @@
 package ro.alintudor.oracle.core
 
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -12,7 +11,7 @@ object OracleLocalProcessor {
     private fun currentGrowthAnchor(nowMillis: Long): Long {
         val z = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
         var date = if (z.hour < 16) z.toLocalDate().minusDays(1) else z.toLocalDate()
-        while (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) date = if (date.dayOfWeek == DayOfWeek.SATURDAY) date.minusDays(1) else date.minusDays(2)
+        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
         return ZonedDateTime.of(date, java.time.LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
     }
 
@@ -21,9 +20,7 @@ object OracleLocalProcessor {
     private fun applyCalculatedRiskAllocation(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> =
         items.map { item ->
             val analysis = runCatching { OracleAnalysisEngine.analyze(item.ticker) }.getOrNull()
-            // Never destroy a valid per-ticker value because a second live-data request failed.
-            if (analysis != null) item.copy(risk = analysis.risk, allocationMax = analysis.allocation)
-            else item
+            if (analysis != null) item.copy(risk = analysis.risk, allocationMax = analysis.allocation) else item
         }
 
     fun refresh(repository: OracleRepository): OracleModuleData {
@@ -39,10 +36,9 @@ object OracleLocalProcessor {
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
         val growthAnchor=currentGrowthAnchor(now)
 
-        // Growth is a frozen daily 16:00 snapshot. Once a valid snapshot exists for
-        // the current anchor, local refreshes must NEVER rerun the ranking engine,
-        // even if risk/allocation are missing or live market/news data has changed.
-        // A new calculation is allowed only when there is no snapshot for this anchor.
+        // Growth is a frozen daily snapshot. A new snapshot is generated only for
+        // a valid trading-day anchor that is not already persisted. Weekends and
+        // exchange holidays therefore keep the last valid trading-day snapshot.
         val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
         val growth=if(snapshotIsCurrent) current.growth else {
             val generated=OracleGrowthEngine.run(current.growth)
