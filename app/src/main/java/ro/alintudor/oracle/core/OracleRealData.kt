@@ -70,21 +70,31 @@ object OracleRealData {
         val price=r.optJSONObject("price")
         val sector=resolvedSector(ticker,profile?.optString("sector")?.takeIf{it.isNotBlank()})
         val industry=profile?.optString("industry")?.takeIf{it.isNotBlank()}
+        val marketCap = num(sd,"marketCap") ?: num(price,"marketCap") ?: run {
+            val shares = num(ks,"sharesOutstanding") ?: num(ks,"impliedSharesOutstanding")
+            val px = num(price,"regularMarketPrice") ?: num(price,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
         OracleFundamentals(
             sector,industry,
             num(sd,"trailingPE")?:num(ks,"trailingPE"),
             num(sd,"forwardPE")?:num(ks,"forwardPE"),
             num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
             num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
-            num(sd,"marketCap")?:num(price,"marketCap"), ""
+            marketCap, ""
         )
     } catch(_:Exception) { null }
 
     private fun parseQuoteFallback(root:JSONObject,ticker:String):OracleFundamentals? = try {
         val q=root.optJSONObject("quoteResponse")?.optJSONArray("result")?.optJSONObject(0) ?: return null
+        val marketCap = num(q,"marketCap") ?: run {
+            val shares = num(q,"sharesOutstanding") ?: num(q,"impliedSharesOutstanding")
+            val px = num(q,"regularMarketPrice") ?: num(q,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
         OracleFundamentals(
             resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
-            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,num(q,"marketCap"),""
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""
         )
     } catch(_:Exception) { null }
 
@@ -166,7 +176,7 @@ object OracleRealData {
         "JPM","BAC","WFC","C","GS","MS","BLK","SCHW","COF","AXP","V","MA","PYPL","HOOD","COIN"->"Financials"
         "GE","CAT","DE","HON","RTX","BA","LMT","NOC","GD","ETN","EMR","UNP","UPS","FDX","RHM"->"Industrials"
         "XOM","CVX","COP","SLB","EOG","OXY","MPC","VLO","HAL","FANG"->"Energy"
-        "LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
+        "LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
         "NEE","DUK","SO","AEP","EXC","SRE","D"->"Utilities"
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
