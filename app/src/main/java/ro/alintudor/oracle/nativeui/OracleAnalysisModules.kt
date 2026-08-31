@@ -14,6 +14,8 @@ import ro.alintudor.oracle.core.*
 import java.util.Locale
 import kotlin.math.abs
 
+// ANALYSIS_RAW_VALUES_V3
+
 class OracleSimpleModule(private val host: OracleNativeModule, private val moduleTitle: String, private val onWatchlistTickerClick: (String) -> Unit = {}) {
     companion object {
         @Volatile private var tickerDraft: String = ""
@@ -176,7 +178,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         })
         top.addView(headline)
         top.addView(TextView(host.root.context).apply {
-            text = "${companyName(r.ticker)}   •   Sector: ${sector(r.ticker)}"
+            text = "${companyName(r.ticker)}   •   Sector: ${r.sector ?: "Sector indisponibil"}"
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.rgb(205, 213, 228))
@@ -187,7 +189,6 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("PARAMETRII ORACLE • VALORI")
         val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            if (n.equals("News", true)) return@forEachIndexed
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -200,15 +201,15 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             row.addView(TextView(host.root.context).apply {
                 text = n
                 textSize = 14f
-                setTextColor(Color.rgb(215, 222, 235))
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(TextView(host.root.context).apply {
-                text = fmt(r.factors[i])
-                textSize = 15f
                 typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.rgb(215, 222, 235))
+            }, LinearLayout.LayoutParams(0, -2, .32f))
+            row.addView(TextView(host.root.context).apply {
+                text = r.rawValues.getOrNull(i) ?: "Valoare indisponibilă"
+                textSize = 12.5f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.END
-            }, LinearLayout.LayoutParams(host.dp(72), -2))
+            }, LinearLayout.LayoutParams(0, -2, .68f))
             grid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(3)) })
         }
         host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
@@ -396,10 +397,6 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
     private fun companyName(t: String) = when (t) {
         "AAOI" -> "Applied Optoelectronics, Inc."
         "NVDA" -> "NVIDIA Corporation"; "AAPL" -> "Apple Inc."; "MSFT" -> "Microsoft Corporation"; "AMZN" -> "Amazon.com, Inc."; "GOOGL" -> "Alphabet Inc."; "META" -> "Meta Platforms, Inc."; "TSLA" -> "Tesla, Inc."; "AMD" -> "Advanced Micro Devices, Inc."; "AVGO" -> "Broadcom Inc."; "NFLX" -> "Netflix, Inc."; else -> t
-    }
-    private fun sector(t: String) = when (t) {
-        "AAOI" -> "Technology / Optical Networking"
-        "NVDA", "AMD", "AVGO" -> "Semiconductors"; "AAPL", "MSFT", "GOOGL", "META", "AMZN", "NFLX" -> "Technology / Internet"; "TSLA" -> "Automotive / Energy"; else -> "Sector indisponibil"
     }
 
     private fun renderWatchlist(items: List<String>) {
