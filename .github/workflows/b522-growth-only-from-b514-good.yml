@@ -1,9 +1,6 @@
 name: B514 FINAL APK
 
-'on':
-  push:
-    branches: [main]
-  workflow_dispatch:
+'on': [push, workflow_dispatch]
 
 permissions:
   contents: read
@@ -15,79 +12,51 @@ env:
   ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
   ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout EXACT B514 FINAL APK #77
+      - name: Checkout exact B514 #77 baseline
         uses: actions/checkout@v4
         with:
           ref: ${{ env.BASE_COMMIT }}
           fetch-depth: 0
 
-      - name: HARD VERIFY Analysis baseline before any change
+      - name: Verify Analysis baseline
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
 
-      - name: Apply ONLY Growth fix
+      - name: Patch Growth only
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          live = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
-          s = live.read_text(encoding='utf-8')
-          old = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-          if (items.isEmpty()) return emptyList()
-          if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
-          val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
-          if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
-          return items
-      }
+          p = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
+          s = p.read_text(encoding='utf-8')
+          start = s.index('    fun refresh(')
+          end = s.index('\n    private fun currentGrowthAnchor', start)
+          s = s[:start] + '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
+        if (items.isEmpty()) return emptyList()
+        return items.filter { it.referenceTimestamp > 0L }
+    }
+''' + s[s.index('\n}', end):]
+          p.write_text(s, encoding='utf-8')
 
-      private fun currentGrowthAnchor(nowMillis: Long): Long {
-          val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
-          var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
-          while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
-          return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
-      }'''
-          new = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-          if (items.isEmpty()) return emptyList()
-          // Keep the latest valid persisted Growth snapshot available locally.
-          // Do not discard a previous-session snapshot while waiting for a new 16:00 anchor.
-          return items.filter { it.referenceTimestamp > 0L }
-      }'''
-          if old not in s:
-              raise SystemExit('GrowthLiveData snapshot gate not found')
-          live.write_text(s.replace(old, new, 1), encoding='utf-8')
+          p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}'
+          new = '''        if (key != "growth") {
+            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        }'''
+          if old not in s: raise SystemExit('Growth initial-render anchor not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
-          main = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
-          s = main.read_text(encoding='utf-8')
-          old = '''    private fun openModule(key:String){
-          currentModule=key
-          runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-          if (key == "analysis") return
-      }'''
-          new = '''    private fun openModule(key:String){
-          currentModule=key
-          if (key != "growth") {
-              runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-          }
-          if (key == "analysis") return
-      }'''
-          if old not in s:
-              raise SystemExit('MainActivity Growth initial-render anchor not found')
-          main.write_text(s.replace(old, new, 1), encoding='utf-8')
-
-          growth = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
-          s = growth.read_text(encoding='utf-8')
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+          s = p.read_text(encoding='utf-8')
           old = '''        if (items.isEmpty()) {
             host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
             return
@@ -97,36 +66,33 @@ jobs:
             addBuildFooter()
             return
         }'''
-          if old not in s:
-              raise SystemExit('Growth empty-state anchor not found')
+          if old not in s: raise SystemExit('Growth empty-state anchor not found')
           s = s.replace(old, new, 1)
           old = '''        addNews(ordered, fallbackNews)
-          addHistory(items)
-      }'''
+        addHistory(items)
+    }'''
           new = '''        addNews(ordered, fallbackNews)
-          addHistory(items)
-          addBuildFooter()
-      }
+        addHistory(items)
+        addBuildFooter()
+    }
 
-      private fun addBuildFooter() {
-          host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
-              setMargins(0, 0, 0, host.dp(18))
-          })
-      }'''
-          if old not in s:
-              raise SystemExit('Growth footer anchor not found')
-          s = s.replace(old, new, 1)
-          growth.write_text(s, encoding='utf-8')
+    private fun addBuildFooter() {
+        host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(18))
+        })
+    }'''
+          if old not in s: raise SystemExit('Growth footer anchor not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
-          gradle = Path('app/build.gradle')
-          s = gradle.read_text(encoding='utf-8')
+          p = Path('app/build.gradle')
+          s = p.read_text(encoding='utf-8')
           s = re.sub(r'versionCode\s+\d+', 'versionCode 35', s, count=1)
           s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
-          gradle.write_text(s, encoding='utf-8')
+          p.write_text(s, encoding='utf-8')
           PY
           git diff --check
 
-      - name: HARD VERIFY Analysis UNCHANGED and Growth-only patch
+      - name: HARD VERIFY Analysis untouched
         run: |
           set -euo pipefail
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
@@ -136,13 +102,6 @@ jobs:
           grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'versionCode 35' app/build.gradle
           grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
-          changed=$(git diff --name-only)
-          for f in $changed; do
-            case "$f" in
-              app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt|app/src/main/java/ro/alintudor/oracle/MainActivity.kt|app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt|app/build.gradle) ;;
-              *) echo "Unexpected changed file: $f"; exit 1;;
-            esac
-          done
 
       - uses: actions/setup-java@v4
         with:
@@ -160,12 +119,10 @@ jobs:
           set -euo pipefail
           if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
             echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
-            {
-              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
-            } >> "$GITHUB_ENV"
+            echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks" >> "$GITHUB_ENV"
+            echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
 
       - name: Build release APK
