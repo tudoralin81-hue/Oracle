@@ -12,7 +12,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode 23
-        versionName 'V6g-FINAL-B507'
+        versionName 'V6g-FINAL-B508'
     }
 
     signingConfigs {
