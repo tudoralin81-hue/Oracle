@@ -186,12 +186,13 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         })
         host.content.addView(top, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
 
-        // ANALYSIS_PARAMETERS_V6
-        // NEWS remains internal to Growth and is intentionally hidden here.
+        // ANALYSIS_PARAMETERS_V7
+        // News remains internal to the Oracle calculation and is intentionally hidden from Analysis UI.
+        // rawValues[0] is News; factorNames contains only the 11 visible factors, so visible factor i maps to rawValues[i + 1].
         host.addSectionLabel("PARAMETRII ORACLE • VALORI")
         val oracleGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         val visibleFactors = OracleAnalysisEngine.factorNames.mapIndexedNotNull { i, name ->
-            name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")
+            name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă")
         }
         addMetricGrid(oracleGrid, visibleFactors)
         host.content.addView(oracleGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
