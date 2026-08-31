@@ -15,6 +15,25 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Lock Analysis build identity to 502
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('app/build.gradle')
+          s = p.read_text(encoding='utf-8')
+          s = re.sub(r'versionCode\s+\d+', 'versionCode 18', s, count=1)
+          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-KNOWLEDGE-B502'", s, count=1)
+          p.write_text(s, encoding='utf-8')
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt')
+          s = p.read_text(encoding='utf-8')
+          s = re.sub(r'text=\"BUILD \d+\"', 'text="BUILD 502"', s, count=1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -q "versionName 'V6g-KNOWLEDGE-B502'" app/build.gradle
+          grep -q 'text="BUILD 502"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
       - name: Apply Analysis 474 repair
         shell: bash
         run: python3 scripts/repair_analysis_474.py
@@ -34,14 +53,12 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           s = p.read_text(encoding='utf-8')
-          # Analysis shows raw values only. News remains an internal Growth factor.
           old_news = '            name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
           new_news = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
           if old_news in s:
               s = s.replace(old_news, new_news, 1)
           elif new_news not in s:
               raise SystemExit('Analysis raw-value grid anchor not found')
-          # ADX is the real ADX(14), never an Oracle synthetic score.
           old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
           if old_adx in s:
               s = s.replace(old_adx, '"ADX(14) ${money(adx)}"', 1)
@@ -129,6 +146,13 @@ jobs:
               raise SystemExit("Watchlist navigation fix is missing: " + ", ".join(missing))
           print("Watchlist ticker navigation fix verified in source")
           PY
+      - name: Verify final Analysis build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionName 'V6g-KNOWLEDGE-B502'" app/build.gradle
+          grep -q 'text="BUILD 502"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
+          echo 'Final Analysis build identity verified: B502'
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Verify release APK signature
@@ -142,5 +166,5 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-installable
+          name: Oracle-APK-B502-installable
           path: app/build/outputs/apk/release/*.apk
