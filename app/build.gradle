@@ -11,8 +11,8 @@ android {
         applicationId 'ro.alintudor.oracle'
         minSdk 26
         targetSdk 36
-        versionCode 29
-        versionName 'V6g-FINAL-B514'
+        versionCode 30
+        versionName 'V6g-FINAL-B518'
     }
 
     signingConfigs {
