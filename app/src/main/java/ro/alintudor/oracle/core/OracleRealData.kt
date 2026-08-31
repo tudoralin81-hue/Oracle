@@ -104,6 +104,7 @@ object OracleRealData {
         val types=listOf(
             "annualTotalRevenue","annualOperatingIncome","annualNetIncome","annualDilutedEPS",
             "annualTotalDebt","annualStockholdersEquity",
+            "quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",
             "trailingTotalRevenue","trailingOperatingIncome","trailingNetIncome","trailingDilutedEPS",
             "trailingTotalDebt","trailingStockholdersEquity"
         ).joinToString(",")
@@ -126,9 +127,12 @@ object OracleRealData {
         val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
         val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
         val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
+        val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
+        val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
         val sector=resolvedSector(ticker)
         val industry=knownIndustry(ticker)
-        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,null,"")
+        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,"")
     }
 
     private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {
@@ -176,7 +180,7 @@ object OracleRealData {
         "JPM","BAC","WFC","C","GS","MS","BLK","SCHW","COF","AXP","V","MA","PYPL","HOOD","COIN"->"Financials"
         "GE","CAT","DE","HON","RTX","BA","LMT","NOC","GD","ETN","EMR","UNP","UPS","FDX","RHM"->"Industrials"
         "XOM","CVX","COP","SLB","EOG","OXY","MPC","VLO","HAL","FANG"->"Energy"
-        "LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
+        "LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
         "NEE","DUK","SO","AEP","EXC","SRE","D"->"Utilities"
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
