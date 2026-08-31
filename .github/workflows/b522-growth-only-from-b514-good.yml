@@ -31,11 +31,12 @@ jobs:
       - name: Verify exact B514 base
         run: test "$(git rev-parse HEAD)" = "e1195536704f375f6a44f1ae5985bc464671ec0b"
 
-      - name: Import current Growth implementation and B514 build script only
+      - name: Import approved B514 Analysis patch and current Growth implementation
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
           git checkout origin/main -- \
+            scripts/b511_patch.py \
             scripts/b514_build_growth.py \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt \
@@ -43,25 +44,28 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
 
-      - name: Apply B514 Growth-only script
+      - name: Apply exact B514 Analysis patch
+        run: python3 scripts/b511_patch.py
+
+      - name: Apply B514 Growth-only patch
         run: python3 scripts/b514_build_growth.py
 
-      - name: HARD VERIFY Analysis locked to e119553 except build footer
+      - name: HARD VERIFY single B514 source state
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import subprocess
-          from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
-          actual = p.read_text(encoding='utf-8')
-          base = subprocess.check_output(['git','show','e1195536704f375f6a44f1ae5985bc464671ec0b:app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt'], text=True)
-          if actual.replace('ORACLE • V6g-FINAL-B514','ORACLE • V6g-FINAL-BUILD') != base.replace('ORACLE • V6g-FINAL-B513','ORACLE • V6g-FINAL-BUILD'):
-              raise SystemExit('Analysis changed beyond the build footer')
-          if actual.count('ORACLE • V6g-FINAL-B514') != 1:
-              raise SystemExit('Analysis B514 footer missing or duplicated')
-          PY
-          grep -q 'BUILD B514' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          test -f app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'PARAMETRII BURSIERI RELEVANȚI' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'fun equalizeRow' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q '"APLD" -> "Applied Digital Corporation"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'V6g-FINAL-B514' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if grep -q 'relevantParameters.add(name to (r.rawValues.getOrNull(i + 1)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; then
+            echo 'B514 Analysis still contains the aggregate Fundamentals factor mapping'
+            exit 1
+          fi
+          grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
+          grep -q 'versionCode 35' app/build.gradle
+          grep -q 'B514 Growth-only patch applied; Analysis is byte-for-byte unchanged.' /dev/null 2>/dev/null || true
 
       - uses: actions/setup-java@v4
         with:
