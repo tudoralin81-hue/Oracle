@@ -1,0 +1,276 @@
+name: Oracle B523 FINAL APK
+
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  BASE_COMMIT: fd819faed154aa19c399b47ec173aa29f4c5649e
+  ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+  ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+  ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+  ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact B514-good base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_COMMIT }}
+          fetch-depth: 0
+
+      - name: Verify exact base
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+
+      - name: Reproduce exact B514 Analysis final patch
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
+              relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
+          }'''
+          new = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
+              if (!name.equals("Fundamentals", ignoreCase = true)) {
+                  relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
+              }
+          }'''
+          if old not in s:
+              raise SystemExit('B514 factor block not found')
+          s = s.replace(old, new, 1)
+
+          start = s.index('    private fun addMetricGrid(')
+          end = s.index('    private fun metricValueColor', start)
+          new_func = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
+          var row: LinearLayout? = null
+
+          fun equalizeRow(target: LinearLayout) {
+              var maxHeight = 0
+              for (j in 0 until target.childCount) {
+                  val child = target.getChildAt(j)
+                  child.measure(
+                      android.view.View.MeasureSpec.makeMeasureSpec(target.measuredWidth / 2, android.view.View.MeasureSpec.AT_MOST),
+                      android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+                  )
+                  maxHeight = maxOf(maxHeight, child.measuredHeight)
+              }
+              if (maxHeight > 0) {
+                  for (j in 0 until target.childCount) {
+                      val child = target.getChildAt(j)
+                      val lp = child.layoutParams
+                      if (lp.height != maxHeight) {
+                          lp.height = maxHeight
+                          child.layoutParams = lp
+                      }
+                  }
+              }
+          }
+
+          items.forEachIndexed { index, item ->
+              if (index % 2 == 0) {
+                  row = LinearLayout(host.root.context).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                      gravity = Gravity.TOP
+                      clipChildren = false
+                      clipToPadding = false
+                  }
+                  container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                      setMargins(0, 0, 0, host.dp(6))
+                  })
+              }
+
+              val card = LinearLayout(host.root.context).apply {
+                  orientation = LinearLayout.VERTICAL
+                  setPadding(host.dp(11), host.dp(8), host.dp(11), host.dp(8))
+                  clipChildren = false
+                  clipToPadding = false
+                  background = GradientDrawable().apply {
+                      setColor(Color.rgb(6, 12, 24))
+                      cornerRadius = host.dp(12).toFloat()
+                      setStroke(host.dp(1), Color.rgb(35, 65, 98))
+                  }
+              }
+              card.addView(TextView(host.root.context).apply {
+                  text = item.first.uppercase(Locale.US)
+                  textSize = 10f
+                  typeface = Typeface.DEFAULT_BOLD
+                  letterSpacing = .07f
+                  setTextColor(Color.rgb(85, 190, 235))
+                  includeFontPadding = true
+                  maxLines = 2
+                  setHorizontallyScrolling(false)
+              })
+              card.addView(TextView(host.root.context).apply {
+                  text = item.second
+                  textSize = 12.5f
+                  typeface = Typeface.DEFAULT_BOLD
+                  setTextColor(metricValueColor(item.first, item.second))
+                  setPadding(0, host.dp(2), 0, 0)
+                  includeFontPadding = true
+                  setHorizontallyScrolling(false)
+                  maxLines = Int.MAX_VALUE
+                  ellipsize = null
+              })
+              row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                  if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
+                  else setMargins(0, 0, host.dp(4), 0)
+              })
+
+              row?.post { equalizeRow(row!!) }
+          }
+
+          container.post {
+              for (i in 0 until container.childCount) {
+                  val r = container.getChildAt(i) as? LinearLayout ?: continue
+                  equalizeRow(r)
+              }
+              container.requestLayout()
+          }
+      }
+
+      '''
+          s = s[:start] + new_func + s[end:]
+
+          s = s.replace('ORACLE • V6g-FINAL-B513', 'ORACLE • V6g-FINAL-B514')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Import ONLY current Growth implementation
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git checkout origin/main -- \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
+
+      - name: Patch ONLY Growth initial render and footer
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          main = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          growth = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+          gradle = Path('app/build.gradle')
+
+          s = main.read_text(encoding='utf-8')
+          old = '''    private fun openModule(key:String){
+        currentModule=key
+        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        if (key == "analysis") return
+'''
+          new = '''    private fun openModule(key:String){
+        currentModule=key
+        if (key != "growth") {
+            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        }
+        if (key == "analysis") return
+'''
+          if old not in s:
+              raise SystemExit('MainActivity Growth render anchor not found')
+          main.write_text(s.replace(old,new,1), encoding='utf-8')
+
+          s = growth.read_text(encoding='utf-8')
+          old = '''        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
+            return
+        }
+'''
+          new = '''        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
+            addBuildFooter()
+            return
+        }
+'''
+          if old not in s:
+              raise SystemExit('Growth empty-state anchor not found')
+          s = s.replace(old,new,1)
+
+          old = '''        addNews(ordered, fallbackNews)
+        addHistory(items)
+    }
+'''
+          new = '''        addNews(ordered, fallbackNews)
+        addHistory(items)
+        addBuildFooter()
+    }
+
+    private fun addBuildFooter() {
+        host.content.addView(text("BUILD B523 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(18))
+        })
+    }
+'''
+          if old not in s:
+              raise SystemExit('Growth footer anchor not found')
+          growth.write_text(s.replace(old,new,1), encoding='utf-8')
+
+          s = gradle.read_text(encoding='utf-8')
+          import re
+          s = re.sub(r'versionCode\s+\d+', 'versionCode 34', s, count=1)
+          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B523'", s, count=1)
+          gradle.write_text(s, encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: HARD VERIFY exact B514 Analysis + Growth-only changes
+        run: |
+          set -euo pipefail
+          grep -q 'ORACLE • V6g-FINAL-B514' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'if (!name.equals("Fundamentals", ignoreCase = true))' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'gravity = Gravity.TOP' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'if (key != "growth")' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          grep -q 'BUILD B523 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'versionCode 34' app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B523'" app/build.gradle
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - name: Prepare production signing key
+        run: |
+          set -euo pipefail
+          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
+            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+            {
+              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+      - name: Upload B523 FINAL APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B523-FINAL-installable
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
