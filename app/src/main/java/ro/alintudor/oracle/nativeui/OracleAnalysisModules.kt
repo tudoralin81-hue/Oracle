@@ -193,48 +193,46 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         })
         host.content.addView(top, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
 
-        // ANALYSIS_PARAMETERS_V7
-        // News remains internal to the Oracle calculation and is intentionally hidden from Analysis UI.
-        // rawValues[0] is News; factorNames contains only the 11 visible factors, so visible factor i maps to rawValues[i + 1].
-        host.addSectionLabel("PARAMETRII ORACLE • VALORI")
-        val oracleGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-        val visibleFactors = OracleAnalysisEngine.factorNames.mapIndexedNotNull { i, name ->
-            name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă")
-        }
-        addMetricGrid(oracleGrid, visibleFactors)
-        host.content.addView(oracleGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
-
-        host.addSectionLabel("INDICATORI SUPLIMENTARI")
-        val extraGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-        addMetricGrid(extraGrid, listOf(
-            "RSI (14)" to fmt(r.rsi),
-            "MACD (12/26)" to metricPair(r.macd, r.macdSignal),
-            "52W HIGH / LOW" to "${moneyOrDash(r.week52High)} / ${moneyOrDash(r.week52Low)}",
-            "ATR" to "${money(r.atrValue)}  •  ${fmt(r.atrPct)}%"
-        ))
-        host.content.addView(extraGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
-
-        host.addSectionLabel("FUNDAMENTALE")
+        // ANALYSIS_PARAMETERS_V8
+        // All market-relevant values are presented in one two-column matrix:
+        // Oracle factors + supplementary technical indicators + fundamentals.
+        host.addSectionLabel("PARAMETRII BURSIERI RELEVANȚI")
+        val relevantGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         val f = r.fundamentals
-        val fundamentalsGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-        addMetricGrid(fundamentalsGrid, listOf(
-            "Sector" to (f?.sector ?: r.sector ?: "—"),
-            "Industry" to (f?.industry ?: "—"),
-            "P/E" to num2(f?.trailingPe),
-            "Fwd P/E" to num2(f?.forwardPe),
-            "P/B" to num2(f?.priceToBook),
-            "Revenue growth (YoY)" to pctFund(f?.revenueGrowth),
-            "Earnings growth" to pctFund(f?.earningsGrowth),
-            "Net margin" to pctFund(f?.profitMargin),
-            "Operating margin" to pctFund(f?.operatingMargin),
-            "ROE" to pctFund(f?.returnOnEquity),
-            "D/E" to num2(f?.debtToEquity),
-            "Current ratio" to num2(f?.currentRatio),
-            "Quick ratio" to num2(f?.quickRatio),
-            "Beta" to num2(f?.beta),
-            "Market cap" to capText(f?.marketCap)
-        ))
-        host.content.addView(fundamentalsGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
+        val relevantParameters = mutableListOf<Pair<String, String>>()
+
+        // Oracle factors: rawValues[0] is internal News; visible factors start at rawValues[1].
+        OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
+            relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
+        }
+
+        // Supplementary technical indicators.
+        relevantParameters.add("RSI (14)" to fmt(r.rsi))
+        relevantParameters.add("MACD (12/26)" to metricPair(r.macd, r.macdSignal))
+        relevantParameters.add("52W HIGH / LOW" to "${moneyOrDash(r.week52High)} / ${moneyOrDash(r.week52Low)}")
+        relevantParameters.add("ATR" to "${money(r.atrValue)}  •  ${fmt(r.atrPct)}%")
+
+        // Fundamentals — kept in the same matrix, not in a separate section.
+        relevantParameters.add("Sector" to (f?.sector ?: r.sector ?: "—"))
+        relevantParameters.add("Industry" to (f?.industry ?: "—"))
+        relevantParameters.add("P/E" to num2(f?.trailingPe))
+        relevantParameters.add("Fwd P/E" to num2(f?.forwardPe))
+        relevantParameters.add("P/B" to num2(f?.priceToBook))
+        relevantParameters.add("Revenue growth (YoY)" to pctFund(f?.revenueGrowth))
+        relevantParameters.add("Earnings growth" to pctFund(f?.earningsGrowth))
+        relevantParameters.add("Net margin" to pctFund(f?.profitMargin))
+        relevantParameters.add("Operating margin" to pctFund(f?.operatingMargin))
+        relevantParameters.add("ROE" to pctFund(f?.returnOnEquity))
+        relevantParameters.add("D/E" to num2(f?.debtToEquity))
+        relevantParameters.add("Current ratio" to num2(f?.currentRatio))
+        relevantParameters.add("Quick ratio" to num2(f?.quickRatio))
+        relevantParameters.add("Beta" to num2(f?.beta))
+        relevantParameters.add("Market cap" to capText(f?.marketCap))
+
+        addMetricGrid(relevantGrid, relevantParameters)
+        host.content.addView(relevantGrid, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(10))
+        })
 
         host.addSectionLabel("ANALIZĂ ORACLE")
         val card = LinearLayout(host.root.context).apply {
@@ -285,7 +283,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
 
 // BUILD_VERSION_BOTTOM_V1
 host.content.addView(TextView(host.root.context).apply {
-    text = "ORACLE • V6g-FINAL-B512"
+    text = "ORACLE • V6g-FINAL-B513"
     textSize = 10f
     typeface = Typeface.DEFAULT_BOLD
     letterSpacing = .08f
