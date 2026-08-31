@@ -19,30 +19,40 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           s = p.read_text(encoding='utf-8')
-          old = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            if (n.equals("News", true)) return@forEachIndexed
-            val row = LinearLayout(host.root.context).apply {'''
-          new = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            val row = LinearLayout(host.root.context).apply {'''
-          if old not in s:
-              raise SystemExit('factor loop anchor not found')
-          s = s.replace(old, new, 1)
 
-          old = '''            row.addView(TextView(host.root.context).apply {
-                text = n
-                textSize = 14f
-                setTextColor(Color.rgb(215, 222, 235))
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+          # Use the sector resolved by OracleAnalysisEngine.
+          s, n = re.subn(
+              r'text = "\$\{companyName\(r\.ticker\)\}   •   Sector: \$\{sector\(r\.ticker\)\}"',
+              'text = "${companyName(r.ticker)}   •   Sector: ${r.sector ?: "Sector indisponibil"}"',
+              s,
+              count=1,
+          )
+          if n != 1:
+              raise SystemExit(f'sector display replacement count={n}')
+
+          # Replace the complete Analysis parameter loop with the raw-value view.
+          start = s.find('        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->')
+          end_marker = '        host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })'
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Analysis parameter block anchors not found')
+          end += len(end_marker)
+
+          new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
+            val row = LinearLayout(host.root.context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(host.dp(14), host.dp(10), host.dp(12), host.dp(10))
+                background = GradientDrawable().apply {
+                    setColor(if (i % 2 == 0) Color.rgb(7, 12, 23) else Color.rgb(10, 16, 29))
+                    cornerRadius = host.dp(9).toFloat()
+                }
+            }
             row.addView(TextView(host.root.context).apply {
-                text = fmt(r.factors[i])
-                textSize = 15f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE)
-                gravity = Gravity.END
-            }, LinearLayout.LayoutParams(host.dp(72), -2))'''
-          new = '''            row.addView(TextView(host.root.context).apply {
                 text = n
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
@@ -53,22 +63,26 @@ jobs:
                 textSize = 12.5f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.END
-            }, LinearLayout.LayoutParams(0, -2, .68f))'''
-          if old not in s:
-              raise SystemExit('value row anchor not found')
-          s = s.replace(old, new, 1)
+            }, LinearLayout.LayoutParams(0, -2, .68f))
+            grid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(3)) })
+        }
+        host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })'''
 
-          old = '''            text = "${companyName(r.ticker)}   •   Sector: ${sector(r.ticker)}"'''
-          new = '''            text = "${r.company ?: companyName(r.ticker)}   •   Sector: ${r.sector ?: "Sector indisponibil"}"'''
-          if old not in s:
-              raise SystemExit('sector display anchor not found')
-          s = s.replace(old, new, 1)
+          s = s[:start] + new_block + s[end:]
 
-          marker = '// ANALYSIS_RAW_VALUES_V1'
+          marker = '// ANALYSIS_RAW_VALUES_V2'
           if marker not in s:
               s = s.replace('class OracleSimpleModule(', marker + '\n\nclass OracleSimpleModule(', 1)
+
           p.write_text(s, encoding='utf-8')
+          print('Analysis raw-value UI patch applied successfully')
           PY
+
+      - name: Verify source patch
+        run: |
+          grep -q 'r.rawValues.getOrNull(i)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'r.sector ?: "Sector indisponibil"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          ! grep -q 'text = fmt(r.factors\[i\])' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
 
       - name: Commit source fix
         run: |
