@@ -103,6 +103,21 @@ When a new version regresses a previously working screen:
 - Migration version is incremented so an already-installed app repairs the bad Saturday anchor exactly once.
 - Regression check: after migration, repeatedly open/refresh Growth on Saturday/Sunday and verify that SNPS/VEEV/CRM, their score/forecast/risk/allocation and the `28.08.2026 16:00` anchor remain unchanged.
 
+## Rule 015 — Analysis must show raw values, not Oracle scores
+- News is hidden from the Analysis parameter list; it remains an internal Growth factor only.
+- Analysis must display the real/raw value for every visible parameter.
+- ADX must display `ADX(14) <value>` only; never append an Oracle score.
+- Risk / Reward must display `ATR <value>` only; never append an Oracle R/R score.
+- Fundamentals must display real company fundamentals and must never display a Fundamentals/Oracle score.
+- Missing source data remains missing; do not replace it with a fabricated Oracle score or zero.
+
+## Rule 016 — Fundamentals market cap must have a real share-count fallback
+- Symptom: Build 462 displayed real fundamentals for APLD but `Market cap=—` even though current price and company share count were available.
+- Root cause: the Yahoo quote/quoteSummary response did not always expose `marketCap` directly, while `sharesOutstanding` and current price were available.
+- Required behavior: when `marketCap` is absent, calculate it from `sharesOutstanding × current price` using the same live source. Do not substitute an Oracle score or hard-coded ticker value.
+- Trailing/forward P/E may legitimately remain `—` when the source reports them unavailable; for APLD Yahoo currently reports both as unavailable because the company is not profitable.
+- Regression check: APLD at `$25.34` must show a real market cap around `$7.39B`, not `—`; sector must remain the resolved `Information Technology` classification.
+
 ## Current recovery
 - Restored `OracleNativeModule.kt` from `88b5df7`.
 - Recovery commit: `1e8e703d27148ef9d0cf560fc62ac22fbd220919`.
