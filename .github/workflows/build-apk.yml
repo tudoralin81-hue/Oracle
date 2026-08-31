@@ -30,6 +30,68 @@ jobs:
             git commit -m 'Fix Analysis raw values and resolved sector display'
             git push
           fi
+      - name: Apply Analysis fundamentals market-cap fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
+          s = p.read_text(encoding='utf-8')
+
+          old_summary = '''        OracleFundamentals(
+            sector,industry,
+            num(sd,"trailingPE")?:num(ks,"trailingPE"),
+            num(sd,"forwardPE")?:num(ks,"forwardPE"),
+            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            num(sd,"marketCap")?:num(price,"marketCap"), ""
+        )'''
+          new_summary = '''        val marketCap = num(sd,"marketCap") ?: num(price,"marketCap") ?: run {
+            val shares = num(ks,"sharesOutstanding") ?: num(ks,"impliedSharesOutstanding")
+            val px = num(price,"regularMarketPrice") ?: num(price,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
+        OracleFundamentals(
+            sector,industry,
+            num(sd,"trailingPE")?:num(ks,"trailingPE"),
+            num(sd,"forwardPE")?:num(ks,"forwardPE"),
+            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            marketCap, ""
+        )'''
+          if old_summary in s:
+              s = s.replace(old_summary, new_summary, 1)
+
+          old_quote = '''        OracleFundamentals(
+            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,num(q,"marketCap"),""
+        )'''
+          new_quote = '''        val marketCap = num(q,"marketCap") ?: run {
+            val shares = num(q,"sharesOutstanding") ?: num(q,"impliedSharesOutstanding")
+            val px = num(q,"regularMarketPrice") ?: num(q,"regularMarketPreviousClose")
+            if (shares != null && px != null) shares * px else null
+        }
+        OracleFundamentals(
+            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""
+        )'''
+          if old_quote in s:
+              s = s.replace(old_quote, new_quote, 1)
+
+          if 'sharesOutstanding' not in s or 'regularMarketPrice' not in s:
+              raise SystemExit('Fundamentals market-cap fallback patch was not applied')
+          p.write_text(s, encoding='utf-8')
+          print('Analysis fundamentals market-cap fallback applied')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix Analysis real market-cap fallback'
+            git push
+          fi
       - name: Verify permanent Growth source fix
         shell: bash
         run: |
