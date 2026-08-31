@@ -1,0 +1,80 @@
+name: Fix Analysis real values
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-analysis-real-values.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Replace Analysis score display with raw values
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
+            if (n.equals("News", true)) return@forEachIndexed
+            val row = LinearLayout(host.root.context).apply {'''
+          new = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
+            val row = LinearLayout(host.root.context).apply {'''
+          if old not in s:
+              raise SystemExit('factor loop anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            row.addView(TextView(host.root.context).apply {
+                text = n
+                textSize = 14f
+                setTextColor(Color.rgb(215, 222, 235))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(TextView(host.root.context).apply {
+                text = fmt(r.factors[i])
+                textSize = 15f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                gravity = Gravity.END
+            }, LinearLayout.LayoutParams(host.dp(72), -2))'''
+          new = '''            row.addView(TextView(host.root.context).apply {
+                text = n
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.rgb(215, 222, 235))
+            }, LinearLayout.LayoutParams(0, -2, .32f))
+            row.addView(TextView(host.root.context).apply {
+                text = r.rawValues.getOrNull(i) ?: "Valoare indisponibilă"
+                textSize = 12.5f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.END
+            }, LinearLayout.LayoutParams(0, -2, .68f))'''
+          if old not in s:
+              raise SystemExit('value row anchor not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            text = "${companyName(r.ticker)}   •   Sector: ${sector(r.ticker)}"'''
+          new = '''            text = "${r.company ?: companyName(r.ticker)}   •   Sector: ${r.sector ?: "Sector indisponibil"}"'''
+          if old not in s:
+              raise SystemExit('sector display anchor not found')
+          s = s.replace(old, new, 1)
+
+          marker = '// ANALYSIS_RAW_VALUES_V1'
+          if marker not in s:
+              s = s.replace('class OracleSimpleModule(', marker + '\n\nclass OracleSimpleModule(', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit source fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix Analysis raw values and sector display'
+          git push
