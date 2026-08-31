@@ -341,32 +341,9 @@ host.content.addView(TextView(host.root.context).apply {
                 if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
                 else setMargins(0, 0, host.dp(4), 0)
             })
-
-            // Keep every pair in the matrix aligned to the tallest card in that row.
-            if (index % 2 == 1) {
-                row?.post {
-                    val rv = row ?: return@post
-                    var maxHeight = 0
-                    for (j in 0 until rv.childCount) {
-                        maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
-                    }
-                    if (maxHeight > 0) {
-                        for (j in 0 until rv.childCount) {
-                            val child = rv.getChildAt(j)
-                            val lp = child.layoutParams
-                            if (lp.height != maxHeight) {
-                                lp.height = maxHeight
-                                child.layoutParams = lp
-                            }
-                        }
-                        rv.requestLayout()
-                    }
-                }
-            }
         }
 
-        // Re-run after the whole grid has been measured so multiline Fundamentals
-        // cards cannot clip or leave their partner shorter.
+        // Equalize each row after Android has measured multiline content.
         container.post {
             for (i in 0 until container.childCount) {
                 val rv = container.getChildAt(i) as? LinearLayout ?: continue
