@@ -61,7 +61,7 @@ object OracleMarketCalendar {
     private fun nthWeekday(year: Int, month: Month, day: DayOfWeek, n: Int): LocalDate =
         LocalDate.of(year, month, 1).with(TemporalAdjusters.dayOfWeekInMonth(n, day))
 
-    private fun lastWeekday(year: Int, month: Month, day: DayOfWeek, ): LocalDate =
+    private fun lastWeekday(year: Int, month: Month, day: DayOfWeek): LocalDate =
         LocalDate.of(year, month, 1).with(TemporalAdjusters.lastInMonth(day))
 
     private fun easterSunday(year: Int): LocalDate {
