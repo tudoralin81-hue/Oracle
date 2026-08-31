@@ -40,7 +40,7 @@ class OracleNativeModule(
         if (title.equals("GROWTH", true)) {
             val status = OracleMarketCalendar.status()
             fixedToolbar.addView(TextView(context).apply {
-                text = status.label
+                text = if (status.open) "☀  ${status.label}" else "☾  ${status.label}"
                 textSize = 11f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = .06f
