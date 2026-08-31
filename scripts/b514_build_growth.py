@@ -4,6 +4,7 @@ import shutil
 
 # B514 FINAL APK #80: this script is Growth-only.
 # Analysis is patched explicitly by the single approved workflow before this script runs.
+# VALIDATION_GATE_V2
 ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
 MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
