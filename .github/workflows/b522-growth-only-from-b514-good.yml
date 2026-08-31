@@ -45,64 +45,30 @@ jobs:
           gradle = Path('app/build.gradle')
 
           s = main.read_text(encoding='utf-8')
-          old = '''    private fun openModule(key:String){
-        currentModule=key
-        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        if (key == "analysis") return
-'''
-          new = '''    private fun openModule(key:String){
-        currentModule=key
-        if (key != "growth") {
-            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        }
-        if (key == "analysis") return
-'''
+          old = '    private fun openModule(key:String){\\n        currentModule=key\\n        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}\\n        if (key == "analysis") return\\n'
+          new = '    private fun openModule(key:String){\\n        currentModule=key\\n        if (key != "growth") {\\n            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}\\n        }\\n        if (key == "analysis") return\\n'
           if old not in s: raise SystemExit('MainActivity openModule baseline not found')
           main.write_text(s.replace(old,new,1), encoding='utf-8')
 
           s = live.read_text(encoding='utf-8')
-          start = s.index('    fun refresh(')
-          end = s.index('\n    private fun currentGrowthAnchor', start)
-          s = s[:start] + '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-        if (items.isEmpty()) return emptyList()
-        return items.filter { it.referenceTimestamp > 0L }
-    }
-''' + s[s.index('\n}', end):]
-          live.write_text(s, encoding='utf-8')
+          old = '    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {\\n        if (items.isEmpty()) return emptyList()\\n        if (items.any { it.referenceTimestamp <= 0L }) return emptyList()\\n        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())\\n        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()\\n        return items\\n    }\\n\\n    private fun currentGrowthAnchor(nowMillis: Long): Long {\\n        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)\\n        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()\\n        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)\\n        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()\\n    }'
+          new = '    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {\\n        if (items.isEmpty()) return emptyList()\\n        return items.filter { it.referenceTimestamp > 0L }\\n    }'
+          if old not in s: raise SystemExit('GrowthLiveData snapshot gate not found')
+          live.write_text(s.replace(old,new,1), encoding='utf-8')
 
           s = growth.read_text(encoding='utf-8')
-          old = '''        if (items.isEmpty()) {
-            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
-            return
-        }'''
-          new = '''        if (items.isEmpty()) {
-            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
-            addBuildFooter()
-            return
-        }'''
+          old = '        if (items.isEmpty()) {\\n            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")\\n            return\\n        }'
+          new = '        if (items.isEmpty()) {\\n            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")\\n            addBuildFooter()\\n            return\\n        }'
           if old not in s: raise SystemExit('Growth empty-state anchor not found')
           s = s.replace(old,new,1)
-          old = '''        addNews(ordered, fallbackNews)
-        addHistory(items)
-    }
-'''
-          new = '''        addNews(ordered, fallbackNews)
-        addHistory(items)
-        addBuildFooter()
-    }
-
-    private fun addBuildFooter() {
-        host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
-            setMargins(0, 0, 0, host.dp(18))
-        })
-    }
-'''
+          old = '        addNews(ordered, fallbackNews)\\n        addHistory(items)\\n    }\\n'
+          new = '        addNews(ordered, fallbackNews)\\n        addHistory(items)\\n        addBuildFooter()\\n    }\\n\\n    private fun addBuildFooter() {\\n        host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {\\n            setMargins(0, 0, 0, host.dp(18))\\n        })\\n    }\\n'
           if old not in s: raise SystemExit('Growth footer insertion point not found')
           growth.write_text(s.replace(old,new,1), encoding='utf-8')
 
           s = gradle.read_text(encoding='utf-8')
-          s = re.sub(r'versionCode\s+\d+', 'versionCode 35', s, count=1)
-          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
+          s = re.sub(r'versionCode\\s+\\d+', 'versionCode 35', s, count=1)
+          s = re.sub(r"versionName\\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
           gradle.write_text(s, encoding='utf-8')
           PY
           git diff --check
