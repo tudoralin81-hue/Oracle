@@ -14,7 +14,6 @@ grid = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pai
                 row = LinearLayout(host.root.context).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.FILL_VERTICAL
-                    baselineAligned = false
                 }
                 container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
                     setMargins(0, 0, 0, host.dp(6))
