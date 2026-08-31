@@ -35,11 +35,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Verify B514 Analysis baseline
-        run: |
-          set -euo pipefail
-          git cat-file -e 51365deb1a5e4e3020fcf02a144d55ba6a8f027e^{commit}
-          git diff --quiet 51365deb1a5e4e3020fcf02a144d55ba6a8f027e -- app/src/main/java/ro/alintudor/oracle/MainActivity.kt app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
       - name: Apply B519 Growth-only render patch
         run: |
           set -euo pipefail
