@@ -1,8 +1,6 @@
 name: Repair Analysis 498
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -13,44 +11,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply permanent Analysis 498 repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/repair_analysis_498.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/build.gradle app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          if ! git diff --cached --quiet; then
-            git commit -m 'Repair Analysis values and visible Build 498'
-            git push
-          else
-            echo 'Analysis 498 repair already applied.'
-          fi
-      - name: Verify repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q 'BUILD 498' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
-          grep -q "versionName 'V6g-KNOWLEDGE-B498'" app/build.gradle
-          grep -q 'isFinite() && it > 0.0' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
-          grep -q 'l.startsWith("REVENUE GROWTH")' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          echo 'Analysis 498 repair verified.'
-      - name: Build APK 498
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleRelease
-      - name: Package installable APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          cp app/build/outputs/apk/release/*.apk dist/Oracle-APK-B498.apk
-      - name: Upload APK 498
-        uses: actions/upload-artifact@v4
-        with:
-          name: Oracle-APK-B498-installable
-          path: dist/Oracle-APK-B498.apk
-          retention-days: 30
+      - name: Legacy workflow notice
+        run: echo 'Build 498 is superseded by B510; this workflow is manual-only.'
