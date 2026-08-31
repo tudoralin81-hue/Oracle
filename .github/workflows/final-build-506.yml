@@ -1,4 +1,4 @@
-name: Oracle APK B507 FINAL
+name: Oracle APK B508 FINAL
 on:
   workflow_dispatch:
   push:
@@ -25,27 +25,84 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Prepare production signing key
+      - name: Apply B508 Analysis UI polish
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
-            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
-            {
-              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
-            } >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = src.read_text(encoding='utf-8')
+
+          old = 'row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {'
+          new = 'row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {'
+          if old not in s:
+              if 'row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {' not in s:
+                  raise SystemExit('Expected metric-card layout line not found')
+          else:
+              s = s.replace(old, new, 1)
+
+          s = s.replace('Color.rgb(255, 193, 7)', 'Color.rgb(228, 178, 28)')
+          s = s.replace('Color.rgb(255, 193, 54)', 'Color.rgb(228, 178, 28)')
+
+          needle = 'host.content.addView(w, LinearLayout.LayoutParams(-1, host.dp(50)).apply { setMargins(0, 0, 0, host.dp(16)) })'
+          marker = '// BUILD_VERSION_BOTTOM_V1'
+          if marker not in s:
+              if needle not in s:
+                  raise SystemExit('Expected Analysis bottom/watchlist anchor not found')
+              insert = '''host.content.addView(w, LinearLayout.LayoutParams(-1, host.dp(50)).apply { setMargins(0, 0, 0, host.dp(16)) })
+
+          // BUILD_VERSION_BOTTOM_V1
+          host.content.addView(TextView(host.root.context).apply {
+              text = "ORACLE • V6g-FINAL-B508"
+              textSize = 10f
+              typeface = Typeface.DEFAULT_BOLD
+              letterSpacing = .08f
+              gravity = Gravity.CENTER
+              setTextColor(Color.rgb(110, 120, 140))
+              setPadding(0, host.dp(6), 0, host.dp(18))
+          }, LinearLayout.LayoutParams(-1, -2))'''
+              s = s.replace(needle, insert, 1)
+
+          src.write_text(s, encoding='utf-8')
+
+          gradle = Path('app/build.gradle')
+          g = gradle.read_text(encoding='utf-8')
+          g = g.replace("versionName 'V6g-FINAL-B507'", "versionName 'V6g-FINAL-B508'")
+          if "versionName 'V6g-FINAL-B508'" not in g:
+              raise SystemExit('Version name update failed')
+          gradle.write_text(g, encoding='utf-8')
+          PY
+          grep -q "versionCode 23" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B508'" app/build.gradle
+          grep -q 'host.dp(104)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'BUILD_VERSION_BOTTOM_V1' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'Color.rgb(228, 178, 28)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+      - name: Commit B508 UI changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if git diff --cached --quiet; then
+            echo "B508 UI changes already present"
+          else
+            git commit -m "B508: equalize Analysis cards and soften yellow text"
+            git push origin HEAD:main
           fi
-      - name: Verify authoritative Analysis mapping
+      - name: Verify authoritative Analysis mapping and UI
         shell: bash
         run: |
           set -euo pipefail
           grep -q "versionCode 23" app/build.gradle
-          grep -q "versionName 'V6g-FINAL-B507'" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B508'" app/build.gradle
           grep -q 'name to (r.rawValues.getOrNull(i + 1)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           ! grep -q 'name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'host.dp(104)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'BUILD_VERSION_BOTTOM_V1' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'Color.rgb(228, 178, 28)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'val factorKeys = listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")' app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt
           grep -q 'val factorNames = listOf("Breakout","Trend","Momentum","Volume","Support / Resistance","Fundamentals","Bollinger","Ichimoku","Market / Sector","Risk / Reward","ADX")' app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt
           git diff --check
@@ -59,9 +116,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-      - name: Upload B507 FINAL installable APK
+      - name: Upload B508 FINAL installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B507-FINAL-installable
+          name: Oracle-APK-B508-FINAL-installable
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
