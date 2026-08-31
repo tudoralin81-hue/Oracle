@@ -31,11 +31,12 @@ jobs:
       - name: Verify exact B514 base
         run: test "$(git rev-parse HEAD)" = "e1195536704f375f6a44f1ae5985bc464671ec0b"
 
-      - name: Import current Growth implementation only
+      - name: Import current Growth implementation and B514 build script only
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
           git checkout origin/main -- \
+            scripts/b514_build_growth.py \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt \
