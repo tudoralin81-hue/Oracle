@@ -215,7 +215,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
             "P/E" to num2(f?.trailingPe),
             "Fwd P/E" to num2(f?.forwardPe),
             "P/B" to num2(f?.priceToBook),
-            "Revenue growth" to pctFund(f?.revenueGrowth),
+            "Revenue growth (YoY)" to pctFund(f?.revenueGrowth),
             "Earnings growth" to pctFund(f?.earningsGrowth),
             "Net margin" to pctFund(f?.profitMargin),
             "Operating margin" to pctFund(f?.operatingMargin),

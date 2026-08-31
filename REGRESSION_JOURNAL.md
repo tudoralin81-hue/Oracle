@@ -128,3 +128,10 @@ When a new version regresses a previously working screen:
 - Latest Growth refresh adds a separate live OHLCV enrichment layer without altering the restored visual shell or inventing score/forecast/weight formulas.
 - Latest Growth freeze fix is isolated to `OracleLocalProcessor.kt`: the engine now recomputes Growth only when the 16:00 trading-day snapshot anchor changes.
 - Latest weekend-anchor repair is isolated to `OracleBootstrap.kt` V8: the canonical 29.08.2026 weekend view is pinned to Friday 28.08.2026 16:00.
+
+## Build 492 — Analysis values/build identification
+
+- Analysis fundamentals remain raw provider values; no Growth weighting is displayed as a fundamental value.
+- APLD revenue growth is explicitly labeled YoY; the observed 406.60% value matches the latest reported quarter growth.
+- Shared module header displays the exact build number (`BUILD 492`).
+- Growth engine, frozen 12-factor weights and Growth scoring are not modified by this repair.
