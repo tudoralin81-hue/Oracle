@@ -1,4 +1,4 @@
-name: Oracle B514 FINAL APK
+name: Oracle B517 Growth FINAL APK
 
 'on':
   push:
@@ -29,13 +29,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Verify B514 source
+      - name: Apply Growth-only fix
         run: |
           set -euo pipefail
-          grep -q "versionCode 29" app/build.gradle
-          grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
+          python3 scripts/fix_growth_stale_and_build_footer.py
+          git diff --check
+      - name: Verify Growth-only source
+        run: |
+          set -euo pipefail
+          grep -q "V6g-FINAL-B517" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "Never render a stale trading-day snapshot" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "Growth must never flash the previous trading-day recommendations" app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           grep -q "OracleMarketCalendar" app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
-          grep -q "BURSA ESTE ÎNCHISĂ" app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
           git diff --check
       - name: Prepare production signing key
         run: |
@@ -58,9 +63,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-      - name: Upload B514 FINAL APK
+      - name: Upload B517 FINAL APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B514-FINAL-installable
+          name: Oracle-APK-B517-GrowthFix-installable
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
