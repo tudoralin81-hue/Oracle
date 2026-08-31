@@ -191,7 +191,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         host.addSectionLabel("PARAMETRII ORACLE • VALORI")
         val oracleGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         val visibleFactors = OracleAnalysisEngine.factorNames.mapIndexedNotNull { i, name ->
-            name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")
+            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")
         }
         addMetricGrid(oracleGrid, visibleFactors)
         host.content.addView(oracleGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
