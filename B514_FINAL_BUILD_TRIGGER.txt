@@ -1,1 +1,1 @@
-B514 FINAL APK #79 — execute exactly one final APK build
+B514 FINAL APK #79 — final trigger after baseline hash correction

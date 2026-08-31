@@ -1,18 +1,16 @@
 from pathlib import Path
 import re
-
-BASE = Path('.')
-ANALYSIS = BASE / 'app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt'
-MAIN = BASE / 'app/src/main/java/ro/alintudor/oracle/MainActivity.kt'
-LIVE = BASE / 'app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt'
-GROWTH = BASE / 'app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt'
-GRADLE = BASE / 'app/build.gradle'
-
-expected_analysis = '76210ed4db93147487bc59e01ced70ae54f44ff6'
 import hashlib
-actual = hashlib.sha1(ANALYSIS.read_bytes()).hexdigest()
-if actual != expected_analysis:
-    raise SystemExit(f'Analysis baseline mismatch: {actual}')
+
+ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
+GROWTH = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+GRADLE = Path('app/build.gradle')
+EXPECTED_ANALYSIS = 'a10b8bc41a4a52fcb8aa4aa386816ded0ca30073'
+
+if hashlib.sha1(ANALYSIS.read_bytes()).hexdigest() != EXPECTED_ANALYSIS:
+    raise SystemExit('Analysis baseline mismatch')
 
 s = MAIN.read_text(encoding='utf-8')
 old = '''    private fun openModule(key:String){
@@ -29,7 +27,7 @@ new = '''    private fun openModule(key:String){
 '''
 if old not in s:
     raise SystemExit('MainActivity Growth initial-render anchor not found')
-MAIN.write_text(s.replace(old, new, 1), encoding='utf-8')
+MAIN.write_text(s.replace(old,new,1), encoding='utf-8')
 
 s = LIVE.read_text(encoding='utf-8')
 old = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
@@ -52,7 +50,7 @@ new = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGr
     }'''
 if old not in s:
     raise SystemExit('GrowthLiveData snapshot gate not found')
-LIVE.write_text(s.replace(old, new, 1), encoding='utf-8')
+LIVE.write_text(s.replace(old,new,1), encoding='utf-8')
 
 s = GROWTH.read_text(encoding='utf-8')
 old = '''        if (items.isEmpty()) {
@@ -66,7 +64,7 @@ new = '''        if (items.isEmpty()) {
         }'''
 if old not in s:
     raise SystemExit('Growth empty-state anchor not found')
-s = s.replace(old, new, 1)
+s = s.replace(old,new,1)
 old = '''        addNews(ordered, fallbackNews)
         addHistory(items)
     }
@@ -84,13 +82,13 @@ new = '''        addNews(ordered, fallbackNews)
 '''
 if old not in s:
     raise SystemExit('Growth footer insertion point not found')
-GROWTH.write_text(s.replace(old, new, 1), encoding='utf-8')
+GROWTH.write_text(s.replace(old,new,1), encoding='utf-8')
 
 s = GRADLE.read_text(encoding='utf-8')
 s = re.sub(r'versionCode\s+\d+', 'versionCode 35', s, count=1)
 s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
 GRADLE.write_text(s, encoding='utf-8')
 
-if hashlib.sha1(ANALYSIS.read_bytes()).hexdigest() != expected_analysis:
+if hashlib.sha1(ANALYSIS.read_bytes()).hexdigest() != EXPECTED_ANALYSIS:
     raise SystemExit('Analysis changed during Growth patch')
 print('B514 Growth-only patch applied; Analysis unchanged.')

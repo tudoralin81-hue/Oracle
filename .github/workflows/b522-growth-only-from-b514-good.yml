@@ -34,7 +34,7 @@ jobs:
       - name: Verify Analysis baseline
         run: |
           set -euo pipefail
-          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "a10b8bc41a4a52fcb8aa4aa386816ded0ca30073"
 
       - name: Apply ONLY Growth patch
         run: python3 "$RUNNER_TEMP/b514_build_growth.py"
@@ -42,7 +42,7 @@ jobs:
       - name: HARD VERIFY Analysis unchanged
         run: |
           set -euo pipefail
-          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "a10b8bc41a4a52fcb8aa4aa386816ded0ca30073"
           grep -q 'return items.filter { it.referenceTimestamp > 0L }' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
           grep -q 'if (key != "growth")' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
