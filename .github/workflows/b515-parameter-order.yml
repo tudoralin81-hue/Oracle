@@ -1,6 +1,8 @@
 name: Oracle B515 Parameter Order
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 permissions:
   contents: write
 jobs:
@@ -19,7 +21,6 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           s = p.read_text(encoding='utf-8')
-
           old = '''        // Oracle factors: rawValues[0] is internal News; visible factors start at rawValues[1].
           OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
               if (!name.equals("Fundamentals", ignoreCase = true)) {
@@ -63,17 +64,13 @@ jobs:
           if old not in s:
               raise SystemExit('Expected B514 factor block not found')
           s = s.replace(old, new, 1)
-
-          # Supplementary cards already belong immediately after the Oracle technical factors.
           s = s.replace('ORACLE • V6g-FINAL-B514', 'ORACLE • V6g-FINAL-B515')
           p.write_text(s, encoding='utf-8')
-
           gpath = Path('app/build.gradle')
           g = gpath.read_text(encoding='utf-8')
           g = g.replace('versionCode 25', 'versionCode 26')
           g = g.replace("versionName 'V6g-FINAL-B514'", "versionName 'V6g-FINAL-B515'")
           gpath.write_text(g, encoding='utf-8')
-
           assert 'val factorOrder = listOf(' in s
           assert '"Trend"' in s and '"Momentum"' in s and '"Support / Resistance"' in s
           assert 'ORACLE • V6g-FINAL-B515' in s
