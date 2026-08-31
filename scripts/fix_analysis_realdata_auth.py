@@ -1,10 +1,9 @@
 from pathlib import Path
 
-# ANALYSIS_REALDATA_AUTH_V1
+# ANALYSIS_REALDATA_AUTH_V2
 # Yahoo quoteSummary is crumb/cookie protected. The app previously called it
-# without the required session handshake, so the code silently fell back to
-# stale/calculated fundamentals. This patch adds the real Yahoo session
-# handshake and makes quoteSummary the authoritative source for raw values.
+# without the required session handshake, so it silently fell back to stale or
+# calculated fundamentals. This patch adds the real Yahoo session handshake.
 
 p = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
 s = p.read_text(encoding='utf-8')
@@ -13,37 +12,19 @@ marker = 'object OracleRealData {'
 if marker not in s:
     raise SystemExit('OracleRealData object anchor missing')
 
-if 'ANALYSIS_REALDATA_AUTH_V1' not in s:
-    s = s.replace(marker, marker + '\n    // ANALYSIS_REALDATA_AUTH_V1', 1)
-
-old = '''        val summary= listOf(
-            "https://query2.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules&formatted=false&lang=en-US&region=US",
-            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/$symbol?modules=$modules&formatted=false&lang=en-US&region=US"
-        ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
-            .mapNotNull { parseQuoteSummary(it,symbol) }.firstOrNull()
-'''
-new = '''        val summary=runCatching { yahooQuoteSummary(symbol,modules) }
-            .mapNotNull { parseQuoteSummary(it,symbol) }.getOrNull()
-'''
+old = '''        val summary=runCatching { yahooQuoteSummary(symbol,modules) }\n            .mapNotNull { parseQuoteSummary(it,symbol) }.getOrNull()'''
+new = '''        val summary=runCatching { yahooQuoteSummary(symbol,modules) }\n            .map { parseQuoteSummary(it,symbol) }.getOrNull()'''
 if old in s:
     s = s.replace(old, new, 1)
 
-# Replace the quote fallback with a crumb-authenticated quote request too.
-old_quote = '''        val quote= listOf(
-            "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$symbol",
-            "https://query2.finance.yahoo.com/v7/finance/quote?symbols=$symbol"
-        ).mapNotNull { url -> runCatching { getJson(url) }.getOrNull() }
-            .mapNotNull { parseQuoteFallback(it,symbol) }.firstOrNull()
-'''
-new_quote = '''        val quote=runCatching { yahooQuote(symbol) }
-            .mapNotNull { parseQuoteFallback(it,symbol) }.getOrNull()
-'''
+old_quote = '''        val quote=runCatching { yahooQuote(symbol) }\n            .mapNotNull { parseQuoteFallback(it,symbol) }.getOrNull()'''
+new_quote = '''        val quote=runCatching { yahooQuote(symbol) }\n            .map { parseQuoteFallback(it,symbol) }.getOrNull()'''
 if old_quote in s:
     s = s.replace(old_quote, new_quote, 1)
 
-# Add the Yahoo session helpers immediately before the timeseries fetch.
-anchor = '    private fun fetchTimeseries(symbol:String):JSONObject {'
+# The Yahoo session helper block is already inserted by V1; keep the patch idempotent.
 if 'private fun yahooQuoteSummary(' not in s:
+    anchor = '    private fun fetchTimeseries(symbol:String):JSONObject {'
     idx = s.find(anchor)
     if idx < 0:
         raise SystemExit('Timeseries anchor missing')
