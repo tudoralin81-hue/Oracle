@@ -1,19 +1,35 @@
 package ro.alintudor.oracle.core
 
+import java.time.Instant
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
 /**
  * Growth is a historical 16:00 snapshot.
  *
- * Live market data must never mutate the persisted Growth state while the module
- * is open or while another module performs a local refresh. This adapter therefore
- * performs validation only; it does not enrich, recalculate, reseed, or repair the
- * visible recommendation cards.
+ * The UI may call refresh more than once while the snapshot is being loaded.
+ * Never suppress the first valid result: the previous B518 implementation used
+ * a first-render gate that discarded the only loaded snapshot on a fresh screen.
+ *
+ * Live market data must not mutate the persisted Growth state. This adapter only
+ * validates that the snapshot belongs to the current Growth anchor.
  */
 object OracleGrowthLiveData {
+    private val BUCHAREST = ZoneId.of("Europe/Bucharest")
+
     fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
         if (items.isEmpty()) return emptyList()
-        // Invalidated bootstrap snapshots use referenceTimestamp=0. Do not expose
-        // a transient seed to the UI while a snapshot is being generated.
         if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
+        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
+        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
         return items
+    }
+
+    private fun currentGrowthAnchor(nowMillis: Long): Long {
+        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
+        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
+        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
+        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
     }
 }
