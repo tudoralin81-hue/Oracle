@@ -40,7 +40,7 @@ jobs:
           grep -q "V6g-FINAL-B518" app/build.gradle
           grep -q "V6g-FINAL-B518" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "Never render a stale trading-day snapshot" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q "Growth must never flash the previous trading-day recommendations" app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          grep -q "addBuildFooter" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "Europe/Bucharest" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "OracleMarketCalendar" app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
           git diff --check
