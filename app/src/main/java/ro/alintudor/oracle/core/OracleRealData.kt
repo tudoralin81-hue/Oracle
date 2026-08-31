@@ -45,13 +45,13 @@ object OracleRealData {
         val industry=summary?.industry ?: ts?.industry ?: quote?.industry ?: knownIndustry(symbol)
         val pe=(summary?.trailingPe ?: quote?.trailingPe ?: ts?.trailingPe)?.takeIf { it.isFinite() && it > 0.0 }
         val fpe=listOf(summary?.forwardPe, quote?.forwardPe, ts?.forwardPe).firstOrNull { it != null && it.isFinite() && it > 0.0 }
-        val rg=summary?.revenueGrowth ?: ts?.revenueGrowth
+        val rg=ts?.revenueGrowth ?: summary?.revenueGrowth
         val eg=summary?.earningsGrowth ?: ts?.earningsGrowth
         val pm=summary?.profitMargin ?: ts?.profitMargin
         val om=summary?.operatingMargin ?: ts?.operatingMargin
         val roe=summary?.returnOnEquity ?: ts?.returnOnEquity
         val de=summary?.debtToEquity ?: ts?.debtToEquity
-        val cap=ts?.marketCap ?: summary?.marketCap ?: quote?.marketCap
+        val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap
         val pb=summary?.priceToBook ?: quote?.priceToBook ?: ts?.priceToBook
         val cr=summary?.currentRatio ?: quote?.currentRatio ?: ts?.currentRatio
         val qr=summary?.quickRatio ?: quote?.quickRatio ?: ts?.quickRatio
@@ -281,7 +281,7 @@ object OracleRealData {
         "JPM","BAC","WFC","C","GS","MS","BLK","SCHW","COF","AXP","V","MA","PYPL","HOOD","COIN"->"Financials"
         "GE","CAT","DE","HON","RTX","BA","LMT","NOC","GD","ETN","EMR","UNP","UPS","FDX","RHM"->"Industrials"
         "XOM","CVX","COP","SLB","EOG","OXY","MPC","VLO","HAL","FANG"->"Energy"
-        "LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
+        "LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
         "NEE","DUK","SO","AEP","EXC","SRE","D"->"Utilities"
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
