@@ -39,21 +39,22 @@ object OracleLocalProcessor {
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
         val growthAnchor=currentGrowthAnchor(now)
 
-        // Growth snapshot is immutable inside one trading-day window.
-        // Opening Growth or pressing Refresh must not rerank/recompute the recommendation set.
-        // A new ranking is generated only after the persisted snapshot anchor is no longer current.
+        // Growth is a daily immutable snapshot. Never persist or render an older
+        // snapshot under a newer anchor. Recommendation logic itself is unchanged.
         val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
         val growth = if (snapshotIsCurrent) {
             current.growth
         } else {
-            // The persisted set belongs to an older anchor (including the legacy
-            // 28.08.2026 bootstrap seed). Generate the new snapshot now.
-            // If live generation temporarily returns no candidates, preserve the
-            // last valid snapshot rather than inventing or partially rewriting it.
             val generated = OracleGrowthEngine.run(current.growth)
-            if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
-            else if (current.growth.isNotEmpty()) current.growth
-            else applyCalculatedRiskAllocation(current.growth)
+            if (generated.isNotEmpty()) {
+                normalizeGrowthSnapshot(generated, growthAnchor)
+            } else {
+                // Critical B519 rule: an empty generation must NOT fall back to
+                // the old 28.08/previous-day snapshot. Keep Growth empty until
+                // the current anchor is actually available. Other modules are
+                // persisted exactly as before.
+                emptyList()
+            }
         }
 
         val oldAlerts=current.alerts.filter{it.active}; val generated=actions.filter{it.action=="BUY"||it.action=="SELL"}.map{OracleAlert(it.ticker,if(it.action=="SELL")"HIGH"else"INFO","${it.action} signal","Score ${"%.1f".format(it.score)} — ${it.reason}",now,true)}
