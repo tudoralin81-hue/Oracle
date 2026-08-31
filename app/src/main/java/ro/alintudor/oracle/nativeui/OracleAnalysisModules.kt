@@ -385,7 +385,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
                 val n = firstNumber()
                 when { n == null -> Color.rgb(255, 193, 7); n in 1.0..5.0 -> Color.rgb(50, 220, 135); n < 1.0 -> Color.rgb(255, 193, 7); else -> Color.rgb(244, 67, 54) }
             }
-            l == "REVENUE GROWTH" -> {
+            l.startsWith("REVENUE GROWTH") -> {
                 val n = pctNumber()
                 when { n == null -> Color.rgb(255, 193, 7); n >= 10.0 -> Color.rgb(50, 220, 135); n >= 0.0 -> Color.rgb(255, 193, 7); else -> Color.rgb(244, 67, 54) }
             }
