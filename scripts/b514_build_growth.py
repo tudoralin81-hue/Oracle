@@ -6,6 +6,7 @@ import shutil
 # Analysis is now sourced directly from current main and must remain byte-for-byte unchanged.
 # SOURCE_OF_TRUTH_MAIN_V1
 # VALIDATION_GATE_V3
+# CANONICAL_ANALYSIS_INTEGRATED
 ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
 MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
