@@ -24,7 +24,10 @@ object OracleLocalProcessor {
         }
 
     fun refresh(repository: OracleRepository): OracleModuleData {
-        OracleBootstrap.ensure(repository); val current = repository.snapshot(); val normalized = OracleAnalytics.normalize(current.positions); val now = System.currentTimeMillis()
+        OracleBootstrap.ensure(repository)
+        val current = repository.snapshot()
+        val normalized = OracleAnalytics.normalize(current.positions)
+        val now = System.currentTimeMillis()
         val recentHistory = current.history.filter { now - it.timestamp < 30L * 24L * 60L * 60L * 1000L }
         val newPoints = normalized.map { OracleHistoryPoint(it.ticker, now, it.currentPrice, it.marketValue, it.pnl) }
         val history = (recentHistory + newPoints).groupBy { "${it.ticker}:${it.timestamp}" }.values.map { it.first() }.sortedBy { it.timestamp }.takeLast(5000)
@@ -36,14 +39,19 @@ object OracleLocalProcessor {
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
         val growthAnchor=currentGrowthAnchor(now)
 
-        // Growth is a frozen daily snapshot. A new snapshot is generated only for
-        // a valid trading-day anchor that is not already persisted. Weekends and
-        // exchange holidays therefore keep the last valid trading-day snapshot.
+        // Growth snapshot is immutable inside one trading-day window.
+        // Opening Growth or pressing Refresh must not rerank/recompute the recommendation set.
+        // A new ranking is generated only after the persisted snapshot anchor is no longer current.
         val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
-        val growth=if(snapshotIsCurrent) current.growth else {
-            val generated=OracleGrowthEngine.run(current.growth)
-            if(generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
-            else if (current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp > 0L }) current.growth
+        val growth = if (snapshotIsCurrent) {
+            current.growth
+        } else if (current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp > 0L }) {
+            // Preserve the previous valid snapshot when a new anchor has not been generated.
+            // This prevents a transient/empty live-data refresh from replacing recommendations.
+            current.growth
+        } else {
+            val generated = OracleGrowthEngine.run(current.growth)
+            if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
             else applyCalculatedRiskAllocation(current.growth)
         }
 
