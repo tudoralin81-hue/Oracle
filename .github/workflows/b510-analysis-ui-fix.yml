@@ -23,7 +23,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
       - name: Install Android SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
@@ -46,27 +46,23 @@ jobs:
                   raise SystemExit('B510 could not locate metricValueColor after B509 block')
               s = s[:start] + s[end:]
 
-          # Card values must be content-sized: no fixed height and no maxLines clipping.
+          # Card values are content-sized. Never clip Fundamentals or other long values.
           s = s.replace(
               '                setPadding(0, host.dp(4), 0, 0)\n                maxLines = 4',
               '                setPadding(0, host.dp(3), 0, 0)\n                includeFontPadding = true\n                setHorizontallyScrolling(false)'
-          )
-          s = s.replace(
-              '                setPadding(0, host.dp(3), 0, 0)\n                includeFontPadding = true\n            })\n            row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {',
-              '                setPadding(0, host.dp(3), 0, 0)\n                includeFontPadding = true\n                setHorizontallyScrolling(false)\n            })\n            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {'
           )
           s = s.replace(
               'row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {',
               'row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {'
           )
 
-          # True two-column matrix: each row gets the height of its tallest card.
+          # Real matrix rows: two equal-width cards, row height determined by tallest content.
           s = s.replace(
               'row = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }',
               'row = LinearLayout(host.root.context).apply {\n                    orientation = LinearLayout.HORIZONTAL\n                    gravity = Gravity.FILL_VERTICAL\n                    setMeasureWithLargestChildEnabled(true)\n                    baselineAligned = false\n                }'
           )
 
-          # APLD must show the company name below the ticker.
+          # APLD must show the full company name below the ticker.
           if '"APLD" -> "Applied Digital Corporation"' not in s:
               anchor = '"AAOI" -> "Applied Optoelectronics, Inc."'
               if anchor in s:
