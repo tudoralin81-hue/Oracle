@@ -14,71 +14,117 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply real market-cap fallback
+        with:
+          fetch-depth: 0
+      - name: Repair Analysis 474 source
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text(encoding='utf-8')
+          old = 'if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          if old in s:
+              s = s.replace(old, 'name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")', 1)
+          p.write_text(s, encoding='utf-8')
+
           p = Path('app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt')
           s = p.read_text(encoding='utf-8')
+          s = s.replace('"quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",', '"quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",\n            "quarterlyCurrentAssets","quarterlyCurrentLiabilities","quarterlyInventory","quarterlyStockholdersEquity",', 1)
+          old = '''        val debt=latest(root,"annualTotalDebt")
+        val equity=latest(root,"annualStockholdersEquity")
+        val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
+        val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
+        val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!=0.0) income.first!!/income.second!!-1.0 else null
+        val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
+        val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
+        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
+        val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
+        val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
+        val sector=resolvedSector(ticker)
+        val industry=knownIndustry(ticker)
+        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,null,null,null,null,"")'''
+          new = '''        val debt=latest(root,"annualTotalDebt") ?: latest(root,"quarterlyTotalDebt")
+        val equity=latest(root,"quarterlyStockholdersEquity") ?: latest(root,"annualStockholdersEquity")
+        val currentAssets=latest(root,"quarterlyCurrentAssets")
+        val currentLiabilities=latest(root,"quarterlyCurrentLiabilities")
+        val inventory=latest(root,"quarterlyInventory") ?: 0.0
+        val ttmRevenue=latest(root,"trailingTotalRevenue") ?: revenue.first
+        val ttmIncome=latest(root,"trailingNetIncome") ?: income.first
+        val ttmOperating=latest(root,"trailingOperatingIncome") ?: operating.first
+        val ttmEps=latest(root,"trailingDilutedEPS")
+        val rg=if(revenue.first!=null && revenue.second!=null && revenue.second!=0.0) revenue.first!!/revenue.second!!-1.0 else null
+        val eg=if(income.first!=null && income.second!=null && income.second!! > 0.0 && income.first!! > 0.0) income.first!!/income.second!!-1.0 else null
+        val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
+        val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
+        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
+        val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
+        val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
+        val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
+        val pe=if(price!=null && ttmEps!=null && ttmEps>0.0) price/ttmEps else null
+        val pb=if(marketCap!=null && equity!=null && equity>0.0) marketCap/equity else null
+        val cr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) currentAssets/currentLiabilities else null
+        val qr=if(currentAssets!=null && currentLiabilities!=null && currentLiabilities>0.0) (currentAssets-inventory)/currentLiabilities else null
+        val beta=computedBeta(ticker)
+        val sector=resolvedSector(ticker)
+        val industry=knownIndustry(ticker)
+        return OracleFundamentals(sector,industry,pe,null,rg,eg,pm,om,roe,de,marketCap,pb,cr,qr,beta,"")'''
+          if old not in s:
+              raise SystemExit('timeseries fundamentals block not found')
+          s = s.replace(old, new, 1)
+          marker = '    private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {'
+          if 'private fun computedBeta' not in s:
+              insert = '''    private fun computedBeta(ticker:String):Double? {
+        return runCatching {
+            val a=OracleMarketData.fetchDaily(ticker,"1y").sortedByDescending{it.timestamp}.map{it.close}
+            val b=OracleMarketData.fetchDaily("SPY","1y").sortedByDescending{it.timestamp}.map{it.close}
+            val n=minOf(a.size,b.size)-1
+            if(n<30) return@runCatching null
+            val ar=(0 until n).map{i->a[i]/a[i+1]-1.0}
+            val br=(0 until n).map{i->b[i]/b[i+1]-1.0}
+            val am=ar.average(); val bm=br.average()
+            val cov=ar.indices.sumOf{i->(ar[i]-am)*(br[i]-bm)}/n
+            val vari=br.sumOf{(it-bm)*(it-bm)}/n
+            if(vari>0.0) cov/vari else null
+        }.getOrNull()
+    }
 
-          old_summary = '''        OracleFundamentals(
-            sector,industry,
-            num(sd,"trailingPE")?:num(ks,"trailingPE"),
-            num(sd,"forwardPE")?:num(ks,"forwardPE"),
-            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
-            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
-            num(sd,"marketCap")?:num(price,"marketCap"), ""
-        )'''
-          new_summary = '''        val marketCap = num(sd,"marketCap") ?: num(price,"marketCap") ?: run {
-            val shares = num(ks,"sharesOutstanding") ?: num(ks,"impliedSharesOutstanding")
-            val px = num(price,"regularMarketPrice") ?: num(price,"regularMarketPreviousClose")
-            if (shares != null && px != null) shares * px else null
-          }
-          OracleFundamentals(
-            sector,industry,
-            num(sd,"trailingPE")?:num(ks,"trailingPE"),
-            num(sd,"forwardPE")?:num(ks,"forwardPE"),
-            num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
-            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
-            marketCap, ""
-          )'''
-          if old_summary in s:
-              s = s.replace(old_summary, new_summary, 1)
-
-          old_quote = '''        OracleFundamentals(
-            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
-            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,num(q,"marketCap"),""
-        )'''
-          new_quote = '''        val marketCap = num(q,"marketCap") ?: run {
-            val shares = num(q,"sharesOutstanding") ?: num(q,"impliedSharesOutstanding")
-            val px = num(q,"regularMarketPrice") ?: num(q,"regularMarketPreviousClose")
-            if (shares != null && px != null) shares * px else null
-          }
-          OracleFundamentals(
-            resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
-            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""
-          )'''
-          if old_quote in s:
-              s = s.replace(old_quote, new_quote, 1)
-
-          if 'sharesOutstanding' not in s or 'regularMarketPrice' not in s:
-              raise SystemExit('Market-cap fallback was not applied')
+'''
+              if marker not in s:
+                  raise SystemExit('beta insertion marker not found')
+              s = s.replace(marker, insert+marker, 1)
+          s = s.replace('"LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"', '"LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"', 1)
           p.write_text(s, encoding='utf-8')
-          print('Analysis fundamentals fallback applied')
           PY
-      - name: Verify and commit
+      - name: Verify and commit source
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'sharesOutstanding' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
-          grep -q 'regularMarketPrice' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'quarterlyCurrentAssets' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'private fun computedBeta' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'r.rawValues.getOrNull(i)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          git add app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           if ! git diff --cached --quiet; then
-            git commit -m 'Fix Analysis real market-cap fallback'
+            git commit -m 'Repair Analysis values and fundamentals'
             git push
           fi
+      - name: Build repaired APK
+        run: |
+          git pull --ff-only
+          chmod +x gradlew || true
+          ./gradlew :app:assembleDebug --stacktrace
+      - name: Upload repaired APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-474-repaired
+          path: app/build/outputs/apk/debug/*.apk
