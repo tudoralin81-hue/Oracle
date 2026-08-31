@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           B514_COMMIT="51365deb1a5e4e3020fcf02a144d55ba6a8f027e"
           ANALYSIS="app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt"
+          git fetch --no-tags origin "$B514_COMMIT" --depth=1
           git checkout "$B514_COMMIT" -- "$ANALYSIS"
           test "$(git hash-object "$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
           test "$(git rev-parse "$B514_COMMIT:$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
