@@ -23,11 +23,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/fix_analysis_expanded.py
+          python3 scripts/fix_analysis_status_colors.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
           if ! git diff --cached --quiet; then
-            git commit -m 'Expand Analysis parameters and fundamentals display'
+            git commit -m 'Add three-color Analysis value status'
             git push
           fi
       - name: Verify permanent Growth source fix
