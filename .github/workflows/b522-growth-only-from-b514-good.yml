@@ -53,19 +53,16 @@ jobs:
       - name: HARD VERIFY single B514 source state
         run: |
           set -euo pipefail
-          test -f app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          grep -q 'PARAMETRII BURSIERI RELEVANȚI' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          grep -q 'fun equalizeRow' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          grep -q '"APLD" -> "Applied Digital Corporation"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          grep -q 'V6g-FINAL-B514' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          if grep -q 'relevantParameters.add(name to (r.rawValues.getOrNull(i + 1)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; then
-            echo 'B514 Analysis still contains the aggregate Fundamentals factor mapping'
-            exit 1
-          fi
+          ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          test -f "$ANALYSIS"
+          grep -q 'PARAMETRII BURSIERI RELEVANȚI' "$ANALYSIS"
+          grep -q 'fun equalizeRow' "$ANALYSIS"
+          grep -q '"APLD" -> "Applied Digital Corporation"' "$ANALYSIS"
+          grep -q 'V6g-FINAL-B514' "$ANALYSIS"
+          grep -q 'if (!name.equals("Fundamentals", ignoreCase = true))' "$ANALYSIS"
           grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
           grep -q 'versionCode 35' app/build.gradle
-          grep -q 'B514 Growth-only patch applied; Analysis is byte-for-byte unchanged.' /dev/null 2>/dev/null || true
 
       - uses: actions/setup-java@v4
         with:
