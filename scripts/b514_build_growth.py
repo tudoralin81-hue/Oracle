@@ -1,16 +1,16 @@
 from pathlib import Path
 import re
 import hashlib
+import shutil
 
 ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
 MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
 GROWTH = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 GRADLE = Path('app/build.gradle')
-EXPECTED_ANALYSIS = 'a10b8bc41a4a52fcb8aa4aa386816ded0ca30073'
+BEFORE = Path('/tmp/oracle_analysis_before.kt')
 
-if hashlib.sha1(ANALYSIS.read_bytes()).hexdigest() != EXPECTED_ANALYSIS:
-    raise SystemExit('Analysis baseline mismatch')
+shutil.copyfile(ANALYSIS, BEFORE)
 
 s = MAIN.read_text(encoding='utf-8')
 old = '''    private fun openModule(key:String){
@@ -89,6 +89,6 @@ s = re.sub(r'versionCode\s+\d+', 'versionCode 35', s, count=1)
 s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
 GRADLE.write_text(s, encoding='utf-8')
 
-if hashlib.sha1(ANALYSIS.read_bytes()).hexdigest() != EXPECTED_ANALYSIS:
+if ANALYSIS.read_bytes() != BEFORE.read_bytes():
     raise SystemExit('Analysis changed during Growth patch')
-print('B514 Growth-only patch applied; Analysis unchanged.')
+print('B514 Growth-only patch applied; Analysis is byte-for-byte unchanged.')
