@@ -2,11 +2,10 @@ from pathlib import Path
 import re
 import shutil
 
-# B514 FINAL APK #80: this script is Growth-only.
+# B514 FINAL APK #81: this script is Growth-only.
 # Analysis is now sourced directly from current main and must remain byte-for-byte unchanged.
 # SOURCE_OF_TRUTH_MAIN_V1
-# VALIDATION_GATE_V3
-# CANONICAL_ANALYSIS_INTEGRATED
+# VALIDATION_GATE_V4
 ANALYSIS = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
 MAIN = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
 LIVE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
@@ -21,6 +20,18 @@ old = '''    private fun openModule(key:String){
         currentModule=key
         runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
         if (key == "analysis") return
+        if (key == "knowledge") {
+            if (OracleKnowledgeSync.isStale(this)) {
+                OracleKnowledgeSync.refreshAsync(this) { ok, error ->
+                    if (currentModule != "knowledge" || isFinishing) return@refreshAsync
+                    if (ok) runCatching { renderModule("knowledge", false) }.onFailure { showModuleError("knowledge", it) }
+                    else if (error != null) Toast.makeText(this, "Knowledge refresh eșuat: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
+        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
+    }
 '''
 new = '''    private fun openModule(key:String){
         currentModule=key
@@ -28,43 +39,48 @@ new = '''    private fun openModule(key:String){
             runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
         }
         if (key == "analysis") return
+        if (key == "knowledge") {
+            if (OracleKnowledgeSync.isStale(this)) {
+                OracleKnowledgeSync.refreshAsync(this) { ok, error ->
+                    if (currentModule != "knowledge" || isFinishing) return@refreshAsync
+                    if (ok) runCatching { renderModule("knowledge", false) }.onFailure { showModuleError("knowledge", it) }
+                    else if (error != null) Toast.makeText(this, "Knowledge refresh eșuat: $error", Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
+        if (key == "growth") {
+            refreshGrowthUntilCurrent(0)
+            return
+        }
+        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
+    }
+
+    private fun refreshGrowthUntilCurrent(attempt:Int) {
+        if (currentModule != "growth" || isFinishing) return
+        Thread {
+            val result = runCatching { OracleLocalProcessor.refresh(repository) }
+            mainHandler.post {
+                if (currentModule != "growth" || isFinishing) return@post
+                val data = result.getOrNull()
+                val current = data?.growth?.let { OracleGrowthLiveData.refresh(it) }.orEmpty()
+                if (current.isNotEmpty()) {
+                    runCatching { renderModule("growth", false) }.onFailure { showModuleError("growth", it) }
+                } else if (attempt < 24) {
+                    if (attempt == 0) runCatching { renderModule("growth", false) }.onFailure { showModuleError("growth", it) }
+                    mainHandler.postDelayed({ refreshGrowthUntilCurrent(attempt + 1) }, 5000L)
+                } else if (result.isFailure) {
+                    Toast.makeText(this, "Growth refresh eșuat: ${result.exceptionOrNull()?.message ?: "eroare"}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
 '''
 if old not in s:
-    raise SystemExit('MainActivity Growth initial-render anchor not found')
+    raise SystemExit('MainActivity openModule anchor not found')
 MAIN.write_text(s.replace(old,new,1), encoding='utf-8')
 
-s = LIVE.read_text(encoding='utf-8')
-old = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-        if (items.isEmpty()) return emptyList()
-        if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
-        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
-        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
-        return items
-    }
-
-    private fun currentGrowthAnchor(nowMillis: Long): Long {
-        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
-        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
-        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
-        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
-    }'''
-new = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-        if (items.isEmpty()) return emptyList()
-        if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
-        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
-        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
-        return items
-    }
-
-    private fun currentGrowthAnchor(nowMillis: Long): Long {
-        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
-        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
-        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
-        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
-    }'''
-if old not in s:
-    raise SystemExit('GrowthLiveData snapshot gate not found')
-LIVE.write_text(s.replace(old,new,1), encoding='utf-8')
+# GrowthLiveData already rejects stale snapshots; keep that gate unchanged.
 
 s = GROWTH.read_text(encoding='utf-8')
 old = '''        if (items.isEmpty()) {
@@ -105,4 +121,4 @@ GRADLE.write_text(s, encoding='utf-8')
 
 if ANALYSIS.read_bytes() != BEFORE.read_bytes():
     raise SystemExit('B514 Growth-only patch changed Analysis; this is forbidden.')
-print('B517 Growth stale-render guard applied; Analysis is byte-for-byte unchanged.')
+print('B518 stale-render guard + retry applied; Analysis is byte-for-byte unchanged.')
