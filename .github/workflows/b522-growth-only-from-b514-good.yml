@@ -6,11 +6,14 @@ on:
     branches: [main]
     paths:
       - scripts/b514_build_growth.py
+      - scripts/apply_growth_v597_reference.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
       - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
+      - app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+      - app/src/main/java/ro/alintudor/oracle/core/OracleSectorAllocation.kt
       - BUILD_B514_NOW.txt
   workflow_dispatch:
 
@@ -43,8 +46,11 @@ jobs:
           test -f "$ANALYSIS"
           echo "ANALYSIS_SHA=$(git hash-object "$ANALYSIS")" >> "$GITHUB_ENV"
 
-      - name: Apply Growth-only changes
+      - name: Apply Growth-only UI/preload changes
         run: python3 scripts/b514_build_growth.py
+
+      - name: Apply Oracle Growth V5.9.7 reference rules
+        run: python3 scripts/apply_growth_v597_reference.py
 
       - name: HARD VERIFY Analysis unchanged by Growth patch
         run: |
