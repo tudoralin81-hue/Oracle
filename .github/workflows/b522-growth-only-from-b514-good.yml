@@ -8,6 +8,7 @@ on:
       - scripts/b514_build_growth.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
       - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+      - BUILD_B514_NOW.txt
   workflow_dispatch:
 
 permissions:
@@ -38,7 +39,6 @@ jobs:
           ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           test -f "$ANALYSIS"
           echo "ANALYSIS_SHA=$(git hash-object "$ANALYSIS")" >> "$GITHUB_ENV"
-          echo "MAIN_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Apply Growth-only changes
         run: python3 scripts/b514_build_growth.py
@@ -82,7 +82,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-FINAL-B514'"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionCode='35'"
-      - name: Verify Analysis source remains canonical after build
+      - name: Verify Analysis source remains unchanged after build
         run: |
           set -euo pipefail
           ANALYSIS=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
