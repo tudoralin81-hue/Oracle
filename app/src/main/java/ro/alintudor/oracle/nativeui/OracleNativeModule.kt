@@ -50,18 +50,14 @@ class OracleNativeModule(
         val center = LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
         center.addView(TextView(context).apply { text="ORACLE";textSize=21f;typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD);setTextColor(Color.WHITE);gravity=Gravity.CENTER;includeFontPadding=true })
         center.addView(TextView(context).apply { text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true })
-        center.addView(TextView(context).apply { text="BUILD 505 • FINAL";textSize=10f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.10f;setTextColor(Color.rgb(25,205,255));gravity=Gravity.CENTER;includeFontPadding=true })
-        // ANALYSIS_VALUES_REPAIR_502
+        center.addView(TextView(context).apply { text="BUILD 506 • FINAL";textSize=10f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.10f;setTextColor(Color.rgb(25,205,255));gravity=Gravity.CENTER;includeFontPadding=true })
+        // B506: authoritative build identity; no build-time source rewriting.
         header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))
         header.addView(button("↻","Refresh",Color.rgb(255,205,45)) { onRefresh() }, LinearLayout.LayoutParams(dp(46),dp(46)))
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
 
-        // Deliberately use a plain ScrollView here. The old PullRefreshLayout could
-        // intercept a user's tap after a small finger movement, making controls in
-        // Watchlist appear clickable but fail to receive ACTION_UP. Refresh remains
-        // available through the explicit header button above.
         scrollView = ScrollView(context).apply {
             clipToPadding=false
             isFillViewport=true
