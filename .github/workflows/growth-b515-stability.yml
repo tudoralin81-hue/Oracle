@@ -29,10 +29,14 @@ jobs:
         with:
           ref: growth-b515-stability
 
-      - name: Lock Analysis baseline before Growth patch
+      - name: Restore exact approved B514 Analysis source
         run: |
           set -euo pipefail
-          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          B514_COMMIT="51365deb1a5e4e3020fcf02a144d55ba6a8f027e"
+          ANALYSIS="app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt"
+          git checkout "$B514_COMMIT" -- "$ANALYSIS"
+          test "$(git hash-object "$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          test "$(git rev-parse "$B514_COMMIT:$ANALYSIS")" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
 
       - name: Apply B515 Growth stability patch
         run: |
@@ -40,7 +44,7 @@ jobs:
           python3 scripts/fix_growth_b515.py
           git diff --check
 
-      - name: Verify Growth-only source change
+      - name: Verify Analysis is untouched by Growth patch
         run: |
           set -euo pipefail
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
@@ -61,7 +65,7 @@ jobs:
             } >> "$GITHUB_ENV"
           fi
 
-      - name: Package Analysis label exactly as B514
+      - name: Package only the approved B514 Analysis footer label
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -80,7 +84,7 @@ jobs:
           set -euo pipefail
           gradle :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Verify APK and restore locked Analysis source
+      - name: Verify APK and prove Analysis source was only packaging-labeled
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
