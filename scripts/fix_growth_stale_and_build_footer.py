@@ -5,7 +5,11 @@ GROWTH = Path("app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule
 g = GROWTH.read_text(encoding="utf-8")
 old = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews> = emptyList()) {
         host.content.removeAllViews()
-        if (items.isEmpty()) {'''
+        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
+            return
+        }
+'''
 new = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews> = emptyList()) {
         host.content.removeAllViews()
         // Never render a stale trading-day snapshot. Growth is a daily snapshot,
@@ -20,12 +24,7 @@ new = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: L
 if old in g:
     g = g.replace(old, new, 1)
 
-g = g.replace('''        if (items.isEmpty()) {
-            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
-            return
-        }
-
-''', '', 1)
+# Replace all data collections used by the visual renderer with the validated set.
 g = g.replace('''        addSummary(items)
 
         val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
@@ -55,6 +54,7 @@ g = g.replace('''        addHistory(items)
     }
 
     private fun addSummary''', 1)
+# Remove any legacy hardcoded B517 footer if present.
 g = g.replace('''        host.content.addView(text("BUILD V6g-FINAL-B517", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
 ''', '', 1)
 GROWTH.write_text(g, encoding="utf-8")
