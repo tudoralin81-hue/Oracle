@@ -18,16 +18,16 @@ jobs:
       - name: Apply Analysis sector resolution fix
         shell: bash
         run: python3 scripts/fix_analysis_sector.py
-      - name: Apply Analysis raw-values and resolved-sector fix
+      - name: Apply Analysis expanded parameters and fundamentals
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/fix_analysis_raw_values.py
+          python3 scripts/fix_analysis_expanded.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
           if ! git diff --cached --quiet; then
-            git commit -m 'Fix Analysis raw values and fundamentals display'
+            git commit -m 'Expand Analysis parameters and fundamentals display'
             git push
           fi
       - name: Verify permanent Growth source fix
