@@ -1,4 +1,4 @@
-name: Oracle APK B504
+name: Oracle APK B505 FINAL
 on:
   push:
     branches: [ main ]
@@ -15,9 +15,9 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply permanent B504 Analysis repair
-        run: python3 scripts/repair_analysis_values_504.py
-      - name: Commit repaired source and build identity
+      - name: Apply final B505 source normalization
+        run: python3 scripts/finalize_b505.py
+      - name: Commit final B505 source
         shell: bash
         run: |
           set -euo pipefail
@@ -25,7 +25,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/build.gradle app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           if ! git diff --cached --quiet; then
-            git commit -m 'B504 repair Analysis raw values and build identity'
+            git commit -m 'B505 final Analysis values and build identity'
             git push
           fi
       - uses: actions/setup-java@v4
@@ -51,15 +51,17 @@ jobs:
               echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
             } >> "$GITHUB_ENV"
           fi
-      - name: Verify B504 source
+      - name: Verify B505 final source
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "versionCode 20" app/build.gradle
-          grep -q "versionName 'V6g-KNOWLEDGE-B504'" app/build.gradle
-          grep -q 'text="BUILD 504"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
-          grep -q 'val cap=ts?.marketCap ?: summary?.marketCap ?: quote?.marketCap' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
-          grep -q 'val fpe=listOf(summary?.forwardPe, quote?.forwardPe, ts?.forwardPe)' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q "versionCode 21" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B505'" app/build.gradle
+          grep -q 'text="BUILD 505 • FINAL"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
+          grep -q 'name to (r.rawValues.getOrNull(i)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'val rg=ts?.revenueGrowth ?: summary?.revenueGrowth' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          git diff --check
       - name: Build signed release APK
         run: gradle :app:assembleRelease --stacktrace
       - name: Verify APK
@@ -70,9 +72,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-      - name: Upload B504 installable APK
+      - name: Upload B505 FINAL installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B504-installable
+          name: Oracle-APK-B505-FINAL-installable
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
