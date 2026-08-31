@@ -1,0 +1,38 @@
+name: Repair Analysis 498
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply permanent Analysis 498 repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/repair_analysis_498.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/build.gradle app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Repair Analysis values and visible Build 498'
+            git push
+          else
+            echo 'Analysis 498 repair already applied.'
+          fi
+      - name: Verify repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'BUILD 498' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
+          grep -q "versionName 'V6g-KNOWLEDGE-B498'" app/build.gradle
+          grep -q 'isFinite() && it > 0.0' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'l.startsWith("REVENUE GROWTH")' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          echo 'Analysis 498 repair verified.'
