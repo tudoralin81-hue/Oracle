@@ -31,9 +31,9 @@ s2 = pattern.sub(replacement, s, count=1)
 if s2 != s:
     s = s2
 elif 'text = companyName(r.ticker)' not in s:
-    raise SystemExit('B512: company header could not be located')
+    raise SystemExit('B513: company header could not be located')
 
-# Keep the visual yellow deliberately softer than the original saturated yellow.
+# Keep the visual yellow deliberately softer.
 s = s.replace('Color.rgb(228, 178, 28)', 'Color.rgb(205, 165, 38)')
 
 # Ensure APLD displays its full company name.
@@ -42,93 +42,64 @@ if '"APLD" -> "Applied Digital Corporation"' not in s:
     if anchor in s:
         s = s.replace(anchor, anchor + '\n        "APLD" -> "Applied Digital Corporation"', 1)
     else:
-        raise SystemExit('B512: company-name map anchor not found')
+        raise SystemExit('B513: company-name map anchor not found')
 
-# Replace the metric renderer with a true two-column matrix.
-start = s.find('    private fun addMetricGrid(')
-end = s.find('    private fun metricValueColor', start)
+# One matrix only: Oracle technical factors + supplementary indicators + fundamentals.
+# This replaces the three separate UI sections while preserving every underlying value.
+start = s.find('        // ANALYSIS_PARAMETERS_V7')
+end = s.find('        host.addSectionLabel("ANALIZĂ ORACLE")', start)
 if start < 0 or end < 0:
-    raise SystemExit('B512: metric grid anchors not found')
+    raise SystemExit('B513: Analysis parameter section anchors not found')
 
-grid = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
-        var row: LinearLayout? = null
-        items.forEachIndexed { index, item ->
-            if (index % 2 == 0) {
-                row = LinearLayout(host.root.context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.FILL_VERTICAL
-                    setMeasureWithLargestChildEnabled(true)
-                }
-                container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
-                    setMargins(0, 0, 0, host.dp(6))
-                })
-            }
+block = '''        // ANALYSIS_PARAMETERS_V8
+        // All market-relevant values are presented in one two-column matrix:
+        // Oracle factors + supplementary technical indicators + fundamentals.
+        host.addSectionLabel("PARAMETRII BURSIERI RELEVANȚI")
+        val relevantGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        val f = r.fundamentals
+        val relevantParameters = mutableListOf<Pair<String, String>>()
 
-            val card = LinearLayout(host.root.context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(host.dp(11), host.dp(8), host.dp(11), host.dp(8))
-                background = GradientDrawable().apply {
-                    setColor(Color.rgb(6, 12, 24))
-                    cornerRadius = host.dp(12).toFloat()
-                    setStroke(host.dp(1), Color.rgb(35, 65, 98))
-                }
-            }
-            card.addView(TextView(host.root.context).apply {
-                text = item.first.uppercase(Locale.US)
-                textSize = 10f
-                typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = .07f
-                setTextColor(Color.rgb(85, 190, 235))
-                includeFontPadding = true
-            })
-            card.addView(TextView(host.root.context).apply {
-                text = item.second
-                textSize = 12.5f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(metricValueColor(item.first, item.second))
-                setPadding(0, host.dp(2), 0, 0)
-                includeFontPadding = true
-                setHorizontallyScrolling(false)
-                maxLines = Int.MAX_VALUE
-                ellipsize = null
-            })
-            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
-                else setMargins(0, 0, host.dp(4), 0)
-            })
+        // Oracle factors: rawValues[0] is internal News; visible factors start at rawValues[1].
+        OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
+            relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
         }
 
-        // Equalize each row after Android has measured multiline content.
-        container.post {
-            for (i in 0 until container.childCount) {
-                val rv = container.getChildAt(i) as? LinearLayout ?: continue
-                var maxHeight = 0
-                for (j in 0 until rv.childCount) {
-                    maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
-                }
-                if (maxHeight > 0) {
-                    for (j in 0 until rv.childCount) {
-                        val child = rv.getChildAt(j)
-                        val lp = child.layoutParams
-                        if (lp.height != maxHeight) {
-                            lp.height = maxHeight
-                            child.layoutParams = lp
-                        }
-                    }
-                }
-            }
-            container.requestLayout()
-        }
-    }
+        // Supplementary technical indicators.
+        relevantParameters.add("RSI (14)" to fmt(r.rsi))
+        relevantParameters.add("MACD (12/26)" to metricPair(r.macd, r.macdSignal))
+        relevantParameters.add("52W HIGH / LOW" to "${moneyOrDash(r.week52High)} / ${moneyOrDash(r.week52Low)}")
+        relevantParameters.add("ATR" to "${money(r.atrValue)}  •  ${fmt(r.atrPct)}%")
+
+        // Fundamentals — kept in the same matrix, not in a separate section.
+        relevantParameters.add("Sector" to (f?.sector ?: r.sector ?: "—"))
+        relevantParameters.add("Industry" to (f?.industry ?: "—"))
+        relevantParameters.add("P/E" to num2(f?.trailingPe))
+        relevantParameters.add("Fwd P/E" to num2(f?.forwardPe))
+        relevantParameters.add("P/B" to num2(f?.priceToBook))
+        relevantParameters.add("Revenue growth (YoY)" to pctFund(f?.revenueGrowth))
+        relevantParameters.add("Earnings growth" to pctFund(f?.earningsGrowth))
+        relevantParameters.add("Net margin" to pctFund(f?.profitMargin))
+        relevantParameters.add("Operating margin" to pctFund(f?.operatingMargin))
+        relevantParameters.add("ROE" to pctFund(f?.returnOnEquity))
+        relevantParameters.add("D/E" to num2(f?.debtToEquity))
+        relevantParameters.add("Current ratio" to num2(f?.currentRatio))
+        relevantParameters.add("Quick ratio" to num2(f?.quickRatio))
+        relevantParameters.add("Beta" to num2(f?.beta))
+        relevantParameters.add("Market cap" to capText(f?.marketCap))
+
+        addMetricGrid(relevantGrid, relevantParameters)
+        host.content.addView(relevantGrid, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(10))
+        })
 
 '''
-s = s[:start] + grid + s[end:]
+s = s[:start] + block + s[end:]
 
 # Bottom build label.
-s = re.sub(r'ORACLE • V6g-FINAL-B\d+', 'ORACLE • V6g-FINAL-B512', s)
+s = re.sub(r'ORACLE • V6g-FINAL-B\d+', 'ORACLE • V6g-FINAL-B513', s)
 SRC.write_text(s, encoding='utf-8')
 
 g = GRADLE.read_text(encoding='utf-8')
-g = re.sub(r'versionCode\s+\d+', 'versionCode 27', g, count=1)
-g = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B512'", g, count=1)
+g = re.sub(r'versionCode\s+\d+', 'versionCode 28', g, count=1)
+g = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B513'", g, count=1)
 GRADLE.write_text(g, encoding='utf-8')
