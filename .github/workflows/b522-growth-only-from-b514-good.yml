@@ -1,3 +1,4 @@
+# B514 build: source-of-truth main; Analysis immutable; Growth-only patch.
 name: B514 FINAL APK
 
 on:
