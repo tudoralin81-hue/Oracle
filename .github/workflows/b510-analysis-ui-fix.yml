@@ -1,4 +1,4 @@
-name: B511 FINAL APK
+name: B514 FINAL APK
 
 on:
   push:
@@ -26,17 +26,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Apply B511 patch
+      - name: Apply B514 patch
         run: python3 scripts/b511_patch.py
       - name: Verify source
         run: |
           set -euo pipefail
-          grep -q "versionCode 26" app/build.gradle
-          grep -q "versionName 'V6g-FINAL-B511'" app/build.gradle
+          grep -q "versionCode 29" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
           grep -q 'Applied Digital Corporation' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'text = companyName(r.ticker)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          grep -q 'Color.rgb(205, 165, 38)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'maxLines = Int.MAX_VALUE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'Gravity.TOP' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'Fundamentals", ignoreCase' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           git diff --check
       - name: Prepare signing key
         shell: bash
@@ -51,7 +52,7 @@ jobs:
               echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
             } >> "$GITHUB_ENV"
           fi
-      - name: Build release APK
+      - name: Build B514 release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
       - name: Verify APK
         run: |
@@ -60,9 +61,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-      - name: Upload B511 FINAL installable APK
+      - name: Upload B514 FINAL installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B511-FINAL-installable
+          name: Oracle-APK-B514-FINAL-installable
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
