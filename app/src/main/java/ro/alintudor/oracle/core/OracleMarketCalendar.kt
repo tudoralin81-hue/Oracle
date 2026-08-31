@@ -54,23 +54,23 @@ object OracleMarketCalendar {
         val date = now.toLocalDate()
 
         if (now.dayOfWeek == DayOfWeek.SATURDAY || now.dayOfWeek == DayOfWeek.SUNDAY) {
-            return closedStatus(now, nextTradingOpen(now), "weekend")
+            return closedStatus(now, nextTradingOpen(now))
         }
-        fullClosureName(date)?.let { reason ->
-            return closedStatus(now, nextTradingOpen(now), reason)
+        fullClosureName(date)?.let {
+            return closedStatus(now, nextTradingOpen(now))
         }
 
         val open = ZonedDateTime.of(date, OPEN_TIME, NEW_YORK)
         val close = ZonedDateTime.of(date, sessionCloseTime(date), NEW_YORK)
         return when {
-            now.isBefore(open) -> closedStatus(now, open, "înainte de deschidere")
+            now.isBefore(open) -> closedStatus(now, open)
             now.isBefore(close) -> Status(true, "BURSA ESTE DESCHISĂ", "Mai sunt ${formatRemaining(now, close)} până la închidere.")
-            else -> closedStatus(now, nextTradingOpen(now), "după închidere")
+            else -> closedStatus(now, nextTradingOpen(now))
         }
     }
 
-    private fun closedStatus(now: ZonedDateTime, target: ZonedDateTime, reason: String): Status =
-        Status(false, "BURSA ESTE ÎNCHISĂ — $reason", "Mai sunt ${formatRemaining(now, target)} până la deschidere.")
+    private fun closedStatus(now: ZonedDateTime, target: ZonedDateTime): Status =
+        Status(false, "BURSA ESTE ÎNCHISĂ", "Mai sunt ${formatRemaining(now, target)} până la deschidere.")
 
     private fun nextTradingOpen(now: ZonedDateTime): ZonedDateTime {
         var date = now.toLocalDate().plusDays(1)
