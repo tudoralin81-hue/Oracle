@@ -1,3 +1,2 @@
-Build 493 — Analysis final values/UI verification.
-Ensure build number 493 is displayed in the Analysis module and app version/build metadata.
-Preserve the real fundamental values, keep Growth weights separate from real values, and preserve the working Oracle engine.
+Build 494 — Final Analysis verification/build.
+Verify real fundamental values, keep Growth weights separate from raw fundamentals, preserve sector resolution and working Oracle engine, and display BUILD 494 in the module header and app metadata.
