@@ -1,112 +1,39 @@
 package ro.alintudor.oracle.core
 
 /**
- * Sector is a correction layer over the existing Growth factors.
- * It is deliberately NOT a 13th factor.
- * All sector correction coefficients are quantized to 0.025.
+ * V5.9.7 sector correction layer.
+ * Sector is NOT a 13th scoring component. It changes allocation only.
+ * Confirmed factors are the values recorded in the Oracle Growth reference document.
  */
 object OracleSectorAllocation {
     private const val MIN_FACTOR = 0.50
     private const val MAX_FACTOR = 1.25
     private const val STEP = 0.025
 
-    private val neutral = DoubleArray(12) { 1.000 }
-
-    /** Allocation correction is separate from the score correction. */
+    /** Allocation correction is separate from the 12-component Growth score. */
     fun factorFor(sector: String?): Double {
         val s = sector?.trim()?.lowercase() ?: return 1.0
         val raw = when {
             s.contains("biotech") || s.contains("biotechnology") -> 0.750
             s.contains("semiconductor") || s.contains("eda") -> 0.900
             s.contains("fintech") || s.contains("financial technology") -> 0.900
-            s.contains("ai") || s.contains("artificial intelligence") -> 0.850
-            s.contains("cyber") || s.contains("cybersecurity") -> 0.900
-            s.contains("life sciences") -> 0.950
-            s.contains("healthcare") || s.contains("health care") -> 1.025
-            s.contains("software") -> 0.950
-            s.contains("technology") || s == "tech" -> 0.950
-            s.contains("energy") -> 0.975
+            s.contains("cybersecurity") || s.contains("cyber") -> 0.900
+            s.contains("artificial intelligence") || s == "ai" || s.contains("ai /") || s.contains("/ ai") -> 0.850
+            s.contains("healthcare defensive") || s.contains("defensive healthcare") -> 1.050
+            s == "healthcare" || s == "health care" -> 1.050
             s.contains("industr") -> 1.000
-            s.contains("consumer staples") -> 1.075
             s.contains("utilities") -> 1.100
-            s.contains("real estate") -> 1.075
-            s.contains("telecom") || s.contains("communication") -> 1.025
-            s.contains("financial") || s.contains("bank") -> 1.000
-            s.contains("materials") -> 1.000
             else -> 1.000
         }
         return snapToStep(raw.coerceIn(MIN_FACTOR, MAX_FACTOR))
     }
 
-    /** Sector-specific correction of the existing 12 Growth weights. */
-    fun correctedWeights(base: IntArray, sector: String?): IntArray {
-        if (base.isEmpty()) return base
-        val multipliers = profile(sector)
-        val raw = base.indices.map { i -> base[i].toDouble() * multipliers[i] }
-        val total = raw.sum().takeIf { it > 0.0 } ?: return base.copyOf()
-        val exact = raw.map { it * 100.0 / total }
-        val result = exact.map { kotlin.math.floor(it).toInt() }.toIntArray()
-        var remainder = 100 - result.sum()
-        val order = exact.indices.sortedByDescending { exact[it] - kotlin.math.floor(exact[it]) }
-        var p = 0
-        while (remainder > 0 && order.isNotEmpty()) {
-            result[order[p % order.size]]++
-            remainder--
-            p++
-        }
-        return result
-    }
-
+    /** Allocation final = base allocation * sector factor, rounded to 0.025%. */
     fun apply(baseAllocation: Double, sector: String?): Double =
         snapToStep((baseAllocation * factorFor(sector)).coerceIn(0.0, 8.0))
 
-    /**
-     * Sector profiles modify the importance of the EXISTING 12 factors.
-     * They do not add a 13th score component.
-     * Order: News, Breakout, Trend, Momentum, Volume, S/R,
-     * Fundamentals, Bollinger, Ichimoku, Market/Sector, R/R, ADX.
-     */
-    private fun profile(sector: String?): DoubleArray {
-        val s = sector?.trim()?.lowercase() ?: return neutral.copyOf()
-        val raw = when {
-            s.contains("biotech") || s.contains("biotechnology") ->
-                doubleArrayOf(1.150,0.975,0.950,0.950,0.950,0.925,1.175,0.950,0.950,1.125,0.950,0.950)
-            s.contains("semiconductor") || s.contains("eda") ->
-                doubleArrayOf(1.075,1.125,1.125,1.150,1.100,0.900,1.075,0.900,0.950,1.125,0.900,1.100)
-            s.contains("fintech") || s.contains("financial technology") ->
-                doubleArrayOf(1.100,1.050,1.050,1.100,1.050,0.925,1.125,0.925,0.975,1.125,0.975,1.025)
-            s.contains("ai") || s.contains("artificial intelligence") ->
-                doubleArrayOf(1.100,1.100,1.100,1.175,1.100,0.875,1.050,0.900,0.950,1.150,0.900,1.075)
-            s.contains("cyber") || s.contains("cybersecurity") ->
-                doubleArrayOf(1.075,1.075,1.100,1.100,1.050,0.925,1.025,0.925,0.975,1.125,0.950,1.075)
-            s.contains("life sciences") || (s.contains("healthcare") && s.contains("software")) ->
-                doubleArrayOf(1.075,0.975,1.000,1.000,0.950,0.950,1.150,1.000,0.975,1.100,0.975,0.975)
-            s.contains("software") ->
-                doubleArrayOf(1.050,1.025,1.075,1.100,1.000,0.950,1.075,0.950,0.975,1.100,0.950,1.025)
-            s.contains("technology") || s == "tech" ->
-                doubleArrayOf(1.050,1.025,1.075,1.100,1.000,0.950,1.050,0.950,0.975,1.100,0.950,1.025)
-            s.contains("energy") ->
-                doubleArrayOf(1.000,1.025,1.050,1.025,1.075,1.000,1.025,0.975,0.975,1.025,1.025,1.025)
-            s.contains("industr") ->
-                doubleArrayOf(0.975,1.025,1.050,1.025,1.050,1.000,1.050,1.000,1.000,1.025,1.025,1.050)
-            s.contains("healthcare") || s.contains("health care") ->
-                doubleArrayOf(1.050,1.000,1.000,1.000,0.975,1.000,1.100,1.000,1.000,1.050,1.025,0.975)
-            s.contains("consumer staples") ->
-                doubleArrayOf(0.975,0.975,1.000,0.950,0.950,1.050,1.075,1.025,1.000,0.950,1.075,0.950)
-            s.contains("utilities") ->
-                doubleArrayOf(0.950,0.950,1.000,0.900,0.925,1.075,1.075,1.050,1.025,0.900,1.100,0.950)
-            s.contains("real estate") ->
-                doubleArrayOf(0.975,0.975,1.000,0.950,0.950,1.075,1.050,1.025,1.000,0.950,1.075,0.950)
-            s.contains("telecom") || s.contains("communication") ->
-                doubleArrayOf(1.000,1.000,1.025,1.000,1.025,1.000,1.000,1.000,1.000,1.050,1.025,1.000)
-            s.contains("financial") || s.contains("bank") ->
-                doubleArrayOf(1.025,1.000,1.025,1.025,1.000,1.025,1.075,0.975,1.000,1.050,1.025,1.000)
-            s.contains("materials") ->
-                doubleArrayOf(1.000,1.025,1.025,1.000,1.050,1.000,1.050,1.000,1.000,1.025,1.025,1.025)
-            else -> neutral.copyOf()
-        }
-        return raw.map(::snapToStep).toDoubleArray()
-    }
+    /** Retained for API compatibility: sector does not modify score weights in V5.9.7. */
+    fun correctedWeights(base: IntArray, sector: String?): IntArray = base.copyOf()
 
     private fun snapToStep(value: Double): Double = kotlin.math.round(value / STEP) * STEP
 }
