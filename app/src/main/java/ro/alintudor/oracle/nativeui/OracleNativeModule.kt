@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -25,6 +27,18 @@ class OracleNativeModule(
     val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(2),dp(10),dp(2),dp(24)) }
     val accent = when(title.uppercase()) { "ALERTS" -> Color.rgb(255,75,40); "NEWS","ANALYSIS" -> Color.rgb(25,205,255); "GROWTH" -> Color.rgb(145,245,35); "PORTFOLIO" -> Color.rgb(190,65,255); else -> Color.rgb(255,210,45) }
     private lateinit var scrollView: ScrollView
+    private var marketStatusView: TextView? = null
+    private val marketStatusHandler = Handler(Looper.getMainLooper())
+    private val marketStatusUpdater = object : Runnable {
+        override fun run() {
+            val view = marketStatusView ?: return
+            val status = OracleMarketCalendar.status()
+            view.text = "${if (status.open) "☀" else "☾"}  ${status.label}\n${status.countdown}"
+            view.setTextColor(if (status.open) Color.rgb(90,245,135) else Color.rgb(255,85,95))
+            view.background = rounded(Color.rgb(7,11,22), dp(9), if (status.open) Color.rgb(55,130,80) else Color.rgb(145,55,65), dp(1))
+            marketStatusHandler.postDelayed(this, 30_000L)
+        }
+    }
 
     init {
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(2),dp(5),dp(2),dp(5)) }
@@ -38,18 +52,24 @@ class OracleNativeModule(
         root.addView(header,LinearLayout.LayoutParams(-1,dp(62)))
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         if (title.equals("GROWTH", true)) {
-            val status = OracleMarketCalendar.status()
-            // Keep the B518 Growth market-state presentation without changing Analysis.
-            fixedToolbar.addView(TextView(context).apply {
-                text = if (status.open) "☀  ${status.label}" else "☾  ${status.label}"
+            val statusView = TextView(context).apply {
+                val status = OracleMarketCalendar.status()
+                text = "${if (status.open) "☀" else "☾"}  ${status.label}\n${status.countdown}"
                 textSize = 11f
                 typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = .06f
+                letterSpacing = .04f
                 gravity = Gravity.CENTER
                 setTextColor(if (status.open) Color.rgb(90,245,135) else Color.rgb(255,85,95))
-                setPadding(dp(10), dp(7), dp(10), dp(7))
+                setPadding(dp(10), dp(5), dp(10), dp(5))
                 background = rounded(Color.rgb(7,11,22), dp(9), if (status.open) Color.rgb(55,130,80) else Color.rgb(145,55,65), dp(1))
-            }, LinearLayout.LayoutParams(-1, dp(34)).apply { setMargins(dp(4),0,dp(4),dp(4)) })
+            }
+            marketStatusView = statusView
+            fixedToolbar.addView(statusView, LinearLayout.LayoutParams(-1, dp(50)).apply { setMargins(dp(4),0,dp(4),dp(4)) })
+            marketStatusHandler.post(marketStatusUpdater)
+            root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) = Unit
+                override fun onViewDetachedFromWindow(v: View) { marketStatusHandler.removeCallbacks(marketStatusUpdater) }
+            })
         }
         root.addView(fixedToolbar,LinearLayout.LayoutParams(-1,-2))
         scrollView = ScrollView(context).apply {
@@ -72,7 +92,7 @@ class OracleNativeModule(
     fun addCard(heading:String,body:String){
         val isKnowledge = heading.equals("KNOWLEDGE", ignoreCase = true)
         val card=LinearLayout(context).apply{ orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(14),dp(16),dp(14)); background=rounded(Color.rgb(7,11,22),dp(15),if(isKnowledge) Color.rgb(255,205,55) else Color.rgb(42,52,76),dp(1))
-            if (isKnowledge) { isClickable = true; isFocusable = true; contentDescription = "Deschide Knowledge: https://alintudor.ro/knowledge/"; setOnClickListener { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/"))) } } }
+            if (isKnowledge) { isClickable = true; isFocusable = true; contentDescription = "Deschide Knowledge: https://alintudor.ro/knowledge/"; setOnClickListener { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/))) } } }
         }
         card.addView(TextView(context).apply{text=heading.uppercase();textSize=17f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.04f;setTextColor(Color.WHITE)})
         card.addView(TextView(context).apply{text=if(isKnowledge) "$body\n\nDESCHIDE: https://alintudor.ro/knowledge/" else body;textSize=14f;setTextColor(if(isKnowledge) Color.WHITE else Color.rgb(175,182,198));setPadding(0,dp(7),0,0)})
