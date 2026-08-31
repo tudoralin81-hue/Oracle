@@ -1,0 +1,73 @@
+name: Finalize Build 492
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply final Analysis/UI fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Shared module header: show the exact Oracle build on every module.
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt')
+          s = p.read_text(encoding='utf-8')
+          if 'BUILD 492' not in s:
+              old = '''        center.addView(TextView(context).apply { text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true })\n        header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))'''
+              new = '''        center.addView(TextView(context).apply { text=title;textSize=11f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.18f;setTextColor(accent);gravity=Gravity.CENTER;includeFontPadding=true })\n        center.addView(TextView(context).apply { text="BUILD 492";textSize=8f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.10f;setTextColor(Color.rgb(115,150,190));gravity=Gravity.CENTER;includeFontPadding=true })\n        header.addView(center,LinearLayout.LayoutParams(0,dp(54),1f))'''
+              if old not in s:
+                  raise SystemExit('OracleNativeModule header anchor not found')
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+
+          # Make the period of the real revenue-growth value explicit.
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('"Revenue growth" to pctFund(f?.revenueGrowth)', '"Revenue growth (YoY)" to pctFund(f?.revenueGrowth)', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Android update version for the new installable build.
+          p = Path('app/build.gradle')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("versionCode 14", "versionCode 15", 1)
+          s = s.replace("versionName 'V6g-KNOWLEDGE'", "versionName 'V6g-KNOWLEDGE-B492'", 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Regression journal: preserve the acceptance rule.
+          p = Path('REGRESSION_JOURNAL.md')
+          s = p.read_text(encoding='utf-8')
+          marker = '## Build 492 — Analysis values/build identification\n'
+          if marker not in s:
+              entry = '''\n## Build 492 — Analysis values/build identification\n\n- Analysis fundamentals remain raw provider values; no Growth weighting is displayed as a fundamental value.\n- APLD revenue growth is explicitly labeled YoY; the observed 406.60% value matches the latest reported quarter growth.\n- Shared module header displays the exact build number (`BUILD 492`).\n- Growth engine, frozen 12-factor weights and Growth scoring are not modified by this repair.\n'''
+              p.write_text(s + entry, encoding='utf-8')
+
+          print('Build 492 final patch applied')
+          PY
+
+      - name: Commit final patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt \
+                  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
+                  app/build.gradle REGRESSION_JOURNAL.md
+          if git diff --cached --quiet; then
+            echo 'No final changes required.'
+            exit 0
+          fi
+          git commit -m 'Finalize Analysis UI and identify Build 492'
+          git push
