@@ -34,12 +34,14 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           s = p.read_text(encoding='utf-8')
-          old = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
-          new = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
-          # News is intentionally not rendered by Analysis. Keep it internal to Growth.
-          if old not in s and 'if (i == 0) null else name to (r.rawValues.getOrNull(i)' not in s:
+          # Analysis shows raw values only. News remains an internal Growth factor.
+          old_news = '            name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          new_news = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          if old_news in s:
+              s = s.replace(old_news, new_news, 1)
+          elif new_news not in s:
               raise SystemExit('Analysis raw-value grid anchor not found')
-          # The expanded V6 grid already excludes News; make the requirement explicit and idempotent.
+          # ADX is the real ADX(14), never an Oracle synthetic score.
           old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
           if old_adx in s:
               s = s.replace(old_adx, '"ADX(14) ${money(adx)}"', 1)
