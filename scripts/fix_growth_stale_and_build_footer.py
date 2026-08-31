@@ -24,7 +24,6 @@ new = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: L
 if old in g:
     g = g.replace(old, new, 1)
 
-# Replace all data collections used by the visual renderer with the validated set.
 g = g.replace('''        addSummary(items)
 
         val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
@@ -50,12 +49,11 @@ g = g.replace('''        addHistory(items)
     }
 
     private fun addBuildFooter() {
-        host.content.addView(text("BUILD ${ro.alintudor.oracle.BuildConfig.VERSION_NAME}", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
+        host.content.addView(text("BUILD B518 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
     }
 
     private fun addSummary''', 1)
-# Remove any legacy hardcoded B517 footer if present.
 g = g.replace('''        host.content.addView(text("BUILD V6g-FINAL-B517", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
 ''', '', 1)
 GROWTH.write_text(g, encoding="utf-8")
-print("B518 Growth stale-render + dynamic build footer patch applied")
+print("B518 Growth stale-render + build footer patch applied")
