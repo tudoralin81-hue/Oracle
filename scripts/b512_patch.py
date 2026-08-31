@@ -1,0 +1,155 @@
+from pathlib import Path
+import re
+
+SRC = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+GRADLE = Path('app/build.gradle')
+
+s = SRC.read_text(encoding='utf-8')
+
+# Full company name on its own line; sector stays on a separate line.
+pattern = re.compile(
+    r'        top\.addView\(TextView\(host\.root\.context\)\.apply \{\n'
+    r'            text = "\$\{companyName\(r\.ticker\)\}.*?\n'
+    r'        \}\)',
+    re.S,
+)
+replacement = '''        top.addView(TextView(host.root.context).apply {
+            text = companyName(r.ticker)
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(205, 213, 228))
+            setPadding(0, host.dp(4), 0, 0)
+        })
+        top.addView(TextView(host.root.context).apply {
+            text = "Sector: ${r.sector ?: "Sector indisponibil"}"
+            textSize = 13.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(145, 158, 180))
+            setPadding(0, host.dp(2), 0, 0)
+        })'''
+s2 = pattern.sub(replacement, s, count=1)
+if s2 == s:
+    raise SystemExit('B512: company header anchor not found')
+s = s2
+
+# Keep the visual yellow deliberately softer than the original saturated yellow.
+s = s.replace('Color.rgb(228, 178, 28)', 'Color.rgb(205, 165, 38)')
+
+# Ensure APLD displays its full company name.
+if '"APLD" -> "Applied Digital Corporation"' not in s:
+    anchor = '"AAOI" -> "Applied Optoelectronics, Inc."'
+    if anchor not in s:
+        raise SystemExit('B512: company-name map anchor not found')
+    s = s.replace(anchor, anchor + '\n        "APLD" -> "Applied Digital Corporation"', 1)
+
+# Replace the metric renderer with a true two-column matrix.
+start = s.find('    private fun addMetricGrid(')
+end = s.find('    private fun metricValueColor', start)
+if start < 0 or end < 0:
+    raise SystemExit('B512: metric grid anchors not found')
+
+grid = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
+        var row: LinearLayout? = null
+        items.forEachIndexed { index, item ->
+            if (index % 2 == 0) {
+                row = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.FILL_VERTICAL
+                    setMeasureWithLargestChildEnabled(true)
+                }
+                container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                    setMargins(0, 0, 0, host.dp(6))
+                })
+            }
+
+            val card = LinearLayout(host.root.context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(host.dp(11), host.dp(8), host.dp(11), host.dp(8))
+                background = GradientDrawable().apply {
+                    setColor(Color.rgb(6, 12, 24))
+                    cornerRadius = host.dp(12).toFloat()
+                    setStroke(host.dp(1), Color.rgb(35, 65, 98))
+                }
+            }
+            card.addView(TextView(host.root.context).apply {
+                text = item.first.uppercase(Locale.US)
+                textSize = 10f
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = .07f
+                setTextColor(Color.rgb(85, 190, 235))
+                includeFontPadding = true
+            })
+            card.addView(TextView(host.root.context).apply {
+                text = item.second
+                textSize = 12.5f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(metricValueColor(item.first, item.second))
+                setPadding(0, host.dp(2), 0, 0)
+                includeFontPadding = true
+                setHorizontallyScrolling(false)
+                maxLines = Int.MAX_VALUE
+                ellipsize = null
+            })
+            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
+                else setMargins(0, 0, host.dp(4), 0)
+            })
+
+            // Keep every pair in the matrix aligned to the tallest card in that row.
+            if (index % 2 == 1) {
+                row?.post {
+                    val rv = row ?: return@post
+                    var maxHeight = 0
+                    for (j in 0 until rv.childCount) {
+                        maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
+                    }
+                    if (maxHeight > 0) {
+                        for (j in 0 until rv.childCount) {
+                            val child = rv.getChildAt(j)
+                            val lp = child.layoutParams
+                            if (lp.height != maxHeight) {
+                                lp.height = maxHeight
+                                child.layoutParams = lp
+                            }
+                        }
+                        rv.requestLayout()
+                    }
+                }
+            }
+        }
+
+        // Re-run after the whole grid has been measured so multiline Fundamentals
+        // cards cannot clip or leave their partner shorter.
+        container.post {
+            for (i in 0 until container.childCount) {
+                val rv = container.getChildAt(i) as? LinearLayout ?: continue
+                var maxHeight = 0
+                for (j in 0 until rv.childCount) {
+                    maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
+                }
+                if (maxHeight > 0) {
+                    for (j in 0 until rv.childCount) {
+                        val child = rv.getChildAt(j)
+                        val lp = child.layoutParams
+                        if (lp.height != maxHeight) {
+                            lp.height = maxHeight
+                            child.layoutParams = lp
+                        }
+                    }
+                }
+            }
+            container.requestLayout()
+        }
+    }
+
+'''
+s = s[:start] + grid + s[end:]
+
+# Bottom build label.
+s = re.sub(r'ORACLE • V6g-FINAL-B\d+', 'ORACLE • V6g-FINAL-B512', s)
+SRC.write_text(s, encoding='utf-8')
+
+g = GRADLE.read_text(encoding='utf-8')
+g = re.sub(r'versionCode\s+\d+', 'versionCode 27', g, count=1)
+g = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B512'", g, count=1)
+GRADLE.write_text(g, encoding='utf-8')
