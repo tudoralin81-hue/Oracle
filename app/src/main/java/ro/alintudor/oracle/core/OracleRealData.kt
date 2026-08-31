@@ -17,7 +17,7 @@ data class OracleNewsContext(val score:Int,val headlineCount:Int,val positiveHit
 data class OracleMarketContext(val market5D:Double?,val market20D:Double?,val sector5D:Double?,val sector20D:Double?,val sectorEtf:String?,val rawText:String)
 
 object OracleRealData {
-    // FUNDAMENTALS_V2
+    // FUNDAMENTALS_V3 — consistent-period ratios + real-data fallbacks
     private const val TIMEOUT=7000
 
     fun resolvedSector(ticker:String, remoteSector:String?=null):String? {
@@ -28,7 +28,7 @@ object OracleRealData {
     /**
      * Fundamentals use Yahoo quoteSummary when available, then the no-crumb
      * fundamentals-timeseries endpoint, then the quote endpoint. Missing fields
-     * remain genuinely missing; no Oracle score is ever substituted into the data.
+     * remain genuinely missing; no Oracle score is substituted into the data.
      */
     fun fundamentals(ticker:String):OracleFundamentals? {
         val symbol=ticker.uppercase(Locale.US)
@@ -57,10 +57,10 @@ object OracleRealData {
         val roe=summary?.returnOnEquity ?: ts?.returnOnEquity
         val de=summary?.debtToEquity ?: ts?.debtToEquity
         val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap
-        val pb=summary?.priceToBook ?: quote?.priceToBook
-        val cr=summary?.currentRatio ?: quote?.currentRatio
-        val qr=summary?.quickRatio ?: quote?.quickRatio
-        val beta=summary?.beta ?: quote?.beta
+        val pb=summary?.priceToBook ?: quote?.priceToBook ?: ts?.priceToBook
+        val cr=summary?.currentRatio ?: quote?.currentRatio ?: ts?.currentRatio
+        val qr=summary?.quickRatio ?: quote?.quickRatio ?: ts?.quickRatio
+        val beta=summary?.beta ?: quote?.beta ?: ts?.beta
         if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta).all { it == null }) return null
         return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta,
             buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta))
@@ -85,7 +85,7 @@ object OracleRealData {
             num(sd,"trailingPE")?:num(ks,"trailingPE"),
             num(sd,"forwardPE")?:num(ks,"forwardPE"),
             num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
-            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
+            num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity")?.let { it / 100.0 },
             marketCap,
             num(sd,"priceToBook")?:num(ks,"priceToBook"),
             num(fd,"currentRatio"),num(fd,"quickRatio"),num(sd,"beta"), ""
@@ -101,7 +101,8 @@ object OracleRealData {
         }
         OracleFundamentals(
             resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
-            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,
+            num(q,"debtToEquity")?.let { if (it > 20.0) it / 100.0 else it },marketCap,
             num(q,"priceToBook"),num(q,"currentRatio"),num(q,"quickRatio"),num(q,"beta"),""
         )
     } catch(_:Exception) { null }
@@ -113,7 +114,8 @@ object OracleRealData {
             "annualTotalRevenue","annualOperatingIncome","annualNetIncome","annualDilutedEPS",
             "annualTotalDebt","annualStockholdersEquity",
             "quarterlyOrdinarySharesNumber","annualOrdinarySharesNumber",
-            "quarterlyCurrentAssets","quarterlyCurrentLiabilities","quarterlyInventory","quarterlyStockholdersEquity",
+            "quarterlyCurrentAssets","quarterlyCurrentLiabilities","quarterlyInventory",
+            "quarterlyTotalDebt","quarterlyStockholdersEquity",
             "trailingTotalRevenue","trailingOperatingIncome","trailingNetIncome","trailingDilutedEPS",
             "trailingTotalDebt","trailingStockholdersEquity"
         ).joinToString(",")
@@ -125,8 +127,9 @@ object OracleRealData {
         val revenue=latestTwo(root,"annualTotalRevenue")
         val income=latestTwo(root,"annualNetIncome")
         val operating=latestTwo(root,"annualOperatingIncome")
-        val debt=latest(root,"annualTotalDebt") ?: latest(root,"quarterlyTotalDebt")
-        val equity=latest(root,"quarterlyStockholdersEquity") ?: latest(root,"annualStockholdersEquity")
+        val debt=latest(root,"quarterlyTotalDebt") ?: latest(root,"annualTotalDebt")
+        val equityPair=latestTwo(root,"quarterlyStockholdersEquity")
+        val equity=equityPair.first ?: latest(root,"annualStockholdersEquity")
         val currentAssets=latest(root,"quarterlyCurrentAssets")
         val currentLiabilities=latest(root,"quarterlyCurrentLiabilities")
         val inventory=latest(root,"quarterlyInventory") ?: 0.0
@@ -138,7 +141,8 @@ object OracleRealData {
         val eg=if(income.first!=null && income.second!=null && income.second!! > 0.0 && income.first!! > 0.0) income.first!!/income.second!!-1.0 else null
         val pm=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmIncome!=null) ttmIncome/ttmRevenue else null
         val om=if(ttmRevenue!=null && ttmRevenue!=0.0 && ttmOperating!=null) ttmOperating/ttmRevenue else null
-        val roe=if(equity!=null && equity!=0.0 && ttmIncome!=null) ttmIncome/equity else null
+        val avgEquity=if(equityPair.first!=null && equityPair.second!=null && equityPair.first!! > 0.0 && equityPair.second!! > 0.0) (equityPair.first!!+equityPair.second!!)/2.0 else equity
+        val roe=if(avgEquity!=null && avgEquity!=0.0 && ttmIncome!=null) ttmIncome/avgEquity else null
         val de=if(equity!=null && equity!=0.0 && debt!=null) debt/equity else null
         val shares=latest(root,"quarterlyOrdinarySharesNumber") ?: latest(root,"annualOrdinarySharesNumber")
         val price=runCatching { OracleMarketData.fetchDaily(ticker,"5d").maxByOrNull{it.timestamp}?.close }.getOrNull()
@@ -214,27 +218,9 @@ object OracleRealData {
         "JPM","BAC","WFC","C","GS","MS","BLK","SCHW","COF","AXP","V","MA","PYPL","HOOD","COIN"->"Financials"
         "GE","CAT","DE","HON","RTX","BA","LMT","NOC","GD","ETN","EMR","UNP","UPS","FDX","RHM"->"Industrials"
         "XOM","CVX","COP","SLB","EOG","OXY","MPC","VLO","HAL","FANG"->"Energy"
-        "LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
+        "LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
         "NEE","DUK","SO","AEP","EXC","SRE","D"->"Utilities"
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
     }
-    private fun knownIndustry(ticker:String):String?=when(ticker){"APLD"->"Information Technology Services";"AAOI"->"Semiconductors";else->null}
-
-    fun newsContext(ticker:String):OracleNewsContext=try{
-        val q=URLEncoder.encode("\"${ticker.uppercase(Locale.US)}\" stock when:7d","UTF-8"); val body=getText("https://news.google.com/rss/search?q=$q&hl=en-US&gl=US&ceid=US:en")
-        val titles=Regex("<title>(.*?)</title>",RegexOption.IGNORE_CASE).findAll(body).map{it.groupValues[1].replace("&amp;","&").replace("&quot;","\"")}.filter{!it.equals("Google News",true)}.take(8).toList()
-        val positive=listOf("beat","upgrade","buy","bullish","record","strong","surge","contract","partnership","deal","approval","launch","growth","profit"); val negative=listOf("miss","downgrade","sell","bearish","lawsuit","investigation","warning","cut guidance","recall","layoff","fraud","delay","loss","decline","plunge","offering","dilution","bankruptcy")
-        val pos=titles.sumOf{t->positive.count{t.contains(it,true)}}; val neg=titles.sumOf{t->negative.count{t.contains(it,true)}}
-        OracleNewsContext((50+pos*5-neg*7).coerceIn(0,100),titles.size,pos,neg,titles.firstOrNull())
-    }catch(_:Exception){OracleNewsContext(50,0,0,0,null)}
-
-    fun marketContext(sector:String?):OracleMarketContext{val etf=sectorEtf(sector);val spy=returns("SPY");val sec=etf?.let{returns(it)};return OracleMarketContext(spy?.first,spy?.second,sec?.first,sec?.second,etf,"SPY 5D=${pct(spy?.first)}; SPY 20D=${pct(spy?.second)}; ${etf?:"Sector ETF"} 5D=${pct(sec?.first)}; ${etf?:"Sector ETF"} 20D=${pct(sec?.second)}")}
-    fun sectorScore(ctx:OracleMarketContext):Double?{val v=listOfNotNull(ctx.market5D,ctx.market20D,ctx.sector5D,ctx.sector20D);if(v.isEmpty())return null;return(50.0+v.map{it*100.0*2.2}.average()).coerceIn(0.0,100.0)}
-    fun fundamentalScore(f:OracleFundamentals?):Double?{if(f==null)return null;val p=mutableListOf<Double>();f.revenueGrowth?.let{p+=(50+it*180).coerceIn(0.0,100.0)};f.earningsGrowth?.let{p+=(50+it*150).coerceIn(0.0,100.0)};f.profitMargin?.let{p+=(50+it*220).coerceIn(0.0,100.0)};f.operatingMargin?.let{p+=(50+it*180).coerceIn(0.0,100.0)};f.returnOnEquity?.let{p+=(50+it*100).coerceIn(0.0,100.0)};f.debtToEquity?.let{p+=(75-it*0.12).coerceIn(0.0,100.0)};f.forwardPe?.let{p+=when{it<=0->35.0;it<=15->85.0;it<=25->70.0;it<=40->55.0;else->35.0}};return p.takeIf{it.isNotEmpty()}?.average()?.coerceIn(0.0,100.0)}
-    private fun returns(ticker:String):Pair<Double,Double>?{val d=OracleMarketData.fetchDaily(ticker,"3mo").sortedByDescending{it.timestamp};if(d.size<=20)return null;val p=d[0].close;val p5=d.getOrNull(5)?.close?:return null;val p20=d.getOrNull(20)?.close?:return null;return Pair(p/p5-1,p/p20-1)}
-    private fun sectorEtf(sector:String?):String?{val s=sector?.lowercase(Locale.US)?:return null;return when{"semiconductor" in s||"technology" in s||"software" in s->"XLK";"communication" in s||"telecom" in s->"XLC";"health" in s||"biotech" in s->"XLV";"financial" in s||"bank" in s->"XLF";"industrial" in s->"XLI";"energy" in s->"XLE";"consumer" in s&&"cyclical" in s->"XLY";"consumer" in s&&"discretionary" in s->"XLY";"consumer" in s||"staples" in s->"XLP";"utility" in s->"XLU";"real estate" in s->"XLRE";"material" in s->"XLB";else->null}}
-    private fun getText(url:String):String{val c=(URL(url).openConnection() as HttpURLConnection).apply{connectTimeout=TIMEOUT;readTimeout=TIMEOUT;requestMethod="GET";setRequestProperty("User-Agent","Oracle-Stock-Intelligence/1.0")};return try{c.inputStream.bufferedReader().use{it.readText()}}finally{c.disconnect()}}
-    private fun getJson(url:String):JSONObject{val c=(URL(url).openConnection() as HttpURLConnection).apply{connectTimeout=TIMEOUT;readTimeout=TIMEOUT;requestMethod="GET";setRequestProperty("User-Agent","Oracle-Stock-Intelligence/1.0");setRequestProperty("Accept","application/json")};return try{JSONObject(c.inputStream.bufferedReader().use{it.readText()})}finally{c.disconnect()}}
-    private fun pct(v:Double?):String=v?.let{"%.2f%%".format(Locale.US,it*100)}?:"—"; private fun moneyCap(v:Double?):String=when{v==null->"—";v>=1e12->"%.2fT".format(Locale.US,v/1e12);v>=1e9->"%.2fB".format(Locale.US,v/1e9);v>=1e6->"%.2fM".format(Locale.US,v/1e6);else->"%.0f".format(Locale.US,v)}
 }
