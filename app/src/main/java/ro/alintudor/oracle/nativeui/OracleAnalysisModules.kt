@@ -186,35 +186,47 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         })
         host.content.addView(top, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
 
+        // ANALYSIS_PARAMETERS_V6
+        // NEWS remains internal to Growth and is intentionally hidden here.
         host.addSectionLabel("PARAMETRII ORACLE • VALORI")
-        val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            // NEWS remains an internal Growth factor but is intentionally hidden from Analysis.
-            if (i == 0) return@forEachIndexed
-            val row = LinearLayout(host.root.context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(host.dp(14), host.dp(10), host.dp(12), host.dp(10))
-                background = GradientDrawable().apply {
-                    setColor(if (i % 2 == 0) Color.rgb(7, 12, 23) else Color.rgb(10, 16, 29))
-                    cornerRadius = host.dp(9).toFloat()
-                }
-            }
-            row.addView(TextView(host.root.context).apply {
-                text = n
-                textSize = 14f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.rgb(215, 222, 235))
-            }, LinearLayout.LayoutParams(0, -2, .32f))
-            row.addView(TextView(host.root.context).apply {
-                text = r.rawValues.getOrNull(i) ?: "Valoare indisponibilă"
-                textSize = 12.5f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.END
-            }, LinearLayout.LayoutParams(0, -2, .68f))
-            grid.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(3)) })
+        val oracleGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        val visibleFactors = OracleAnalysisEngine.factorNames.mapIndexedNotNull { i, name ->
+            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")
         }
-        host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
+        addMetricGrid(oracleGrid, visibleFactors)
+        host.content.addView(oracleGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+
+        host.addSectionLabel("INDICATORI SUPLIMENTARI")
+        val extraGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        addMetricGrid(extraGrid, listOf(
+            "RSI (14)" to fmt(r.rsi),
+            "MACD (12/26)" to metricPair(r.macd, r.macdSignal),
+            "52W HIGH / LOW" to "${moneyOrDash(r.week52High)} / ${moneyOrDash(r.week52Low)}",
+            "ATR" to "${money(r.atrValue)}  •  ${fmt(r.atrPct)}%"
+        ))
+        host.content.addView(extraGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
+
+        host.addSectionLabel("FUNDAMENTALE")
+        val f = r.fundamentals
+        val fundamentalsGrid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        addMetricGrid(fundamentalsGrid, listOf(
+            "Sector" to (f?.sector ?: r.sector ?: "—"),
+            "Industry" to (f?.industry ?: "—"),
+            "P/E" to num2(f?.trailingPe),
+            "Fwd P/E" to num2(f?.forwardPe),
+            "P/B" to num2(f?.priceToBook),
+            "Revenue growth" to pctFund(f?.revenueGrowth),
+            "Earnings growth" to pctFund(f?.earningsGrowth),
+            "Net margin" to pctFund(f?.profitMargin),
+            "Operating margin" to pctFund(f?.operatingMargin),
+            "ROE" to pctFund(f?.returnOnEquity),
+            "D/E" to num2(f?.debtToEquity),
+            "Current ratio" to num2(f?.currentRatio),
+            "Quick ratio" to num2(f?.quickRatio),
+            "Beta" to num2(f?.beta),
+            "Market cap" to capText(f?.marketCap)
+        ))
+        host.content.addView(fundamentalsGrid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
 
         host.addSectionLabel("ANALIZĂ ORACLE")
         val card = LinearLayout(host.root.context).apply {
@@ -263,6 +275,32 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
         }
         host.content.addView(w, LinearLayout.LayoutParams(-1, host.dp(50)).apply { setMargins(0, 0, 0, host.dp(16)) })
     }
+
+    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
+        var row: LinearLayout? = null
+        items.forEachIndexed { index, item ->
+            if (index % 2 == 0) {
+                row = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                container.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
+            }
+            val card = LinearLayout(host.root.context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(host.dp(11), host.dp(9), host.dp(11), host.dp(9))
+                background = GradientDrawable().apply { setColor(Color.rgb(6, 12, 24)); cornerRadius = host.dp(12).toFloat(); setStroke(host.dp(1), Color.rgb(35, 65, 98)) }
+            }
+            card.addView(TextView(host.root.context).apply {
+                text = item.first.uppercase(Locale.US); textSize = 10f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = .07f; setTextColor(Color.rgb(85, 190, 235))
+            })
+            card.addView(TextView(host.root.context).apply {
+                text = item.second; textSize = 12.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, host.dp(4), 0, 0); maxLines = 4
+            })
+            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0) else setMargins(0, 0, host.dp(4), 0) })
+        }
+    }
+    private fun metricPair(value: Double?, signal: Double?): String = "${num2(value)}  •  SIG ${num2(signal)}"
+    private fun num2(value: Double?): String = value?.let { "%.2f".format(Locale.US, it) } ?: "—"
+    private fun pctFund(value: Double?): String = value?.let { "%.2f%%".format(Locale.US, it * 100.0) } ?: "—"
+    private fun capText(value: Double?): String = when { value == null -> "—"; value >= 1e12 -> "%.2fT".format(Locale.US, value / 1e12); value >= 1e9 -> "%.2fB".format(Locale.US, value / 1e9); value >= 1e6 -> "%.2fM".format(Locale.US, value / 1e6); else -> "%.0f".format(Locale.US, value) }
 
     private fun addTechnicalChart(ticker: String) {
         val chartTitle = TextView(host.root.context).apply {

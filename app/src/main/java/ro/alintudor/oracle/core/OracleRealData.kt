@@ -11,12 +11,13 @@ data class OracleFundamentals(
     val sector: String?, val industry: String?, val trailingPe: Double?, val forwardPe: Double?,
     val revenueGrowth: Double?, val earningsGrowth: Double?, val profitMargin: Double?,
     val operatingMargin: Double?, val returnOnEquity: Double?, val debtToEquity: Double?,
-    val marketCap: Double?, val rawText: String
+    val marketCap: Double?, val priceToBook: Double?, val currentRatio: Double?, val quickRatio: Double?, val beta: Double?, val rawText: String
 )
 data class OracleNewsContext(val score:Int,val headlineCount:Int,val positiveHits:Int,val negativeHits:Int,val topHeadline:String?)
 data class OracleMarketContext(val market5D:Double?,val market20D:Double?,val sector5D:Double?,val sector20D:Double?,val sectorEtf:String?,val rawText:String)
 
 object OracleRealData {
+    // FUNDAMENTALS_V2
     private const val TIMEOUT=7000
 
     fun resolvedSector(ticker:String, remoteSector:String?=null):String? {
@@ -56,9 +57,13 @@ object OracleRealData {
         val roe=summary?.returnOnEquity ?: ts?.returnOnEquity
         val de=summary?.debtToEquity ?: ts?.debtToEquity
         val cap=summary?.marketCap ?: quote?.marketCap ?: ts?.marketCap
-        if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap).all { it == null }) return null
-        return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,
-            buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap))
+        val pb=summary?.priceToBook ?: quote?.priceToBook
+        val cr=summary?.currentRatio ?: quote?.currentRatio
+        val qr=summary?.quickRatio ?: quote?.quickRatio
+        val beta=summary?.beta ?: quote?.beta
+        if (listOf(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta).all { it == null }) return null
+        return OracleFundamentals(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta,
+            buildFundamentalText(sector,industry,pe,fpe,rg,eg,pm,om,roe,de,cap,pb,cr,qr,beta))
     }
 
     private fun parseQuoteSummary(root:JSONObject,ticker:String):OracleFundamentals? = try {
@@ -81,7 +86,9 @@ object OracleRealData {
             num(sd,"forwardPE")?:num(ks,"forwardPE"),
             num(fd,"revenueGrowth"),num(fd,"earningsGrowth"),num(fd,"profitMargins"),
             num(fd,"operatingMargins"),num(fd,"returnOnEquity"),num(fd,"debtToEquity"),
-            marketCap, ""
+            marketCap,
+            num(sd,"priceToBook")?:num(ks,"priceToBook"),
+            num(fd,"currentRatio"),num(fd,"quickRatio"),num(sd,"beta"), ""
         )
     } catch(_:Exception) { null }
 
@@ -94,7 +101,8 @@ object OracleRealData {
         }
         OracleFundamentals(
             resolvedSector(ticker),q.optString("industry").takeIf{it.isNotBlank()},
-            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,""
+            num(q,"trailingPE"),num(q,"forwardPE"),null,null,null,null,null,null,marketCap,
+            num(q,"priceToBook"),num(q,"currentRatio"),num(q,"quickRatio"),num(q,"beta"),""
         )
     } catch(_:Exception) { null }
 
@@ -132,7 +140,7 @@ object OracleRealData {
         val marketCap=if(shares!=null && price!=null && shares>0.0 && price>0.0) shares*price else null
         val sector=resolvedSector(ticker)
         val industry=knownIndustry(ticker)
-        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,"")
+        return OracleFundamentals(sector,industry,null,null,rg,eg,pm,om,roe,de,marketCap,null,null,null,null,"")
     }
 
     private fun latestTwo(root:JSONObject,key:String):Pair<Double?,Double?> {
@@ -164,11 +172,12 @@ object OracleRealData {
         return x.takeIf { it.isFinite() }
     }
 
-    private fun buildFundamentalText(sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?):String = buildString {
+    private fun buildFundamentalText(sector:String?,industry:String?,pe:Double?,fpe:Double?,rg:Double?,eg:Double?,pm:Double?,om:Double?,roe:Double?,de:Double?,cap:Double?,pb:Double?,cr:Double?,qr:Double?,beta:Double?):String = buildString {
         append("Sector=${sector?:"—"}; Industry=${industry?:"—"}; ")
         append("P/E=${pe?.let{"%.2f".format(Locale.US,it)}?:"—"}; Fwd P/E=${fpe?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
         append("Revenue growth=${pct(rg)}; Earnings growth=${pct(eg)}; Net margin=${pct(pm)}; Op margin=${pct(om)}; ROE=${pct(roe)}; ")
-        append("D/E=${de?.let{"%.2f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")
+        append("D/E=${de?.let{"%.2f".format(Locale.US,it)}?:"—"}; P/B=${pb?.let{"%.2f".format(Locale.US,it)}?:"—"}; ")
+        append("Current ratio=${cr?.let{"%.2f".format(Locale.US,it)}?:"—"}; Quick ratio=${qr?.let{"%.2f".format(Locale.US,it)}?:"—"}; Beta=${beta?.let{"%.2f".format(Locale.US,it)}?:"—"}; Market cap=${moneyCap(cap)}")
     }
 
     private fun knownSector(ticker:String):String?=when(ticker){
