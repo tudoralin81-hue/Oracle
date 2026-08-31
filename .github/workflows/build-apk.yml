@@ -30,7 +30,21 @@ jobs:
           set -euo pipefail
           python3 scripts/fix_analysis_expanded.py
           python3 scripts/fix_analysis_status_colors.py
-          python3 scripts/fix_analysis_raw_values.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = p.read_text(encoding='utf-8')
+          old = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          new = '            if (i == 0) null else name to (r.rawValues.getOrNull(i) ?: "Valoare indisponibilă")'
+          # News is intentionally not rendered by Analysis. Keep it internal to Growth.
+          if old not in s and 'if (i == 0) null else name to (r.rawValues.getOrNull(i)' not in s:
+              raise SystemExit('Analysis raw-value grid anchor not found')
+          # The expanded V6 grid already excludes News; make the requirement explicit and idempotent.
+          old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
+          if old_adx in s:
+              s = s.replace(old_adx, '"ADX(14) ${money(adx)}"', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
