@@ -39,8 +39,9 @@ class OracleNativeModule(
         root.addView(View(context).apply{setBackgroundColor(accent)},LinearLayout.LayoutParams(-1,dp(1)).apply{setMargins(dp(6),0,dp(6),dp(5))})
         if (title.equals("GROWTH", true)) {
             val status = OracleMarketCalendar.status()
+            // Keep the B518 Growth market-state presentation without changing Analysis.
             fixedToolbar.addView(TextView(context).apply {
-                text = status.label
+                text = if (status.open) "☀  ${status.label}" else "☾  ${status.label}"
                 textSize = 11f
                 typeface = Typeface.DEFAULT_BOLD
                 letterSpacing = .06f
