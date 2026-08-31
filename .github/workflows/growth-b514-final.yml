@@ -1,4 +1,4 @@
-name: Oracle B518 Growth FINAL APK
+name: Oracle B519 FINAL APK
 
 'on':
   push:
@@ -13,6 +13,10 @@ env:
   ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
   ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
   ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build:
@@ -29,18 +33,27 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Apply Growth-only fix
+      - name: Verify B514 Analysis baseline
         run: |
           set -euo pipefail
-          python3 scripts/fix_growth_stale_and_build_footer.py
+          test "$(git rev-parse 51365deb1a5e4e3020fcf02a144d55ba6a8f027e^{commit})" = "51365deb1a5e4e3020fcf02a144d55ba6a8f027e"
+          git diff --quiet 51365deb1a5e4e3020fcf02a144d55ba6a8f027e -- app/src/main/java/ro/alintudor/oracle/MainActivity.kt app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
+      - name: Apply B519 Growth-only render patch
+        run: |
+          set -euo pipefail
+          python3 scripts/fix_growth_b519.py
           git diff --check
-      - name: Verify Growth-only source
+      - name: Verify B519 source
         run: |
           set -euo pipefail
-          grep -q "versionName 'V6g-FINAL-B518'" app/build.gradle
-          grep -q "Never render a stale trading-day snapshot" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "versionCode 31" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B519'" app/build.gradle
+          grep -q "currentGrowthAnchor" app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
+          ! grep -q "firstRender" app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
           grep -q "addBuildFooter" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q "Europe/Bucharest" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "BUILD B519 • V6g-FINAL" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q "☀" app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
+          grep -q "☾" app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
           git diff --check
       - name: Prepare production signing key
         run: |
@@ -63,9 +76,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-      - name: Upload B518 FINAL APK
+      - name: Upload B519 FINAL APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B518-GrowthFix-installable
+          name: Oracle-APK-B519-FINAL-installable
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
