@@ -15,6 +15,9 @@ jobs:
       ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Apply Analysis sector resolution fix
+        shell: bash
+        run: python3 scripts/fix_analysis_sector.py
       - name: Verify permanent Growth source fix
         shell: bash
         run: |
