@@ -1,0 +1,170 @@
+name: Oracle B522 FINAL APK
+
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  BASE_COMMIT: 46e484494600d151c0a0013d8d87bbeffb31df63
+  ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+  ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+  ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+  ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact B514 Analysis source
+        uses: actions/checkout@v4
+        with:
+          ref: 46e484494600d151c0a0013d8d87bbeffb31df63
+          fetch-depth: 0
+
+      - name: Verify B514 baseline
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_COMMIT"
+
+      - name: Apply the exact B514 Analysis patch
+        run: |
+          set -euo pipefail
+          python3 scripts/b511_patch.py
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+
+      - name: Import ONLY current Growth dependencies
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git checkout origin/main -- \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
+
+      - name: Patch ONLY Growth initial render and footer
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          growth = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+          gradle = Path('app/build.gradle')
+
+          s = main.read_text(encoding='utf-8')
+          old = '''    private fun openModule(key:String){
+        currentModule=key
+        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        if (key == "analysis") return
+'''
+          new = '''    private fun openModule(key:String){
+        currentModule=key
+        if (key != "growth") {
+            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
+        }
+        if (key == "analysis") return
+'''
+          if old not in s:
+              raise SystemExit('B514 MainActivity baseline changed unexpectedly')
+          main.write_text(s.replace(old,new,1), encoding='utf-8')
+
+          s = growth.read_text(encoding='utf-8')
+          old = '''        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
+            return
+        }
+'''
+          new = '''        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
+            addBuildFooter()
+            return
+        }
+'''
+          if old not in s:
+              raise SystemExit('Growth empty-state anchor not found')
+          s = s.replace(old,new,1)
+
+          old = '''        addNews(ordered, fallbackNews)
+        addHistory(items)
+    }
+'''
+          new = '''        addNews(ordered, fallbackNews)
+        addHistory(items)
+        addBuildFooter()
+    }
+
+    private fun addBuildFooter() {
+        host.content.addView(text("BUILD B522 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(0, 0, 0, host.dp(18))
+        })
+    }
+'''
+          if old not in s:
+              raise SystemExit('Growth footer anchor not found')
+          growth.write_text(s.replace(old,new,1), encoding='utf-8')
+
+          s = gradle.read_text(encoding='utf-8')
+          import re
+          s = re.sub(r'versionCode\s+\d+', 'versionCode 33', s, count=1)
+          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B522'", s, count=1)
+          gradle.write_text(s, encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: HARD VERIFY Analysis is untouched
+        run: |
+          set -euo pipefail
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt)" = "76210ed4db93147487bc59e01ced70ae54f44ff6"
+          if git diff --name-only | grep -q '^app/src/main/java/ro/alintudor/oracle/nativeui/OracleSimpleModule.kt$'; then exit 1; fi
+          grep -q 'if (key != "growth")' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          grep -q 'BUILD B522 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'versionCode 33' app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B522'" app/build.gradle
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+
+      - name: Prepare production signing key
+        run: |
+          set -euo pipefail
+          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
+            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+            {
+              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Build release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+
+      - name: Upload B522 FINAL APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B522-FINAL-installable
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
