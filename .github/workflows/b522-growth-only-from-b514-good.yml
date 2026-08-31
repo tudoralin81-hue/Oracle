@@ -86,8 +86,9 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
-          unzip -p "$APK" classes.dex | strings | grep -q 'V6g-FINAL-B514'
-          unzip -p "$APK" classes.dex | strings | grep -q 'BUILD B514'
+          BADGING="$($ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -q "versionName='V6g-FINAL-B514'"
+          printf '%s\n' "$BADGING" | grep -q "versionCode='35'"
       - name: Upload ONLY B514 FINAL APK
         uses: actions/upload-artifact@v4
         with:
