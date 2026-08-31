@@ -35,10 +35,10 @@ object OracleRealData {
         val symbol=ticker.uppercase(Locale.US)
         val modules="price,summaryDetail,defaultKeyStatistics,financialData,assetProfile"
         val summary=runCatching { yahooQuoteSummary(symbol,modules) }
-            .mapNotNull { parseQuoteSummary(it,symbol) }.getOrNull()
+            .map { parseQuoteSummary(it,symbol) }.getOrNull()
 
         val quote=runCatching { yahooQuote(symbol) }
-            .mapNotNull { parseQuoteFallback(it,symbol) }.getOrNull()
+            .map { parseQuoteFallback(it,symbol) }.getOrNull()
 
         val ts=runCatching { parseTimeseriesFundamentals(fetchTimeseries(symbol),symbol) }.getOrNull()
         val sector=resolvedSector(symbol,summary?.sector ?: ts?.sector ?: quote?.sector)
