@@ -19,6 +19,8 @@ if start < 0 or end < 0:
 end += len(end_marker)
 
 new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
+            // NEWS is intentionally not displayed in Analysis; it remains independent from the Growth engine.
+            if (i == 0) return@forEachIndexed
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -47,9 +49,17 @@ new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
 if 'r.rawValues.getOrNull(i)' not in s:
     s = s[:start] + new_block + s[end:]
 
+# Do not expose Oracle's synthetic ADX score in the Analysis value row.
+old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
+new_adx = '"ADX(14) ${money(adx)}"'
+if old_adx in s:
+    s = s.replace(old_adx, new_adx, 1)
+elif new_adx not in s:
+    raise SystemExit('Analysis ADX display anchor not found')
+
 marker = '// ANALYSIS_RAW_VALUES_V3'
 if marker not in s:
     s = s.replace('class OracleSimpleModule(', marker + '\n\nclass OracleSimpleModule(', 1)
 
 p.write_text(s, encoding='utf-8')
-print('Analysis raw values + resolved sector patch applied')
+print('Analysis display patch applied: News hidden, ADX Oracle score hidden, sector preserved')
