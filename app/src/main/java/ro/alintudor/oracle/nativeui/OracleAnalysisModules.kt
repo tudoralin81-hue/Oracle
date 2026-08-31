@@ -203,7 +203,9 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
 
         // Oracle factors: rawValues[0] is internal News; visible factors start at rawValues[1].
         OracleAnalysisEngine.factorNames.forEachIndexed { i, name ->
-            relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
+            if (!name.equals("Fundamentals", ignoreCase = true)) {
+                relevantParameters.add(name to (r.rawValues.getOrNull(i + 1) ?: "Valoare indisponibilă"))
+            }
         }
 
         // Supplementary technical indicators.
@@ -283,7 +285,7 @@ class OracleSimpleModule(private val host: OracleNativeModule, private val modul
 
 // BUILD_VERSION_BOTTOM_V1
 host.content.addView(TextView(host.root.context).apply {
-    text = "ORACLE • V6g-FINAL-B513"
+    text = "ORACLE • V6g-FINAL-B514"
     textSize = 10f
     typeface = Typeface.DEFAULT_BOLD
     letterSpacing = .08f
@@ -295,12 +297,36 @@ host.content.addView(TextView(host.root.context).apply {
 
     private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
         var row: LinearLayout? = null
+
+        fun equalizeRow(target: LinearLayout) {
+            var maxHeight = 0
+            for (j in 0 until target.childCount) {
+                val child = target.getChildAt(j)
+                child.measure(
+                    android.view.View.MeasureSpec.makeMeasureSpec(target.measuredWidth / 2, android.view.View.MeasureSpec.AT_MOST),
+                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+                )
+                maxHeight = maxOf(maxHeight, child.measuredHeight)
+            }
+            if (maxHeight > 0) {
+                for (j in 0 until target.childCount) {
+                    val child = target.getChildAt(j)
+                    val lp = child.layoutParams
+                    if (lp.height != maxHeight) {
+                        lp.height = maxHeight
+                        child.layoutParams = lp
+                    }
+                }
+            }
+        }
+
         items.forEachIndexed { index, item ->
             if (index % 2 == 0) {
                 row = LinearLayout(host.root.context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.FILL_VERTICAL
-                    setMeasureWithLargestChildEnabled(true)
+                    gravity = Gravity.TOP
+                    clipChildren = false
+                    clipToPadding = false
                 }
                 container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
                     setMargins(0, 0, 0, host.dp(6))
@@ -310,6 +336,8 @@ host.content.addView(TextView(host.root.context).apply {
             val card = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(host.dp(11), host.dp(8), host.dp(11), host.dp(8))
+                clipChildren = false
+                clipToPadding = false
                 background = GradientDrawable().apply {
                     setColor(Color.rgb(6, 12, 24))
                     cornerRadius = host.dp(12).toFloat()
@@ -323,6 +351,8 @@ host.content.addView(TextView(host.root.context).apply {
                 letterSpacing = .07f
                 setTextColor(Color.rgb(85, 190, 235))
                 includeFontPadding = true
+                maxLines = 2
+                setHorizontallyScrolling(false)
             })
             card.addView(TextView(host.root.context).apply {
                 text = item.second
@@ -339,26 +369,14 @@ host.content.addView(TextView(host.root.context).apply {
                 if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
                 else setMargins(0, 0, host.dp(4), 0)
             })
+
+            row?.post { equalizeRow(row!!) }
         }
 
-        // Equalize each row after Android has measured multiline content.
         container.post {
             for (i in 0 until container.childCount) {
-                val rv = container.getChildAt(i) as? LinearLayout ?: continue
-                var maxHeight = 0
-                for (j in 0 until rv.childCount) {
-                    maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
-                }
-                if (maxHeight > 0) {
-                    for (j in 0 until rv.childCount) {
-                        val child = rv.getChildAt(j)
-                        val lp = child.layoutParams
-                        if (lp.height != maxHeight) {
-                            lp.height = maxHeight
-                            child.layoutParams = lp
-                        }
-                    }
-                }
+                val r = container.getChildAt(i) as? LinearLayout ?: continue
+                equalizeRow(r)
             }
             container.requestLayout()
         }
