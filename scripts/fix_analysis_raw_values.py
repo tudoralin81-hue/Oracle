@@ -12,6 +12,8 @@ if old_sector in s:
 elif new_sector not in s:
     raise SystemExit('Analysis sector display anchor not found')
 
+# Always replace the complete parameter loop. The previous script only replaced it
+# when rawValues was absent, which allowed News to leak back into Analysis.
 start_marker = '        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->'
 end_marker = '        host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })'
 start = s.find(start_marker)
@@ -21,7 +23,7 @@ if start < 0 or end < 0:
 end += len(end_marker)
 
 new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
-            // NEWS is intentionally not displayed in Analysis; it remains independent from Growth.
+            // NEWS remains an internal Growth factor but is intentionally hidden from Analysis.
             if (i == 0) return@forEachIndexed
             val row = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -48,21 +50,28 @@ new_block = '''        OracleAnalysisEngine.factorNames.forEachIndexed { i, n ->
         }
         host.content.addView(grid, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })'''
 
-if 'r.rawValues.getOrNull(i)' not in s:
-    s = s[:start] + new_block + s[end:]
+s = s[:start] + new_block + s[end:]
+
+if '// ANALYSIS_RAW_VALUES_V4' not in s:
+    s = s.replace('// ANALYSIS_RAW_VALUES_V3', '// ANALYSIS_RAW_VALUES_V4', 1)
 
 app.write_text(s, encoding='utf-8')
 
-# ADX's raw Analysis value must be the real indicator only. The Oracle score remains
-# an internal factor used by the engine and is not exposed in Analysis.
+# Oracle scores are internal only. Analysis must show the real indicator/value.
 engine = Path('app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt')
 e = engine.read_text(encoding='utf-8')
+old_rr = '"ATR %.2f%% • scor R/R %.1f/100".format(Locale.US,atrPct,rr)'
+new_rr = '"ATR %.2f%%".format(Locale.US,atrPct)'
+if old_rr in e:
+    e = e.replace(old_rr, new_rr, 1)
 old_adx = '"ADX(14) ${money(adx)} • scor Oracle %.1f/100".format(Locale.US,adxScore)'
 new_adx = '"ADX(14) ${money(adx)}"'
 if old_adx in e:
     e = e.replace(old_adx, new_adx, 1)
-elif new_adx not in e:
+if new_rr not in e:
+    raise SystemExit('Analysis R/R raw-value anchor not found in OracleAnalysisEngine.kt')
+if new_adx not in e:
     raise SystemExit('Analysis ADX raw-value anchor not found in OracleAnalysisEngine.kt')
 engine.write_text(e, encoding='utf-8')
 
-print('Analysis display patch applied: News hidden, fundamentals/raw values preserved, ADX Oracle score hidden')
+print('Analysis display patch applied: News hidden, sector preserved, R/R and ADX Oracle scores hidden')
