@@ -18,6 +18,18 @@ jobs:
       - name: Apply Analysis sector resolution fix
         shell: bash
         run: python3 scripts/fix_analysis_sector.py
+      - name: Apply Analysis raw-values and resolved-sector fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fix_analysis_raw_values.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix Analysis raw values and resolved sector display'
+            git push
+          fi
       - name: Verify permanent Growth source fix
         shell: bash
         run: |
@@ -71,7 +83,7 @@ jobs:
               echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
             } >> "$GITHUB_ENV"
           else
-            echo "WARNING: production signing secrets are not configured; this build will use the non-production debug certificate fallback."
+            echo "WARNING: production signing secrets are not configured; this build will use the non-production signing fallback."
           fi
       - name: Verify Watchlist ticker navigation fix
         shell: bash
