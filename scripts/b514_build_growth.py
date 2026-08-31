@@ -50,7 +50,17 @@ old = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGr
     }'''
 new = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
         if (items.isEmpty()) return emptyList()
-        return items.filter { it.referenceTimestamp > 0L }
+        if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
+        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
+        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
+        return items
+    }
+
+    private fun currentGrowthAnchor(nowMillis: Long): Long {
+        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
+        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
+        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
+        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
     }'''
 if old not in s:
     raise SystemExit('GrowthLiveData snapshot gate not found')
@@ -95,4 +105,4 @@ GRADLE.write_text(s, encoding='utf-8')
 
 if ANALYSIS.read_bytes() != BEFORE.read_bytes():
     raise SystemExit('B514 Growth-only patch changed Analysis; this is forbidden.')
-print('B514 Growth-only patch applied; Analysis is byte-for-byte unchanged.')
+print('B517 Growth stale-render guard applied; Analysis is byte-for-byte unchanged.')
