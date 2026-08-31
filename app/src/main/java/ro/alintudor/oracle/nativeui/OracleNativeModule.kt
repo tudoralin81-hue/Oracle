@@ -92,7 +92,7 @@ class OracleNativeModule(
     fun addCard(heading:String,body:String){
         val isKnowledge = heading.equals("KNOWLEDGE", ignoreCase = true)
         val card=LinearLayout(context).apply{ orientation=LinearLayout.VERTICAL; setPadding(dp(16),dp(14),dp(16),dp(14)); background=rounded(Color.rgb(7,11,22),dp(15),if(isKnowledge) Color.rgb(255,205,55) else Color.rgb(42,52,76),dp(1))
-            if (isKnowledge) { isClickable = true; isFocusable = true; contentDescription = "Deschide Knowledge: https://alintudor.ro/knowledge/"; setOnClickListener { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/))) } } }
+            if (isKnowledge) { isClickable = true; isFocusable = true; contentDescription = "Deschide Knowledge: https://alintudor.ro/knowledge/"; setOnClickListener { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://alintudor.ro/knowledge/"))) } } }
         }
         card.addView(TextView(context).apply{text=heading.uppercase();textSize=17f;typeface=Typeface.DEFAULT_BOLD;letterSpacing=.04f;setTextColor(Color.WHITE)})
         card.addView(TextView(context).apply{text=if(isKnowledge) "$body\n\nDESCHIDE: https://alintudor.ro/knowledge/" else body;textSize=14f;setTextColor(if(isKnowledge) Color.WHITE else Color.rgb(175,182,198));setPadding(0,dp(7),0,0)})
