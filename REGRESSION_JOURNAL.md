@@ -125,3 +125,10 @@ When a new version regresses a previously working screen:
 - Required behavior: build from `main`; Growth-only processing must leave `OracleAnalysisModules.kt` byte-for-byte unchanged.
 - Prevention: the approved build workflow must not apply a historical Analysis patch or checkout a historical Analysis baseline.
 - Revert point: the pre-change `main` commit immediately before this audit/fix.
+
+## Rule 018 — APK verification must validate stable package metadata, not optimized DEX strings
+- Evidence: the B514 build from commit `48205cf177777e4d1ce17076a8f3c75024f66bcd` compiled successfully and APK signature verification succeeded, but the workflow failed because it searched optimized `classes.dex` for `V6g-FINAL-B514` and `BUILD B514`.
+- Confirmed fact: the failure occurred in the verification step after `:app:assembleRelease` succeeded; the APK was signed with the Android Debug certificate because production signing secrets were empty for that run.
+- Required behavior: verify the APK signature and read `versionName`/`versionCode` from the APK manifest using `aapt dump badging`. Do not require arbitrary build-marker strings to survive DEX optimization.
+- Change: B514 workflow verification now checks `versionName='V6g-FINAL-B514'` and `versionCode='35'` from APK badging and then uploads the APK.
+- Revert point: commit `7362d4cef0fb2bed1e8a33003542f2513d62f42e` is the workflow fix; the immediately preceding commit `48205cf177777e4d1ce17076a8f3c75024f66bcd` remains the prior build state.
