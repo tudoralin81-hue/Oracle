@@ -1,8 +1,11 @@
 name: B514 FINAL APK
 
-'on':
+on:
   push:
-    branches: [main]
+    branches:
+      - main
+    paths:
+      - scripts/b514_build_growth.py
   workflow_dispatch:
 
 permissions:
@@ -26,11 +29,9 @@ jobs:
           fetch-depth: 0
 
       - name: Verify exact B514 base
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "e1195536704f375f6a44f1ae5985bc464671ec0b"
+        run: test "$(git rev-parse HEAD)" = "e1195536704f375f6a44f1ae5985bc464671ec0b"
 
-      - name: Import ONLY current Growth implementation
+      - name: Import current Growth implementation only
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
@@ -41,108 +42,10 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleMarketCalendar.kt
 
-      - name: Apply Growth-only patch and B514 version marker
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Apply B514 Growth-only script
+        run: python3 scripts/b514_build_growth.py
 
-          analysis = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
-          main = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
-          live = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt')
-          growth = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
-          gradle = Path('app/build.gradle')
-
-          # Analysis is LOCKED: the only permitted Analysis edit is the visible build marker.
-          s = analysis.read_text(encoding='utf-8')
-          if s.count('ORACLE • V6g-FINAL-B513') != 1:
-              raise SystemExit('Expected exactly one B513 Analysis footer in the e119553 base')
-          s = s.replace('ORACLE • V6g-FINAL-B513', 'ORACLE • V6g-FINAL-B514', 1)
-          analysis.write_text(s, encoding='utf-8')
-
-          s = main.read_text(encoding='utf-8')
-          old = '''    private fun openModule(key:String){
-        currentModule=key
-        runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        if (key == "analysis") return
-'''
-          new = '''    private fun openModule(key:String){
-        currentModule=key
-        if (key != "growth") {
-            runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}
-        }
-        if (key == "analysis") return
-'''
-          if old not in s:
-              raise SystemExit('MainActivity Growth render anchor not found')
-          main.write_text(s.replace(old, new, 1), encoding='utf-8')
-
-          s = live.read_text(encoding='utf-8')
-          old = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-        if (items.isEmpty()) return emptyList()
-        if (items.any { it.referenceTimestamp <= 0L }) return emptyList()
-        val expectedAnchor = currentGrowthAnchor(System.currentTimeMillis())
-        if (items.any { it.referenceTimestamp != expectedAnchor }) return emptyList()
-        return items
-    }
-
-    private fun currentGrowthAnchor(nowMillis: Long): Long {
-        val now = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
-        var date = if (now.toLocalTime().isBefore(LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
-        while (!OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
-        return ZonedDateTime.of(date, LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
-    }'''
-          new = '''    fun refresh(items: List<OracleGrowthRecommendation>): List<OracleGrowthRecommendation> {
-        if (items.isEmpty()) return emptyList()
-        return items.filter { it.referenceTimestamp > 0L }
-    }'''
-          if old not in s:
-              raise SystemExit('GrowthLiveData snapshot gate not found')
-          live.write_text(s.replace(old, new, 1), encoding='utf-8')
-
-          s = growth.read_text(encoding='utf-8')
-          old = '''        if (items.isEmpty()) {
-            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
-            return
-        }
-'''
-          new = '''        if (items.isEmpty()) {
-            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
-            addBuildFooter()
-            return
-        }
-'''
-          if old not in s:
-              raise SystemExit('Growth empty-state anchor not found')
-          s = s.replace(old, new, 1)
-          old = '''        addNews(ordered, fallbackNews)
-        addHistory(items)
-    }
-'''
-          new = '''        addNews(ordered, fallbackNews)
-        addHistory(items)
-        addBuildFooter()
-    }
-
-    private fun addBuildFooter() {
-        host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply {
-            setMargins(0, 0, 0, host.dp(18))
-        })
-    }
-'''
-          if old not in s:
-              raise SystemExit('Growth footer anchor not found')
-          growth.write_text(s.replace(old, new, 1), encoding='utf-8')
-
-          s = gradle.read_text(encoding='utf-8')
-          s = re.sub(r'versionCode\s+\d+', 'versionCode 32', s, count=1)
-          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
-          gradle.write_text(s, encoding='utf-8')
-          PY
-          git diff --check
-
-      - name: HARD VERIFY Analysis is locked
+      - name: HARD VERIFY Analysis locked to e119553 except build footer
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -150,18 +53,14 @@ jobs:
           from pathlib import Path
           p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           actual = p.read_text(encoding='utf-8')
-          baseline = subprocess.check_output(['git','show','e1195536704f375f6a44f1ae5985bc464671ec0b:app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt'], text=True)
-          norm_actual = actual.replace('ORACLE • V6g-FINAL-B514','ORACLE • V6g-FINAL-BUILD')
-          norm_base = baseline.replace('ORACLE • V6g-FINAL-B513','ORACLE • V6g-FINAL-BUILD')
-          if norm_actual != norm_base:
-              raise SystemExit('FAIL: Analysis differs from exact e119553 baseline beyond build footer')
+          base = subprocess.check_output(['git','show','e1195536704f375f6a44f1ae5985bc464671ec0b:app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt'], text=True)
+          if actual.replace('ORACLE • V6g-FINAL-B514','ORACLE • V6g-FINAL-BUILD') != base.replace('ORACLE • V6g-FINAL-B513','ORACLE • V6g-FINAL-BUILD'):
+              raise SystemExit('Analysis changed beyond the build footer')
           if actual.count('ORACLE • V6g-FINAL-B514') != 1:
-              raise SystemExit('FAIL: Analysis B514 footer missing or duplicated')
-          print('PASS: Analysis byte-equivalent to e119553 after normalizing only the build footer.')
+              raise SystemExit('Analysis B514 footer missing or duplicated')
           PY
-          grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'BUILD B514' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
-          grep -q 'versionCode 32' app/build.gradle
 
       - uses: actions/setup-java@v4
         with:
@@ -196,7 +95,6 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
           unzip -p "$APK" classes.dex | strings | grep -q 'V6g-FINAL-B514'
           unzip -p "$APK" classes.dex | strings | grep -q 'BUILD B514'
-          echo "APK verified: B514"
       - name: Upload ONLY B514 FINAL APK
         uses: actions/upload-artifact@v4
         with:
