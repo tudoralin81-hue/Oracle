@@ -12,6 +12,12 @@ BEFORE = Path('/tmp/oracle_analysis_before.kt')
 
 shutil.copyfile(ANALYSIS, BEFORE)
 
+s = ANALYSIS.read_text(encoding='utf-8')
+if s.count('ORACLE • V6g-FINAL-B513') != 1:
+    raise SystemExit('Analysis B514 base footer not found exactly once')
+s = s.replace('ORACLE • V6g-FINAL-B513', 'ORACLE • V6g-FINAL-B514', 1)
+ANALYSIS.write_text(s, encoding='utf-8')
+
 s = MAIN.read_text(encoding='utf-8')
 old = '''    private fun openModule(key:String){
         currentModule=key
@@ -56,12 +62,14 @@ s = GROWTH.read_text(encoding='utf-8')
 old = '''        if (items.isEmpty()) {
             host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
             return
-        }'''
+        }
+'''
 new = '''        if (items.isEmpty()) {
             host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
             addBuildFooter()
             return
-        }'''
+        }
+'''
 if old not in s:
     raise SystemExit('Growth empty-state anchor not found')
 s = s.replace(old,new,1)
@@ -85,10 +93,14 @@ if old not in s:
 GROWTH.write_text(s.replace(old,new,1), encoding='utf-8')
 
 s = GRADLE.read_text(encoding='utf-8')
-s = re.sub(r'versionCode\s+\d+', 'versionCode 35', s, count=1)
+s = re.sub(r'versionCode\s+\d+', 'versionCode 32', s, count=1)
 s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-FINAL-B514'", s, count=1)
 GRADLE.write_text(s, encoding='utf-8')
 
-if ANALYSIS.read_bytes() != BEFORE.read_bytes():
-    raise SystemExit('Analysis changed during Growth patch')
-print('B514 Growth-only patch applied; Analysis is byte-for-byte unchanged.')
+# Analysis must be byte-for-byte identical to the B514 base except for the visible build footer.
+before = BEFORE.read_text(encoding='utf-8')
+after = ANALYSIS.read_text(encoding='utf-8')
+if after.replace('ORACLE • V6g-FINAL-B514', 'ORACLE • V6g-FINAL-BUILD') != before.replace('ORACLE • V6g-FINAL-B513', 'ORACLE • V6g-FINAL-BUILD'):
+    raise SystemExit('Analysis changed beyond the build footer')
+
+print('B514 Growth-only patch applied; Analysis locked except build footer.')
