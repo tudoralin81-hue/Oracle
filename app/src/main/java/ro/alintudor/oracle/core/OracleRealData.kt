@@ -180,7 +180,7 @@ object OracleRealData {
         "JPM","BAC","WFC","C","GS","MS","BLK","SCHW","COF","AXP","V","MA","PYPL","HOOD","COIN"->"Financials"
         "GE","CAT","DE","HON","RTX","BA","LMT","NOC","GD","ETN","EMR","UNP","UPS","FDX","RHM"->"Industrials"
         "XOM","CVX","COP","SLB","EOG","OXY","MPC","VLO","HAL","FANG"->"Energy"
-        "LIN","APD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
+        "LIN","APD","APLD","SHW","FCX","NEM","NUE","DOW","DD","ALB"->"Materials"
         "NEE","DUK","SO","AEP","EXC","SRE","D"->"Utilities"
         "PLD","AMT","EQIX","CCI","O","SPG","WELL","DLR"->"Real Estate"
         else->null
