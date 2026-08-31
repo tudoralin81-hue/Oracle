@@ -1,0 +1,78 @@
+name: Oracle APK B504
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+      ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+      ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+      ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply permanent B504 Analysis repair
+        run: python3 scripts/repair_analysis_values_504.py
+      - name: Commit repaired source and build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/build.gradle app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if ! git diff --cached --quiet; then
+            git commit -m 'B504 repair Analysis raw values and build identity'
+            git push
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - name: Prepare production signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
+            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+            {
+              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+      - name: Verify B504 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode 20" app/build.gradle
+          grep -q "versionName 'V6g-KNOWLEDGE-B504'" app/build.gradle
+          grep -q 'text="BUILD 504"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleNativeModule.kt
+          grep -q 'val cap=ts?.marketCap ?: summary?.marketCap ?: quote?.marketCap' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+          grep -q 'val fpe=listOf(summary?.forwardPe, quote?.forwardPe, ts?.forwardPe)' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
+      - name: Build signed release APK
+        run: gradle :app:assembleRelease --stacktrace
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+      - name: Upload B504 installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B504-installable
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
