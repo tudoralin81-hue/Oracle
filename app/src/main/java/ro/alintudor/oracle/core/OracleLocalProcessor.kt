@@ -45,13 +45,14 @@ object OracleLocalProcessor {
         val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
         val growth = if (snapshotIsCurrent) {
             current.growth
-        } else if (current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp > 0L }) {
-            // Preserve the previous valid snapshot when a new anchor has not been generated.
-            // This prevents a transient/empty live-data refresh from replacing recommendations.
-            current.growth
         } else {
+            // The persisted set belongs to an older anchor (including the legacy
+            // 28.08.2026 bootstrap seed). Generate the new snapshot now.
+            // If live generation temporarily returns no candidates, preserve the
+            // last valid snapshot rather than inventing or partially rewriting it.
             val generated = OracleGrowthEngine.run(current.growth)
             if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, growthAnchor)
+            else if (current.growth.isNotEmpty()) current.growth
             else applyCalculatedRiskAllocation(current.growth)
         }
 
