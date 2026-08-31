@@ -1,22 +1,21 @@
 name: B511 Analysis UI FINAL
 
-on:
+'on':
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: write
 
-env:
-  ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
-  ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
-  ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
-  ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+      ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+      ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+      ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -35,13 +34,13 @@ jobs:
         run: |
           from pathlib import Path
           import re
-
           src = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
           s = src.read_text(encoding='utf-8')
-
-          # Matrix cards: natural height, then equalise only inside each row after layout.
-          # This keeps long Fundamentals text fully visible while preserving a clean 2-column grid.
-          new_grid = r'''    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
+          start = s.find('    private fun addMetricGrid(')
+          end = s.find('    private fun metricValueColor', start)
+          if start < 0 or end < 0:
+              raise SystemExit('B511: addMetricGrid anchors not found')
+          grid = '''    private fun addMetricGrid(container: LinearLayout, items: List<Pair<String, String>>) {
         var row: LinearLayout? = null
         items.forEachIndexed { index, item ->
             if (index % 2 == 0) {
@@ -54,7 +53,6 @@ jobs:
                     setMargins(0, 0, 0, host.dp(6))
                 })
             }
-
             val card = LinearLayout(host.root.context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(host.dp(11), host.dp(8), host.dp(11), host.dp(8))
@@ -64,7 +62,6 @@ jobs:
                     setStroke(host.dp(1), Color.rgb(35, 65, 98))
                 }
             }
-
             card.addView(TextView(host.root.context).apply {
                 text = item.first.uppercase(Locale.US)
                 textSize = 10f
@@ -73,7 +70,6 @@ jobs:
                 setTextColor(Color.rgb(85, 190, 235))
                 includeFontPadding = true
             })
-
             card.addView(TextView(host.root.context).apply {
                 text = item.second
                 textSize = 12.5f
@@ -85,42 +81,31 @@ jobs:
                 maxLines = Int.MAX_VALUE
                 ellipsize = null
             })
-
             row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
                 else setMargins(0, 0, host.dp(4), 0)
             })
         }
-
         container.post {
             for (i in 0 until container.childCount) {
                 val rv = container.getChildAt(i) as? LinearLayout ?: continue
                 var maxHeight = 0
-                for (j in 0 until rv.childCount) {
-                    maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
+                for (j in 0 until rv.childCount) maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
+                if (maxHeight > 0) for (j in 0 until rv.childCount) {
+                    val child = rv.getChildAt(j)
+                    val lp = child.layoutParams
+                    lp.height = maxHeight
+                    child.layoutParams = lp
                 }
-                if (maxHeight > 0) {
-                    for (j in 0 until rv.childCount) {
-                        val child = rv.getChildAt(j)
-                        val lp = child.layoutParams
-                        lp.height = maxHeight
-                        child.layoutParams = lp
-                    }
-                    rv.requestLayout()
-                }
+                rv.requestLayout()
             }
         }
     }
 
 '''
-          s2 = re.sub(r'    private fun addMetricGrid\(container: LinearLayout, items: List<Pair<String, String>>\) \{.*?\n    \}\n\n    private fun metricValueColor', new_grid + '    private fun metricValueColor', s, count=1, flags=re.S)
-          if s2 == s:
-              raise SystemExit('B511: addMetricGrid anchor not found')
-          s = s2
-
-          # Ticker headline: full company name on its own line, sector below it.
-          old = re.compile(r'''        top\.addView\(TextView\(host\.root\.context\)\.apply \{\n            text = "\$\{companyName\(r\.ticker\)\}   •   Sector: \$\{r\.sector \?: "Sector indisponibil"\}"\n            textSize = 15f\n            typeface = Typeface\.DEFAULT_BOLD\n            setTextColor\(Color\.rgb\(205, 213, 228\)\)\n            setPadding\(0, host\.dp\(4\), 0, 0\)\n        \}\)''')
-          replacement = '''        top.addView(TextView(host.root.context).apply {
+          s = s[:start] + grid + s[end:]
+          old = re.compile(r'(?s)        top\.addView\(TextView\(host\.root\.context\)\.apply \{\n            text = "\$\{companyName\(r\.ticker\)\}.*?\n        \}\)')
+          new = '''        top.addView(TextView(host.root.context).apply {
             text = companyName(r.ticker)
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
@@ -134,25 +119,17 @@ jobs:
             setTextColor(Color.rgb(145, 158, 180))
             setPadding(0, host.dp(2), 0, 0)
         })'''
-          s2 = old.sub(replacement, s, count=1)
+          s2 = old.sub(new, s, count=1)
           if s2 == s:
-              raise SystemExit('B511: ticker company/sector block not found')
+              raise SystemExit('B511: company header anchor not found')
           s = s2
-
-          # Slightly soften the yellow value text without changing green/red semantics.
           s = s.replace('Color.rgb(228, 178, 28)', 'Color.rgb(205, 165, 38)')
-
           if '"APLD" -> "Applied Digital Corporation"' not in s:
               anchor = '"AAOI" -> "Applied Optoelectronics, Inc."'
-              if anchor not in s:
-                  raise SystemExit('B511: company-name map anchor not found')
+              if anchor not in s: raise SystemExit('B511: APLD map anchor not found')
               s = s.replace(anchor, anchor + '\n        "APLD" -> "Applied Digital Corporation"', 1)
-
-          s = s.replace('V6g-FINAL-B508', 'V6g-FINAL-B511')
-          s = s.replace('V6g-FINAL-B509', 'V6g-FINAL-B511')
-          s = s.replace('V6g-FINAL-B510', 'V6g-FINAL-B511')
+          s = re.sub(r'V6g-FINAL-B\d+', 'V6g-FINAL-B511', s)
           src.write_text(s, encoding='utf-8')
-
           gradle = Path('app/build.gradle')
           g = gradle.read_text(encoding='utf-8')
           g = re.sub(r'versionCode\s+\d+', 'versionCode 26', g, count=1)
@@ -160,31 +137,24 @@ jobs:
           gradle.write_text(g, encoding='utf-8')
 
       - name: Verify B511 source
-        shell: bash
         run: |
           set -euo pipefail
           grep -q "versionCode 26" app/build.gradle
           grep -q "versionName 'V6g-FINAL-B511'" app/build.gradle
-          grep -q 'maxLines = Int.MAX_VALUE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'Applied Digital Corporation' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'text = companyName(r.ticker)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           grep -q 'Color.rgb(205, 165, 38)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          ! grep -q 'host.dp(104)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'maxLines = Int.MAX_VALUE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           git diff --check
 
       - name: Commit B511 source
-        shell: bash
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/build.gradle app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          if ! git diff --cached --quiet; then
-            git commit -m "B511: finalize Analysis matrix autoscale and company header [skip ci]"
-            git push origin HEAD:main
-          fi
+          git diff --cached --quiet || (git commit -m 'B511: finalize Analysis UI' && git push origin HEAD:main)
 
-      - name: Prepare production signing key
+      - name: Prepare signing key
         shell: bash
         run: |
           set -euo pipefail
@@ -202,7 +172,6 @@ jobs:
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Verify APK
-        shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
