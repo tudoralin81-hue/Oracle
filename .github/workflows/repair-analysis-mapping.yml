@@ -62,3 +62,5 @@ jobs:
           git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt .github/workflows/final-build-506.yml
           git commit -m 'Fix Analysis Oracle value mapping'
           git push
+
+# Triggered only after this workflow already exists on main.
