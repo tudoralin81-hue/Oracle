@@ -40,13 +40,30 @@ jobs:
       - name: HARD VERIFY Analysis unchanged
         run: |
           set -euo pipefail
-          test -f app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
-          test "$(git diff -- app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt | wc -l)" -eq 0
+          ANALYSIS="app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt"
+          test -f "$ANALYSIS"
+          BASE_ANALYSIS_SHA="$(git rev-parse "$BASE_COMMIT:$ANALYSIS")"
+          CURRENT_ANALYSIS_SHA="$(git hash-object "$ANALYSIS")"
+          test "$CURRENT_ANALYSIS_SHA" = "$BASE_ANALYSIS_SHA"
+          test "$(git diff -- "$ANALYSIS" | wc -l)" -eq 0
           grep -q 'return items.filter { it.referenceTimestamp > 0L }' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
           grep -q 'if (key != "growth")' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           grep -q 'BUILD B514 • V6g-FINAL' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'versionCode 35' app/build.gradle
           grep -q "versionName 'V6g-FINAL-B514'" app/build.gradle
+
+      - name: HARD VERIFY ONLY Growth files changed
+        run: |
+          set -euo pipefail
+          git diff --name-only | sort > "$RUNNER_TEMP/actual-files.txt"
+          cat > "$RUNNER_TEMP/expected-files.txt" <<'EOF'
+          app/build.gradle
+          app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
+          app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          EOF
+          sed -i 's/^          //' "$RUNNER_TEMP/expected-files.txt"
+          diff -u "$RUNNER_TEMP/expected-files.txt" "$RUNNER_TEMP/actual-files.txt"
 
       - uses: actions/setup-java@v4
         with:
