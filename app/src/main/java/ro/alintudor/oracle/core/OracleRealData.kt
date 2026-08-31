@@ -43,8 +43,8 @@ object OracleRealData {
         val ts=runCatching { parseTimeseriesFundamentals(fetchTimeseries(symbol),symbol) }.getOrNull()
         val sector=resolvedSector(symbol,summary?.sector ?: ts?.sector ?: quote?.sector)
         val industry=summary?.industry ?: ts?.industry ?: quote?.industry ?: knownIndustry(symbol)
-        val pe=summary?.trailingPe ?: quote?.trailingPe ?: ts?.trailingPe
-        val fpe=summary?.forwardPe ?: quote?.forwardPe ?: ts?.forwardPe
+        val pe=(summary?.trailingPe ?: quote?.trailingPe ?: ts?.trailingPe)?.takeIf { it.isFinite() && it > 0.0 }
+        val fpe=(summary?.forwardPe ?: quote?.forwardPe ?: ts?.forwardPe)?.takeIf { it.isFinite() && it > 0.0 }
         val rg=summary?.revenueGrowth ?: ts?.revenueGrowth
         val eg=summary?.earningsGrowth ?: ts?.earningsGrowth
         val pm=summary?.profitMargin ?: ts?.profitMargin
@@ -273,7 +273,7 @@ object OracleRealData {
     private fun pct(v:Double?):String=v?.let{"%.2f%%".format(Locale.US,it*100)}?:"—"; private fun moneyCap(v:Double?):String=when{v==null->"—";v>=1e12->"%.2fT".format(Locale.US,v/1e12);v>=1e9->"%.2fB".format(Locale.US,v/1e9);v>=1e6->"%.2fM".format(Locale.US,v/1e6);else->"%.0f".format(Locale.US,v)}
 
     private fun knownSector(ticker:String):String?=when(ticker){
-        "NVDA","AMD","AVGO","QCOM","MU","MRVL","ARM","INTC","TSM","ASML","LRCX","AMAT","KLAC","ON","MPWR","ADI","TXN","NXPI","MCHP","SWKS","STM","WDC","STX","SMCI","CRDO","AAOI","AAPL","MSFT","ORCL","CRM","NOW","ADBE","INTU","SNOW","PLTR","PANW","CRWD","NET","DDOG","MDB","SHOP","TEAM","VEEV","SNPS","CDNS","FTNT","ZS","WDAY","ROP","ACN","IBM","SAP","CSCO","ANET","DELL","HPE","APLD"->"Information Technology"
+        "NVDA","AMD","AVGO","QCOM","MU","MRVL","ARM","INTC","TSM","ASML","LRCX","AMAT","KLAC","ON","MPWR","ADI","TXN","NXPI","MCHP","SWKS","STM","WDC","STX","SMCI","CRDO","AAOI","AAPL","MSFT","ORCL","CRM","NOW","ADBE","INTU","SNOW","PLTR","PANW","CRWD","NET","DDOG","MDB","SHOP","TEAM","VEEV","SNPS","CDNS","FTNT","ZS","WDAY","ROP","ACN","IBM","SAP","CSCO","ANET","DELL","HPE","APLD"->"Technology"
         "GOOGL","GOOG","META","NFLX","DIS","CMCSA","TMUS","VZ","T","CHTR","WBD","SPOT"->"Communication Services"
         "AMZN","TSLA","HD","LOW","MCD","NKE","SBUX","BKNG","ABNB","TJX","TGT","GM","F","LULU"->"Consumer Discretionary"
         "WMT","COST","PG","KO","PEP","PM","MO","CL","KMB"->"Consumer Staples"
