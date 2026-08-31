@@ -17,20 +17,17 @@ new = '''    fun render(items: List<OracleGrowthRecommendation>, fallbackNews: L
             addBuildFooter()
             return
         }
-        if (validItems.isEmpty()) {'''
+'''
 if old in g:
     g = g.replace(old, new, 1)
-# Replace the accidental duplicate guard and switch subsequent render use to validItems.
-g = g.replace('''        if (validItems.isEmpty()) {
-            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
-            addBuildFooter()
+
+# Remove the old empty-list body if this script is re-run on an unpatched source.
+g = g.replace('''        if (items.isEmpty()) {
+            host.addCard("GROWTH", "Nu există încă un snapshot Growth local. Refresh va afișa ultimul rezultat Oracle disponibil.")
             return
         }
-        if (validItems.isEmpty()) {''', '''        if (validItems.isEmpty()) {
-            host.addCard("GROWTH", "Se încarcă snapshot-ul Growth al sesiunii curente…")
-            addBuildFooter()
-            return
-        }''', 1)
+
+''', '', 1)
 g = g.replace('''        addSummary(items)
 
         val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
@@ -48,7 +45,7 @@ g = g.replace('''        addHistory(items)
     }
 
     private fun currentGrowthAnchor(): Long {
-        val zone = java.time.ZoneId.of("America/New_York")
+        val zone = java.time.ZoneId.of("Europe/Bucharest")
         val now = java.time.ZonedDateTime.now(zone)
         var date = if (now.toLocalTime().isBefore(java.time.LocalTime.of(16, 0))) now.toLocalDate().minusDays(1) else now.toLocalDate()
         while (!ro.alintudor.oracle.core.OracleMarketCalendar.isTradingDay(date)) date = date.minusDays(1)
@@ -56,10 +53,13 @@ g = g.replace('''        addHistory(items)
     }
 
     private fun addBuildFooter() {
-        host.content.addView(text("BUILD V6g-FINAL-B517", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
+        host.content.addView(text("BUILD ${ro.alintudor.oracle.BuildConfig.VERSION_NAME}", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
     }
 
     private fun addSummary''', 1)
+# Remove any hardcoded footer left by the previous B517 script.
+g = g.replace('''        host.content.addView(text("BUILD V6g-FINAL-B517", 9f, Typeface.DEFAULT_BOLD, Color.rgb(120, 135, 160), host.dp(4), 10), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
+''', '', 1)
 GROWTH.write_text(g, encoding="utf-8")
 
 m = MAIN.read_text(encoding="utf-8")
@@ -83,4 +83,4 @@ new_open = '''    private fun openModule(key:String){
 if old_open in m:
     m = m.replace(old_open, new_open, 1)
 MAIN.write_text(m, encoding="utf-8")
-print("Growth stale-render guard + build footer patched")
+print("B518 Growth stale-render + dynamic build footer patch applied")
