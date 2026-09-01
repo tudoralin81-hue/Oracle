@@ -4,278 +4,282 @@ import android.content.Context
 import android.graphics.*
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/** B514 native Start reference composition. No bitmap/image asset. */
+/**
+ * B514 Start only. Native Canvas composition; deliberately no bitmap/image asset.
+ * Frozen modules are reached only through their existing callbacks.
+ */
 class OracleMysticHeroView(context: Context, private val onModule: (String) -> Unit) : View(context) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
-    private val gold = Color.rgb(235, 183, 52)
-    private val goldBright = Color.rgb(255, 218, 91)
-    private val ivory = Color.rgb(246, 240, 222)
-    private val muted = Color.rgb(174, 164, 143)
-    private val cards = arrayListOf<Pair<RectF, String>>()
+    private val cards = ArrayList<Pair<RectF, String>>()
+    private val gold = Color.rgb(236, 188, 64)
+    private val brightGold = Color.rgb(255, 215, 82)
+    private val ivory = Color.rgb(242, 237, 224)
+    private val dim = Color.rgb(151, 143, 125)
 
-    private data class Node(val key: String, val label: String, val sub: String, val color: Int)
+    private data class Node(val key: String, val title: String, val sub: String, val color: Int)
     private val nodes = listOf(
-        Node("portfolio", "PORTFOLIO", "OVERVIEW", Color.rgb(205, 70, 255)),
-        Node("watchlist", "WATCHLIST", "TRACK & FOCUS", goldBright),
-        Node("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(34, 218, 255)),
-        Node("growth", "GROWTH", "FUTURE SCAN", Color.rgb(118, 255, 42)),
-        Node("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 65, 42)),
-        Node("news", "NEWS", "MARKET PULSE", Color.rgb(38, 220, 255)),
-        Node("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", goldBright),
-        Node("", "STOCK", "INTELLIGENCE", Color.rgb(205, 70, 255))
+        Node("portfolio", "PORTFOLIO", "OVERVIEW", Color.rgb(201, 65, 255)),
+        Node("watchlist", "WATCHLIST", "TRACK & FOCUS", Color.rgb(247, 198, 55)),
+        Node("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(45, 214, 255)),
+        Node("growth", "GROWTH", "FUTURE SCAN", Color.rgb(119, 245, 55)),
+        Node("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 68, 48)),
+        Node("news", "NEWS", "MARKET PULSE", Color.rgb(42, 211, 255)),
+        Node("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", Color.rgb(246, 198, 52)),
+        Node("stock", "STOCK", "INTELLIGENCE", Color.rgb(199, 72, 255))
     )
 
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
         val w = width.toFloat()
         val h = height.toFloat()
-        val scale = min(w / 720f, h / 1150f).coerceAtLeast(0.42f)
-        val ox = (w - 720f * scale) / 2f
-        fun x(v: Float): Float = ox + v * scale
-        fun y(v: Float): Float = v * scale
+        val s = min(w / 720f, h / 1180f).coerceAtLeast(.45f)
+        val ox = (w - 720f * s) / 2f
+        fun X(v: Float) = ox + v * s
+        fun Y(v: Float) = v * s
+        fun R(v: Float) = v * s
 
-        p.style = Paint.Style.FILL
-        p.shader = LinearGradient(0f, 0f, w, h, Color.rgb(1, 2, 4), Color.rgb(8, 5, 3), Shader.TileMode.CLAMP)
-        c.drawRect(0f, 0f, w, h, p)
         p.shader = null
-
-        val cx = x(360f)
-        val cy = y(360f)
-        val rr = r(325f)
-
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = r(0.65f)
-        p.color = gold
-        p.alpha = 38
-        for (i in 1..11) c.drawCircle(cx, cy, rr * i / 11f, p)
-        for (i in 0 until 24) {
-            val a = i * Math.PI / 12.0
-            val ca = cos(a).toFloat()
-            val sa = sin(a).toFloat()
-            c.drawLine(cx + ca * rr * .18f, cy + sa * rr * .18f, cx + ca * rr, cy + sa * rr, p)
-        }
         p.style = Paint.Style.FILL
-        p.alpha = 70
-        p.color = goldBright
-        for (i in 0 until 28) {
-            val a = (i * 47 % 360) * Math.PI / 180.0
-            val rad = rr * (.45f + (i % 5) * .095f)
-            c.drawCircle(cx + cos(a).toFloat() * rad, cy + sin(a).toFloat() * rad, r(if (i % 3 == 0) 1.5f else .75f), p)
+        p.color = Color.rgb(2, 3, 6)
+        p.alpha = 255
+        c.drawRect(0f, 0f, w, h, p)
+
+        // Fine mystical geometry behind the hero; thin, restrained lines.
+        val cx = X(360f)
+        val heroCy = Y(302f)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = R(.55f)
+        p.color = gold
+        p.alpha = 55
+        for (r0 in 155..330 step 18) c.drawCircle(cx, heroCy, R(r0.toFloat()), p)
+        for (i in 0 until 20) {
+            val a = i * Math.PI / 10.0
+            val x1 = cx + cos(a).toFloat() * R(110f)
+            val y1 = heroCy + sin(a).toFloat() * R(110f)
+            val x2 = cx + cos(a).toFloat() * R(330f)
+            val y2 = heroCy + sin(a).toFloat() * R(330f)
+            c.drawLine(x1, y1, x2, y2, p)
+        }
+        p.alpha = 150
+        for (i in 0 until 34) {
+            val a = (i * 71 % 360) * Math.PI / 180.0
+            val rad = R(165f + (i % 7) * 21f)
+            c.drawCircle(cx + cos(a).toFloat() * rad, heroCy + sin(a).toFloat() * rad, R(if (i % 4 == 0) 1.6f else .7f), p)
         }
 
-        drawButton(c, x(54f), y(52f), r(58f), false)
-        drawButton(c, x(666f), y(52f), r(58f), true)
-        drawSigil(c, cx, y(126f), r(54f))
-        text(c, "ORACLE", cx, y(204f), r(32f), goldBright, Typeface.SERIF, 0f)
-        text(c, "STOCK INTELLIGENCE", cx, y(232f), r(11f), goldBright, Typeface.DEFAULT_BOLD, .22f)
+        drawTopButton(c, X(58f), Y(55f), R(29f), false)
+        drawTopButton(c, X(662f), Y(55f), R(29f), true)
 
-        drawEye(c, cx, y(352f), r(208f), goldBright, r(3f))
+        text(c, "STOCK INTELLIGENCE", cx, Y(24f), R(10f), gold, Typeface.DEFAULT_BOLD, .08f)
+        drawOracleEye(c, cx, Y(82f), R(31f), brightGold)
+        text(c, "ORACLE", cx, Y(139f), R(31f), brightGold, Typeface.SERIF, .17f)
+        text(c, "STOCK INTELLIGENCE", cx, Y(165f), R(10f), gold, Typeface.DEFAULT, .26f)
+
+        // Hero eye: organic eye silhouette, but fully native/vector.
+        drawEye(c, cx, heroCy + Y(8f), R(145f), brightGold)
         p.style = Paint.Style.FILL
         p.color = Color.BLACK
         p.alpha = 255
-        c.drawCircle(cx, y(352f), r(48f), p)
+        c.drawCircle(cx, heroCy + Y(8f), R(54f), p)
         p.style = Paint.Style.STROKE
-        p.color = goldBright
-        p.alpha = 180
-        p.strokeWidth = r(2f)
-        c.drawCircle(cx, y(352f), r(51f), p)
-        p.strokeWidth = r(.8f)
-        p.alpha = 110
-        for (i in 0 until 20) {
-            val a = i * Math.PI / 10.0
-            val ca = cos(a).toFloat()
-            val sa = sin(a).toFloat()
-            c.drawLine(cx + ca * r(58f), y(352f) + sa * r(58f), cx + ca * r(190f), y(352f) + sa * r(190f), p)
+        p.color = brightGold
+        p.alpha = 225
+        p.strokeWidth = R(2.2f)
+        c.drawCircle(cx, heroCy + Y(8f), R(59f), p)
+        p.strokeWidth = R(.8f)
+        p.alpha = 145
+        for (i in 0 until 28) {
+            val a = i * Math.PI / 14.0
+            c.drawLine(cx + cos(a).toFloat() * R(66f), heroCy + Y(8f) + sin(a).toFloat() * R(66f), cx + cos(a).toFloat() * R(145f), heroCy + Y(8f) + sin(a).toFloat() * R(145f), p)
         }
-        p.alpha = 190
-        c.drawLine(cx, y(42f), cx, y(548f), p)
+        p.alpha = 210
+        c.drawLine(cx, Y(45f), cx, heroCy - Y(145f), p)
+        c.drawLine(cx, heroCy + Y(153f), cx, Y(500f), p)
 
-        text(c, "SEE MORE.  KNOW FIRST.", cx, y(566f), r(11f), ivory, Typeface.DEFAULT, .32f)
-        p.strokeWidth = r(.8f)
+        text(c, "SEE MORE.  KNOW FIRST.", cx, Y(505f), R(10.5f), ivory, Typeface.DEFAULT, .28f)
         p.color = gold
         p.alpha = 190
-        c.drawLine(x(220f), y(590f), x(500f), y(590f), p)
-        drawDiamond(c, cx, y(590f), r(5f), goldBright)
+        p.strokeWidth = R(.7f)
+        c.drawLine(X(220f), Y(528f), X(500f), Y(528f), p)
+        drawDiamond(c, cx, Y(528f), R(4f), brightGold)
 
+        // Eight rectangular cards: this is intentionally NOT the old circular/orbital hub.
         cards.clear()
         val left = 20f
-        val top = 628f
+        val top = 552f
         val cw = 164f
-        val ch = 145f
+        val ch = 132f
         val gap = 12f
         for (i in nodes.indices) {
             val col = i % 4
             val row = i / 4
-            val l = x(left + col * (cw + gap))
-            val t = y(top + row * (ch + gap))
-            val rect = RectF(l, t, l + r(cw), t + r(ch))
-            if (nodes[i].key.isNotEmpty()) cards.add(rect to nodes[i].key)
-            drawModuleCard(c, rect, nodes[i])
+            val rect = RectF(X(left + col * (cw + gap)), Y(top + row * (ch + gap)), X(left + col * (cw + gap) + cw), Y(top + row * (ch + gap) + ch))
+            cards.add(rect to nodes[i].key)
+            drawCard(c, rect, nodes[i], R)
         }
 
-        val sr = RectF(x(20f), y(958f), x(700f), y(1050f))
+        val status = RectF(X(20f), Y(840f), X(700f), Y(928f))
         p.style = Paint.Style.FILL
-        p.color = Color.rgb(5, 7, 9)
-        p.alpha = 235
-        c.drawRoundRect(sr, r(10f), r(10f), p)
+        p.color = Color.rgb(5, 6, 8)
+        p.alpha = 245
+        c.drawRoundRect(status, R(9f), R(9f), p)
         p.style = Paint.Style.STROKE
         p.color = gold
-        p.alpha = 170
-        p.strokeWidth = r(.9f)
-        c.drawRoundRect(sr, r(10f), r(10f), p)
-        drawMiniEye(c, x(76f), y(1004f), r(25f), Color.rgb(103, 238, 88))
-        textLeft(c, "ORACLE READY", x(112f), y(998f), r(15f), ivory, Typeface.DEFAULT_BOLD, 0f)
-        textLeft(c, "Market Intelligence Active", x(112f), y(1021f), r(9.5f), Color.rgb(75, 218, 108), Typeface.DEFAULT, .02f)
-        p.style = Paint.Style.STROKE
+        p.alpha = 180
+        p.strokeWidth = R(.85f)
+        c.drawRoundRect(status, R(9f), R(9f), p)
+        drawMiniEye(c, X(72f), Y(884f), R(25f), Color.rgb(108, 236, 89))
+        textLeft(c, "ORACLE READY", X(112f), Y(878f), R(14f), ivory, Typeface.DEFAULT_BOLD, 0f)
+        textLeft(c, "Market Intelligence Active", X(112f), Y(901f), R(9f), Color.rgb(71, 218, 106), Typeface.DEFAULT, .01f)
         p.color = goldBright
-        p.alpha = 190
-        p.strokeWidth = r(1f)
-        c.drawCircle(x(378f), y(1004f), r(25f), p)
-        for (i in -2..2) c.drawLine(x(378f + i * 6f), y(992f - abs(i) * 2f), x(378f + i * 6f), y(1016f + abs(i) * 2f), p)
-        textLeft(c, "LOCAL INTELLIGENCE", x(416f), y(998f), r(14f), ivory, Typeface.DEFAULT_BOLD, 0f)
-        textLeft(c, "Synced & Protected", x(416f), y(1021f), r(9.5f), Color.rgb(122, 202, 117), Typeface.DEFAULT, .02f)
+        p.alpha = 180
+        p.strokeWidth = R(.9f)
+        c.drawCircle(X(378f), Y(884f), R(24f), p)
+        for (i in -2..2) c.drawLine(X(378f + i * 6f), Y(872f - kotlin.math.abs(i) * 2f), X(378f + i * 6f), Y(896f + kotlin.math.abs(i) * 2f), p)
+        textLeft(c, "LOCAL INTELLIGENCE", X(416f), Y(878f), R(13f), ivory, Typeface.DEFAULT_BOLD, 0f)
+        textLeft(c, "Synced & Protected", X(416f), Y(901f), R(9f), Color.rgb(132, 201, 126), Typeface.DEFAULT, .01f)
         p.style = Paint.Style.FILL
-        p.color = Color.rgb(63, 224, 91)
+        p.color = Color.rgb(66, 228, 95)
         p.alpha = 255
-        c.drawCircle(x(675f), y(1006f), r(8f), p)
+        c.drawCircle(X(675f), Y(886f), R(8f), p)
+
+        text(c, "ORACLE", cx, Y(965f), R(20f), gold, Typeface.SERIF, .34f)
+        text(c, "SEE MORE.  KNOW FIRST.", cx, Y(991f), R(8.5f), dim, Typeface.DEFAULT, .22f)
+        p.style = Paint.Style.STROKE
+        p.color = gold
+        p.alpha = 150
+        p.strokeWidth = R(.65f)
+        c.drawLine(X(285f), Y(1012f), X(435f), Y(1012f), p)
+        drawDiamond(c, cx, Y(1012f), R(3f), gold)
+        text(c, "357AT2026", cx, Y(1058f), R(11f), brightGold, Typeface.DEFAULT_BOLD, .16f)
     }
 
-    private fun drawButton(c: Canvas, cx: Float, cy: Float, rad: Float, gear: Boolean) {
+    private fun drawTopButton(c: Canvas, cx: Float, cy: Float, r: Float, gear: Boolean) {
         p.style = Paint.Style.STROKE
         p.color = gold
-        p.alpha = 215
-        p.strokeWidth = r(.95f)
-        c.drawRoundRect(RectF(cx - rad, cy - rad, cx + rad, cy + rad), rad * .18f, rad * .18f, p)
-        p.strokeWidth = r(2f)
+        p.alpha = 220
+        p.strokeWidth = r * .035f
+        c.drawRoundRect(RectF(cx-r, cy-r, cx+r, cy+r), r*.20f, r*.20f, p)
+        p.strokeWidth = r * .075f
         if (!gear) {
-            for (i in -1..1) c.drawLine(cx - rad * .34f, cy + i * rad * .23f, cx + rad * .34f, cy + i * rad * .23f, p)
+            for (i in -1..1) c.drawLine(cx-r*.35f, cy+i*r*.22f, cx+r*.35f, cy+i*r*.22f, p)
         } else {
-            c.drawCircle(cx, cy, rad * .25f, p)
-            c.drawCircle(cx, cy, rad * .42f, p)
+            c.drawCircle(cx, cy, r*.25f, p)
+            c.drawCircle(cx, cy, r*.42f, p)
             for (i in 0 until 8) {
-                val a = i * Math.PI / 4
-                c.drawLine(cx + cos(a).toFloat() * rad * .43f, cy + sin(a).toFloat() * rad * .43f, cx + cos(a).toFloat() * rad * .54f, cy + sin(a).toFloat() * rad * .54f, p)
+                val a = i*Math.PI/4.0
+                c.drawLine(cx+cos(a).toFloat()*r*.45f, cy+sin(a).toFloat()*r*.45f, cx+cos(a).toFloat()*r*.58f, cy+sin(a).toFloat()*r*.58f, p)
             }
         }
     }
 
-    private fun drawSigil(c: Canvas, cx: Float, cy: Float, rad: Float) {
-        p.style = Paint.Style.STROKE
-        p.color = goldBright
-        p.alpha = 240
-        p.strokeWidth = r(1.8f)
-        path.reset()
-        path.moveTo(cx - rad * .62f, cy)
-        path.lineTo(cx, cy - rad * .42f)
-        path.lineTo(cx + rad * .62f, cy)
-        path.lineTo(cx, cy + rad * .42f)
-        path.close()
-        c.drawPath(path, p)
-        c.drawCircle(cx, cy, rad * .17f, p)
-        p.style = Paint.Style.FILL
-        c.drawCircle(cx, cy, rad * .055f, p)
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = r(.8f)
-        c.drawLine(cx, cy - rad * .75f, cx, cy - rad * .42f, p)
-        c.drawCircle(cx, cy - rad * .82f, rad * .045f, p)
-    }
-
-    private fun drawModuleCard(c: Canvas, rect: RectF, node: Node) {
-        p.style = Paint.Style.FILL
-        p.color = Color.rgb(3, 5, 7)
-        p.alpha = 242
-        c.drawRoundRect(rect, r(8f), r(8f), p)
-        p.style = Paint.Style.STROKE
-        p.color = gold
-        p.alpha = 210
-        p.strokeWidth = r(.9f)
-        c.drawRoundRect(rect, r(8f), r(8f), p)
-        p.alpha = 90
-        p.strokeWidth = r(.55f)
-        c.drawLine(rect.left + r(8f), rect.top + r(25f), rect.left + r(8f), rect.top + r(8f), p)
-        c.drawLine(rect.left + r(8f), rect.top + r(8f), rect.left + r(25f), rect.top + r(8f), p)
-        c.drawLine(rect.right - r(8f), rect.bottom - r(25f), rect.right - r(8f), rect.bottom - r(8f), p)
-        c.drawLine(rect.right - r(8f), rect.bottom - r(8f), rect.right - r(25f), rect.bottom - r(8f), p)
-        val ix = rect.centerX()
-        val iy = rect.top + rect.height() * .37f
-        val ir = min(rect.width(), rect.height()) * .23f
-        p.style = Paint.Style.STROKE
-        p.color = node.color
-        p.alpha = 245
-        p.strokeWidth = r(1.15f)
-        for (k in 0..2) c.drawCircle(ix, iy, ir * (1f - k * .23f), p)
-        drawIcon(c, ix, iy, ir, node.key.ifEmpty { "stock" }, node.color)
-        text(c, node.label, ix, rect.top + rect.height() * .72f, r(12f), ivory, Typeface.DEFAULT, .01f)
-        text(c, node.sub, ix, rect.top + rect.height() * .85f, r(8.3f), muted, Typeface.DEFAULT, .04f)
-        p.style = Paint.Style.STROKE
-        p.color = node.color
-        p.alpha = 230
-        p.strokeWidth = r(.75f)
-        c.drawLine(ix - r(22f), rect.bottom - r(12f), ix + r(22f), rect.bottom - r(12f), p)
-        drawDiamond(c, ix, rect.bottom - r(12f), r(2.6f), node.color)
-    }
-
-    private fun drawIcon(c: Canvas, cx: Float, cy: Float, rad: Float, key: String, color: Int) {
+    private fun drawOracleEye(c: Canvas, cx: Float, cy: Float, r: Float, color: Int) {
         p.style = Paint.Style.STROKE
         p.color = color
-        p.alpha = 245
-        p.strokeWidth = r(2f)
-        when (key) {
-            "portfolio" -> { c.drawRect(cx-rad*.45f,cy-rad*.35f,cx+rad*.45f,cy+rad*.4f,p); c.drawCircle(cx+rad*.23f,cy+rad*.18f,rad*.18f,p) }
-            "watchlist" -> drawMiniEye(c,cx,cy,rad*.78f,color)
-            "analysis" -> { path.reset(); path.moveTo(cx-rad*.6f,cy+rad*.36f); path.lineTo(cx-rad*.22f,cy); path.lineTo(cx+rad*.03f,cy+rad*.15f); path.lineTo(cx+rad*.58f,cy-rad*.5f); c.drawPath(path,p) }
-            "growth" -> { path.reset(); path.moveTo(cx-rad*.58f,cy+rad*.42f); path.lineTo(cx-rad*.18f,cy+rad*.08f); path.lineTo(cx+rad*.08f,cy+rad*.2f); path.lineTo(cx+rad*.58f,cy-rad*.48f); c.drawPath(path,p) }
-            "alerts" -> { c.drawArc(RectF(cx-rad*.43f,cy-rad*.42f,cx+rad*.43f,cy+rad*.45f),210f,120f,false,p); c.drawLine(cx-rad*.58f,cy+rad*.48f,cx+rad*.58f,cy+rad*.48f,p) }
-            "news" -> { c.drawRect(cx-rad*.46f,cy-rad*.43f,cx+rad*.46f,cy+rad*.43f,p); for(i in -1..1)c.drawLine(cx-rad*.28f,cy+i*rad*.18f,cx+rad*.27f,cy+i*rad*.18f,p) }
-            "knowledge" -> { c.drawRect(cx-rad*.5f,cy-rad*.45f,cx,cy+rad*.43f,p); c.drawRect(cx,cy-rad*.45f,cx+rad*.5f,cy+rad*.43f,p) }
-            else -> drawSigil(c,cx,cy,rad*.8f)
+        p.alpha = 240
+        p.strokeWidth = r*.055f
+        path.reset()
+        path.moveTo(cx-r*.75f, cy)
+        path.lineTo(cx, cy-r*.50f)
+        path.lineTo(cx+r*.75f, cy)
+        path.lineTo(cx, cy+r*.50f)
+        path.close()
+        c.drawPath(path,p)
+        c.drawCircle(cx,cy,r*.18f,p)
+        p.style=Paint.Style.FILL
+        c.drawCircle(cx,cy,r*.055f,p)
+        p.style=Paint.Style.STROKE
+        p.strokeWidth=r*.025f
+        c.drawLine(cx,cy-r*.78f,cx,cy-r*.50f,p)
+        c.drawCircle(cx,cy-r*.86f,r*.045f,p)
+    }
+
+    private fun drawEye(c: Canvas, cx: Float, cy: Float, r: Float, color: Int) {
+        p.style = Paint.Style.STROKE
+        p.color = color
+        p.alpha = 235
+        p.strokeWidth = r*.018f
+        path.reset()
+        path.moveTo(cx-r,cy)
+        path.cubicTo(cx-r*.58f,cy-r*.56f,cx+r*.58f,cy-r*.56f,cx+r,cy)
+        path.cubicTo(cx+r*.58f,cy+r*.56f,cx-r*.58f,cy+r*.56f,cx-r,cy)
+        c.drawPath(path,p)
+        p.strokeWidth=r*.010f
+        path.reset()
+        path.moveTo(cx-r*.78f,cy)
+        path.cubicTo(cx-r*.42f,cy-r*.34f,cx+r*.42f,cy-r*.34f,cx+r*.78f,cy)
+        path.cubicTo(cx+r*.42f,cy+r*.34f,cx-r*.42f,cy+r*.34f,cx-r*.78f,cy)
+        c.drawPath(path,p)
+    }
+
+    private fun drawCard(c: Canvas, rect: RectF, node: Node, R: (Float)->Float) {
+        p.style=Paint.Style.FILL
+        p.color=Color.rgb(3,4,6)
+        p.alpha=246
+        c.drawRoundRect(rect,R(8f),R(8f),p)
+        p.style=Paint.Style.STROKE
+        p.color=gold
+        p.alpha=205
+        p.strokeWidth=R(.85f)
+        c.drawRoundRect(rect,R(8f),R(8f),p)
+        p.alpha=75
+        p.strokeWidth=R(.5f)
+        c.drawLine(rect.left+R(9f),rect.top+R(25f),rect.left+R(9f),rect.top+R(9f),p)
+        c.drawLine(rect.left+R(9f),rect.top+R(9f),rect.left+R(25f),rect.top+R(9f),p)
+        c.drawLine(rect.right-R(9f),rect.bottom-R(25f),rect.right-R(9f),rect.bottom-R(9f),p)
+        c.drawLine(rect.right-R(9f),rect.bottom-R(9f),rect.right-R(25f),rect.bottom-R(9f),p)
+        val ix=rect.centerX(); val iy=rect.top+rect.height()*.37f; val ir=min(rect.width(),rect.height())*.25f
+        p.style=Paint.Style.STROKE; p.color=node.color; p.alpha=245; p.strokeWidth=R(1.0f)
+        for(k in 0..2)c.drawCircle(ix,iy,ir*(1f-k*.22f),p)
+        drawIcon(c,ix,iy,ir,node.key,node.color,R)
+        text(c,node.title,ix,rect.top+rect.height()*.71f,R(11.5f),ivory,Typeface.DEFAULT,.01f)
+        text(c,node.sub,ix,rect.top+rect.height()*.84f,R(7.5f),dim,Typeface.DEFAULT,.035f)
+        p.color=node.color;p.alpha=220;p.strokeWidth=R(.65f)
+        c.drawLine(ix-R(20f),rect.bottom-R(11f),ix+R(20f),rect.bottom-R(11f),p)
+        drawDiamond(c,ix,rect.bottom-R(11f),R(2.4f),node.color)
+    }
+
+    private fun drawIcon(c: Canvas,cx:Float,cy:Float,r:Float,key:String,color:Int,R:(Float)->Float){
+        p.style=Paint.Style.STROKE;p.color=color;p.alpha=245;p.strokeWidth=R(1.8f)
+        when(key){
+            "portfolio"->{c.drawRect(cx-r*.45f,cy-r*.38f,cx+r*.45f,cy+r*.38f,p);c.drawCircle(cx+r*.18f,cy+r*.17f,r*.18f,p)}
+            "watchlist"->drawEye(c,cx,cy,r*.78f,color)
+            "analysis"->{path.reset();path.moveTo(cx-r*.60f,cy+r*.35f);path.lineTo(cx-r*.20f,cy);path.lineTo(cx+r*.05f,cy+r*.16f);path.lineTo(cx+r*.58f,cy-r*.48f);c.drawPath(path,p)}
+            "growth"->{path.reset();path.moveTo(cx-r*.58f,cy+r*.40f);path.lineTo(cx-r*.18f,cy+r*.08f);path.lineTo(cx+r*.08f,cy+r*.20f);path.lineTo(cx+r*.58f,cy-r*.48f);c.drawPath(path,p)}
+            "alerts"->{c.drawArc(RectF(cx-r*.44f,cy-r*.42f,cx+r*.44f,cy+r*.45f),210f,120f,false,p);c.drawLine(cx-r*.58f,cy+r*.48f,cx+r*.58f,cy+r*.48f,p);c.drawCircle(cx,cy+r*.58f,r*.07f,p)}
+            "news"->{c.drawRect(cx-r*.46f,cy-r*.43f,cx+r*.46f,cy+r*.43f,p);for(i in -1..1)c.drawLine(cx-r*.27f,cy+i*r*.18f,cx+r*.27f,cy+i*r*.18f,p)}
+            "knowledge"->{c.drawRect(cx-r*.48f,cy-r*.44f,cx,cy+r*.43f,p);c.drawRect(cx,cy-r*.44f,cx+r*.48f,cy+r*.43f,p)}
+            else->drawOracleEye(c,cx,cy,r*.85f,color)
         }
     }
 
-    private fun drawEye(c: Canvas, cx: Float, cy: Float, rad: Float, color: Int, stroke: Float) {
-        p.style = Paint.Style.STROKE
-        p.color = color
-        p.alpha = 245
-        p.strokeWidth = stroke
-        path.reset()
-        path.moveTo(cx-rad,cy)
-        path.cubicTo(cx-rad*.52f,cy-rad*.55f,cx+rad*.52f,cy-rad*.55f,cx+rad,cy)
-        path.cubicTo(cx+rad*.52f,cy+rad*.55f,cx-rad*.52f,cy+rad*.55f,cx-rad,cy)
-        c.drawPath(path,p)
-        c.drawCircle(cx,cy,rad*.23f,p)
-        p.style = Paint.Style.FILL
-        c.drawCircle(cx,cy,rad*.08f,p)
+    private fun drawMiniEye(c:Canvas,cx:Float,cy:Float,r:Float,color:Int){
+        p.style=Paint.Style.STROKE;p.color=color;p.alpha=245;p.strokeWidth=r*.075f
+        path.reset();path.moveTo(cx-r,cy);path.cubicTo(cx-r*.55f,cy-r*.52f,cx+r*.55f,cy-r*.52f,cx+r,cy);path.cubicTo(cx+r*.55f,cy+r*.52f,cx-r*.55f,cy+r*.52f,cx-r,cy);c.drawPath(path,p);c.drawCircle(cx,cy,r*.25f,p)
     }
 
-    private fun drawMiniEye(c:Canvas,cx:Float,cy:Float,rad:Float,color:Int)=drawEye(c,cx,cy,rad,color,r(1.25f))
+    private fun drawDiamond(c:Canvas,cx:Float,cy:Float,r:Float,color:Int){
+        p.style=Paint.Style.STROKE;p.color=color;p.alpha=220;p.strokeWidth=Rlocal(.7f)
+        path.reset();path.moveTo(cx,cy-r);path.lineTo(cx+r,cy);path.lineTo(cx,cy+r);path.lineTo(cx-r,cy);path.close();c.drawPath(path,p)
+    }
+    private fun Rlocal(v:Float)=v*resources.displayMetrics.density
 
-    private fun drawDiamond(c:Canvas,cx:Float,cy:Float,rad:Float,color:Int){
-        p.style=Paint.Style.STROKE;p.color=color;p.alpha=225;p.strokeWidth=r(.75f)
-        path.reset();path.moveTo(cx,cy-rad);path.lineTo(cx+rad,cy);path.lineTo(cx,cy+rad);path.lineTo(cx-rad,cy);path.close();c.drawPath(path,p)
+    private fun text(c:Canvas,s:String,cx:Float,baseline:Float,size:Float,color:Int,typeface:Typeface,spacing:Float){
+        p.style=Paint.Style.FILL;p.shader=null;p.alpha=255;p.color=color;p.typeface=typeface;p.textSize=size;p.textAlign=Paint.Align.CENTER;p.letterSpacing=spacing;c.drawText(s,cx,baseline,p)
+    }
+    private fun textLeft(c:Canvas,s:String,x:Float,baseline:Float,size:Float,color:Int,typeface:Typeface,spacing:Float){
+        p.style=Paint.Style.FILL;p.shader=null;p.alpha=255;p.color=color;p.typeface=typeface;p.textSize=size;p.textAlign=Paint.Align.LEFT;p.letterSpacing=spacing;c.drawText(s,x,baseline,p)
     }
 
-    private fun text(c:Canvas,value:String,cx:Float,baseY:Float,size:Float,color:Int,typeface:Typeface,spacing:Float){
-        p.style=Paint.Style.FILL;p.color=color;p.alpha=255;p.textAlign=Paint.Align.CENTER;p.typeface=typeface;p.textSize=size;p.letterSpacing=spacing;c.drawText(value,cx,baseY,p);p.letterSpacing=0f
-    }
-
-    private fun textLeft(c:Canvas,value:String,x:Float,baseY:Float,size:Float,color:Int,typeface:Typeface,spacing:Float){
-        p.style=Paint.Style.FILL;p.color=color;p.alpha=255;p.textAlign=Paint.Align.LEFT;p.typeface=typeface;p.textSize=size;p.letterSpacing=spacing;c.drawText(value,x,baseY,p);p.letterSpacing=0f
-    }
-
-    private fun r(v:Float):Float= v * min(width/720f,height/1150f).coerceAtLeast(.42f)
-
-    override fun onTouchEvent(e:MotionEvent):Boolean{
-        if(e.action==MotionEvent.ACTION_UP){
-            for((rect,key) in cards){ if(rect.contains(e.x,e.y)){onModule(key);return true} }
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if(event.action==MotionEvent.ACTION_UP){
+            for((rect,key) in cards){if(rect.contains(event.x,event.y)){if(key!="stock")onModule(key);return true}}
         }
         return true
     }
 }
-
-// B514_START_REFERENCE_COMPOSITION_NATIVE_VECTOR_FINAL
