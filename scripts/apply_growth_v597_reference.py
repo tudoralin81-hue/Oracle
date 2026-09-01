@@ -66,7 +66,7 @@ object OracleSectorAllocation {
             s.contains("cybersecurity") || s.contains("cyber") -> 0.900
             s.contains("artificial intelligence") || s == "ai" || s.contains("ai /") || s.contains("/ ai") -> 0.850
             s.contains("healthcare defensive") || s.contains("defensive healthcare") -> 1.050
-            s == "healthcare" || s == "health care" -> 1.050
+            s.contains("healthcare") || s.contains("health care") -> 1.050
             s.contains("industr") -> 1.000
             s.contains("utilities") -> 1.100
             else -> 1.000
