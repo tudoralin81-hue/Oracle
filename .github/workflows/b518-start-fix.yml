@@ -6,7 +6,7 @@ on:
     paths:
       - B518_START_FIX.txt
       - .github/workflows/b518-start-fix.yml
-      - app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+      - app/src/main/java/ro/alintudor/oracle/MainActivity.kt
       - app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
   workflow_dispatch:
 
@@ -28,62 +28,43 @@ jobs:
           ref: main
           fetch-depth: 1
 
-      - name: Patch launcher Start to approved B515/B516 V2
+      - name: Force approved rectangular Start V2 in actual launcher
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
-          s = p.read_text()
-          old = '''    private fun showHub() {
-        currentModule = null
+          p=Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s=p.read_text()
+          start=s.index('    private fun showHub() {')
+          end=s.index('    private fun makeHomeCard', start)
+          block='''    private fun showHub() {
+        currentModule=null
         root.removeAllViews()
-        val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(Color.rgb(3, 4, 12)) }
-        val page = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(2), dp(8), dp(22))
+        val scroll=ScrollView(this).apply {
+            isFillViewport=true
+            setBackgroundColor(Color.rgb(1,3,8))
+            overScrollMode=View.OVER_SCROLL_IF_CONTENT_SCROLLS
         }
-        val hero = OracleMysticStartView(this) { openModule(it) }
-        val heroHeight = (resources.displayMetrics.heightPixels * 0.70f).toInt().coerceAtLeast(dp(610))
-        page.addView(hero, LinearLayout.LayoutParams(-1, heroHeight))
-        page.addView(makeStatus(), LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(8), 0, dp(8)) })
+        val page=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(0,0,0,dp(8))
+            setBackgroundColor(Color.rgb(1,2,5))
+        }
+        val hero=OracleMysticStartViewV2(this){ openModule(it) }
+        val sw=resources.displayMetrics.widthPixels.toFloat()
+        val sh=resources.displayMetrics.heightPixels.toFloat()
+        val wide=sw/sh>1.18f
+        val heroHeightPx=(sh*(if(wide) .91f else .94f)).toInt().coerceAtLeast(if(wide) dp(650) else dp(720))
+        page.addView(hero,LinearLayout.LayoutParams(-1,heroHeightPx))
         scroll.addView(page)
-        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
     }
 '''
-          new = '''    private fun showHub() {
-        currentModule = null
-        root.removeAllViews()
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            setBackgroundColor(Color.rgb(1, 3, 8))
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-        }
-        val page = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(8))
-            setBackgroundColor(Color.rgb(1, 2, 5))
-        }
-        val hero = OracleMysticStartViewV2(this) { openModule(it) }
-        val sw = resources.displayMetrics.widthPixels.toFloat()
-        val sh = resources.displayMetrics.heightPixels.toFloat()
-        val wide = sw / sh > 1.18f
-        val heroHeight = (sh * (if (wide) .91f else .94f)).toInt()
-            .coerceAtLeast(if (wide) dp(650) else dp(720))
-        page.addView(hero, LinearLayout.LayoutParams(-1, heroHeight))
-        scroll.addView(page)
-        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
-    }
-'''
-          if old not in s:
-              raise SystemExit('Expected old showHub block not found; refusing unsafe patch')
-          s = s.replace(old, new, 1)
-          s = s.replace('private class OracleMysticStartView(', 'private class OracleMysticStartViewLegacy(', 1)
-          p.write_text(s)
+          p.write_text(s[:start]+block+s[end:])
           PY
-          grep -q 'val hero = OracleMysticStartViewV2(this)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
-          ! grep -q 'page.addView(makeStatus()' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
-          grep -q 'private class OracleMysticStartViewLegacy(' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          grep -q 'val hero=OracleMysticStartViewV2(this)' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          ! grep -q 'ORACLE READY' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          ! grep -q 'LOCAL INTELLIGENCE' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           grep -q '357AT2026' app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
           ! grep -q '"stock"' app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
           git diff --check
@@ -117,10 +98,9 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p = Path('app/build.gradle')
-          s = p.read_text()
-          s = re.sub(r'versionCode\s+\d+', 'versionCode 39', s, count=1)
-          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-START-B518'", s, count=1)
+          p=Path('app/build.gradle'); s=p.read_text()
+          s=re.sub(r'versionCode\s+\d+', 'versionCode 39', s, count=1)
+          s=re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-START-B518'", s, count=1)
           p.write_text(s)
           PY
 
