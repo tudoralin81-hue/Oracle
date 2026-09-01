@@ -8,6 +8,13 @@ import java.time.ZonedDateTime
 object OracleLocalProcessor {
     private val BUCHAREST = ZoneId.of("Europe/Bucharest")
 
+    /**
+     * Single-flight lock for the Growth snapshot. Growth is a daily immutable
+     * snapshot; concurrent refreshes from different modules must never be able
+     * to calculate two different recommendation sets for the same T0.
+     */
+    private val growthSnapshotLock = Any()
+
     private fun currentGrowthAnchor(nowMillis: Long): Long {
         val z = Instant.ofEpochMilli(nowMillis).atZone(BUCHAREST)
         var date = if (z.hour < 16) z.toLocalDate().minusDays(1) else z.toLocalDate()
@@ -15,24 +22,48 @@ object OracleLocalProcessor {
         return ZonedDateTime.of(date, java.time.LocalTime.of(16, 0), BUCHAREST).toInstant().toEpochMilli()
     }
 
-    private fun normalizeGrowthSnapshot(items: List<OracleGrowthRecommendation>, anchor: Long) = items.map { it.copy(referenceTimestamp = anchor, generatedAt = anchor) }
+    private fun normalizeGrowthSnapshot(items: List<OracleGrowthRecommendation>, anchor: Long) =
+        items.map { it.copy(referenceTimestamp = anchor, generatedAt = anchor) }
+
+    /**
+     * Returns the persisted Growth snapshot for the current trading-day 16:00
+     * anchor, generating it exactly once when that anchor has no snapshot yet.
+     *
+     * This method is shared by both the Growth-only preload and the normal local
+     * refresh path. The lock is important: the preload can run at the same time
+     * as another module's refresh. Without it, two calls could both see an empty
+     * snapshot and run OracleGrowthEngine with different live/news inputs,
+     * producing the visible recommendation drift reported in B514.
+     */
+    private fun currentGrowthSnapshot(repository: OracleRepository, nowMillis: Long): List<OracleGrowthRecommendation> =
+        synchronized(growthSnapshotLock) {
+            OracleBootstrap.ensure(repository)
+            val anchor = currentGrowthAnchor(nowMillis)
+            val current = repository.cachedGrowth()
+
+            // HARD FREEZE: once a valid snapshot exists for this T0, never rerank
+            // it again until the next trading-day anchor.
+            if (current.isNotEmpty() && current.all { it.referenceTimestamp == anchor }) {
+                return@synchronized current
+            }
+
+            val generated = OracleGrowthEngine.run(current)
+            if (generated.isEmpty()) {
+                // Do not replace a valid snapshot with partial/empty data.
+                return@synchronized current.filter { it.referenceTimestamp == anchor }
+            }
+
+            val growth = normalizeGrowthSnapshot(generated, anchor)
+            repository.saveGrowth(growth)
+            growth
+        }
 
     /**
      * Growth-only warm-up. It deliberately touches only the Growth snapshot so
      * startup precomputation cannot alter Analysis, Portfolio, Alerts or Journal.
      */
-    fun refreshGrowthOnly(repository: OracleRepository): List<OracleGrowthRecommendation> {
-        OracleBootstrap.ensure(repository)
-        val now = System.currentTimeMillis()
-        val anchor = currentGrowthAnchor(now)
-        val current = repository.cachedGrowth()
-        if (current.isNotEmpty() && current.all { it.referenceTimestamp == anchor }) return current
-
-        val generated = OracleGrowthEngine.run(current)
-        val growth = if (generated.isNotEmpty()) normalizeGrowthSnapshot(generated, anchor) else emptyList()
-        repository.saveGrowth(growth)
-        return growth
-    }
+    fun refreshGrowthOnly(repository: OracleRepository): List<OracleGrowthRecommendation> =
+        currentGrowthSnapshot(repository, System.currentTimeMillis())
 
     fun refresh(repository: OracleRepository): OracleModuleData {
         OracleBootstrap.ensure(repository)
@@ -48,32 +79,18 @@ object OracleLocalProcessor {
         val marketTickers = (normalized.map { it.ticker } + current.growth.map { it.ticker }).distinct()
         for (ticker in marketTickers) OracleTechnicalIndicators.adx14(OracleMarketData.fetchDaily(ticker))?.let { adx -> computedTechnical[ticker]?.let { computedTechnical[ticker] = it.copy(adx = adx) } }
         val technical = normalized.mapNotNull { p -> val existing=current.technical.firstOrNull{it.ticker.equals(p.ticker,true)}; val computed=computedTechnical[p.ticker]; when { existing!=null&&computed?.adx!=null->existing.copy(adx=computed.adx); existing!=null->existing; else->computed } }
-        val growthAnchor=currentGrowthAnchor(now)
 
-        // Growth is a daily immutable snapshot. Never persist or render an older
-        // snapshot under a newer anchor. Recommendation logic itself is unchanged.
-        val snapshotIsCurrent = current.growth.isNotEmpty() && current.growth.all { it.referenceTimestamp == growthAnchor }
-        val growth = if (snapshotIsCurrent) {
-            current.growth
-        } else {
-            val generated = OracleGrowthEngine.run(current.growth)
-            if (generated.isNotEmpty()) {
-                normalizeGrowthSnapshot(generated, growthAnchor)
-            } else {
-                // Critical B519 rule: an empty generation must NOT fall back to
-                // the old 28.08/previous-day snapshot. Keep Growth empty until
-                // the current anchor is actually available. Other modules are
-                // persisted exactly as before.
-                emptyList()
-            }
-        }
+        // Growth is generated through the same single-flight snapshot path used
+        // by Growth preload. A normal refresh may read the cache, but can never
+        // race the preload and generate a second ranking for the same T0.
+        val growth = currentGrowthSnapshot(repository, now)
 
         val oldAlerts=current.alerts.filter{it.active}; val generated=actions.filter{it.action=="BUY"||it.action=="SELL"}.map{OracleAlert(it.ticker,if(it.action=="SELL")"HIGH"else"INFO","${it.action} signal","Score ${"%.1f".format(it.score)} — ${it.reason}",now,true)}
         val alertsByTicker=(oldAlerts+generated).groupBy{it.ticker}.mapValues{(_,v)->v.maxByOrNull{it.timestamp}!!}.values.sortedByDescending{it.timestamp}.take(100)
         val journal=OracleActivityJournal.merge(current.journal,actions)
         val fetchedNews=runCatching{OracleNewsFetcher.fetch(150)}.getOrDefault(emptyList())
         val news=if(fetchedNews.isNotEmpty()) fetchedNews else current.news
-        repository.saveNews(news); repository.savePositions(normalized); repository.saveActions(actions); repository.saveTechnical(technical); repository.saveHistory(history); repository.saveAlerts(alertsByTicker); repository.saveJournal(journal); repository.saveGrowth(growth)
+        repository.saveNews(news); repository.savePositions(normalized); repository.saveActions(actions); repository.saveTechnical(technical); repository.saveHistory(history); repository.saveAlerts(alertsByTicker); repository.saveJournal(journal)
         return repository.snapshot().copy(news=news)
     }
 }
