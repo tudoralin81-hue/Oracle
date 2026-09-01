@@ -88,7 +88,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEYSTORE_ALIAS:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
+          if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_ALIAS:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
             echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
             echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks" >> "$GITHUB_ENV"
             echo "ORACLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
