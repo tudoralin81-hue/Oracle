@@ -7,7 +7,7 @@ on:
       - ui/start-premium-b514
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   MAIN_FILE: app/src/main/java/ro/alintudor/oracle/MainActivity.kt
@@ -25,14 +25,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
       - name: Build release APK
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: gradle :app:assembleRelease --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Oracle-B514-START-PREMIUM
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
-
-# Trigger a clean CI run for B514 Premium Start.
