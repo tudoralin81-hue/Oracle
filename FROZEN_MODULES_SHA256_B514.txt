@@ -1,5 +1,20 @@
-# Byte-for-byte freeze baseline: Oracle-main-12.zip
-# These files must remain identical for the B514 Start redesign.
+# BYTE-FOR-BYTE FREEZE BASELINE: Oracle-main-12.zip
+# Any mismatch must fail the B514 Start build.
+# Frozen module surfaces: Growth, Knowledge, News, Portfolio, Alerts, Analysis.
+dd02ef7a61cb8b8e5374e27edcb0f2b2067fc534dac91b9bd685a821b8dea3d2  app/src/main/java/ro/alintudor/oracle/core/OracleAlertEngine.kt
+e38df213970fb169923096bc3c9477799434bf6fb1274d19e81a486b98ff1a66  app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt
+1cc54448d1a1ad844de49aaff8334aec41a97924d586ce805f4d3387a0ac67d7  app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+4982ca8b205622007abedb3ec894dae04dc941c46b1546560ca81619bf9b2c46  app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
+44a06d76051651336724d1c26abf260b9d13d311fe23c35be17c0e21ae32cf96  app/src/main/java/ro/alintudor/oracle/core/OracleGrowthModels.kt
+c35f9865808e89b763fe85ad7ad09d1564a935a767fc043c51fb27614c0cda9c  app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt
+df696f80628d10b8d968d8d65d18f01151eb7952e1368fcd1f938d49bb2ce7c7  app/src/main/java/ro/alintudor/oracle/core/OracleNewsFetcher.kt
+51d70c222cc900d196daf56e8b768005739293172bcd80c951f021dd188bc1e4  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt
+259c73f9a5f3acfd5512fe7049547968b118e77149058d75c9cfcacf3558e651  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartCompat.kt
+7953710fd05f7278cdf363ff924db283fb833a69d87062a30365581ed225cfc8  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisChartView.kt
+9ca687f9f01361ddc43cb1c6db90b1ae11a872f806781610cf0db0d40733d90b  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+3ace4d41193a58c0c98fd2d1f71c06ffc82d23c5621a0ba51d4f7f714cdffa61  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisWatchlistEyeOverlay.kt
 0b42163f119dd600aa3b6bd6c8ff2ee76cbde2584ca26e026b3a066cab8ed303  app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-634cbad3d0a040a08386373895bfa1e8e2d5da9354859ced592d9e12c2833d9d  app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt
- efb0b0c77d95531e7c33e2cfa5b5628deff9e  app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt
+634cbad3d0a040a08386373895bfa1e8e2d5da9354859ced592d9e12c2833d9d  app/src/main/java/ro/alintudor/oracle/nativeui/OracleKnowledgeModule.kt
+efb0b0c77d95531e7c33e2cfa5b5628deff9e  app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt
+eb18e7f760c36b70bc26855166d84a2864f88ed0a8d52ee8f008442b599c614c  app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt
+be4f9a7df3563128cdf56b4fa192413ac7e21411c1150ddd09a21654b0d9cd13  app/src/main/java/ro/alintudor/oracle/nativeui/PortfolioExportHelpers.kt
