@@ -66,7 +66,7 @@ object OracleGrowthEngine {
         val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ichScore,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc)
         val base=horizonScore(comps,"SHORT",null)
         val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)))
-        val alloc=when{risk=="RIDICAT"->max(1.0,base*.04);risk=="MEDIU"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).roundToHalf()
+        val alloc=when{risk=="RIDICAT"->max(1.0,base*.04);risk=="MEDIU"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).let{ kotlin.math.round(it*10.0)/10.0 }
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
