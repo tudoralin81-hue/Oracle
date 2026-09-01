@@ -1,47 +1,45 @@
 package ro.alintudor.oracle
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
-import android.graphics.Typeface
+import android.graphics.*
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Space
-import android.widget.TextView
+import android.widget.*
+import kotlin.math.min
 
-/** B514 START — complete visual redesign. Modules are opened unchanged. */
+/**
+ * B514 START — vector composition inspired by the approved Oracle mystical interface.
+ * IMPORTANT: this is a native UI composition, NOT an image asset.
+ * Protected modules are opened through the existing callback and are not modified here.
+ */
 class OracleStartView(context: Context, private val onOpen: (String) -> Unit) : FrameLayout(context) {
     private val d = resources.displayMetrics.density
-    private fun dp(v: Int) = (v * d).toInt()
-    private val bg = Color.rgb(2, 5, 12)
-    private val panel = Color.rgb(8, 13, 25)
-    private val panel2 = Color.rgb(11, 18, 33)
-    private val cyan = Color.rgb(42, 202, 255)
-    private val cyanSoft = Color.rgb(105, 225, 255)
-    private val gold = Color.rgb(255, 205, 55)
-    private val white = Color.rgb(244, 247, 252)
-    private val muted = Color.rgb(143, 158, 181)
-    private val green = Color.rgb(57, 222, 145)
+    private fun dp(v: Float) = (v * d).toInt()
+    private val bg = Color.rgb(1, 3, 7)
+    private val gold = Color.rgb(255, 196, 48)
+    private val gold2 = Color.rgb(255, 224, 108)
+    private val white = Color.rgb(245, 242, 232)
+    private val muted = Color.rgb(181, 169, 143)
+    private val green = Color.rgb(78, 231, 92)
 
     init {
         setBackgroundColor(bg)
-        addView(StartBackground(context), LayoutParams(-1, -1))
-        val scroll = ScrollView(context).apply { isFillViewport = true; setBackgroundColor(Color.TRANSPARENT) }
+        val scroll = ScrollView(context).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.TRANSPARENT)
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
         val page = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(30))
+            setPadding(dp(12f), dp(8f), dp(12f), dp(18f))
         }
-        page.addView(topBar())
-        page.addView(hero(), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(18), 0, 0) })
-        page.addView(moduleGrid(), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(18), 0, 0) })
-        page.addView(footer(), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(10), 0, 0) })
+        page.addView(topBar(), LinearLayout.LayoutParams(-1, dp(58f)))
+        page.addView(OracleMysticCanvas(context), LinearLayout.LayoutParams(-1, dp(485f)))
+        page.addView(tagline(), LinearLayout.LayoutParams(-1, dp(52f)))
+        page.addView(cards(), LinearLayout.LayoutParams(-1, -2))
+        page.addView(status(), LinearLayout.LayoutParams(-1, dp(105f)).apply { setMargins(0, dp(10f), 0, 0) })
+        page.addView(footer(), LinearLayout.LayoutParams(-1, dp(62f)))
         scroll.addView(page)
         addView(scroll, LayoutParams(-1, -1))
     }
@@ -50,112 +48,154 @@ class OracleStartView(context: Context, private val onOpen: (String) -> Unit) : 
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         addView(TextView(context).apply {
-            text = "ORACLE"
-            textSize = 30f
-            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
-            letterSpacing = .07f
-            setTextColor(white)
-        }, LinearLayout.LayoutParams(0, dp(46), 1f))
+            text = "☰"; textSize = 28f; gravity = Gravity.CENTER
+            setTextColor(gold2); background = outline(gold, 12)
+        }, LinearLayout.LayoutParams(dp(54f), dp(46f)).apply { setMargins(dp(5f), 0, 0, 0) })
+        addView(Space(context), LinearLayout.LayoutParams(0, 1, 1f))
         addView(TextView(context).apply {
-            text = "B514"
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = .18f
-            gravity = Gravity.CENTER
-            setTextColor(gold)
-            background = rounded(Color.TRANSPARENT, gold, 18)
-            setPadding(dp(14), 0, dp(14), 0)
-        }, LinearLayout.LayoutParams(dp(72), dp(34)))
+            text = "⚙"; textSize = 25f; gravity = Gravity.CENTER
+            setTextColor(gold2); background = outline(gold, 12)
+        }, LinearLayout.LayoutParams(dp(54f), dp(46f)).apply { setMargins(0, 0, dp(5f), 0) })
     }
 
-    private fun hero() = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(20), dp(20), dp(20), dp(20))
-        background = rounded(panel, Color.rgb(33, 70, 105), 24)
-        elevation = dp(8).toFloat()
+    private fun tagline() = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
         addView(TextView(context).apply {
-            text = "INTELLIGENCE COMMAND CENTER"
-            textSize = 11f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = .18f; setTextColor(cyan)
+            text = "S E E   M O R E .   K N O W   F I R S T ."
+            textSize = 11f; letterSpacing = .24f; typeface = Typeface.DEFAULT_BOLD; setTextColor(white); gravity = Gravity.CENTER
         })
-        addView(TextView(context).apply {
-            text = "DECIDE BEFORE\nTHE MARKET MOVES."
-            textSize = 29f; typeface = Typeface.DEFAULT_BOLD; setTextColor(white)
-            setPadding(0, dp(8), 0, dp(4))
-        })
-        addView(TextView(context).apply {
-            text = "Un singur punct de intrare pentru întregul Oracle."
-            textSize = 14f; setTextColor(muted)
-        })
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = rounded(Color.rgb(6, 19, 24), Color.rgb(27, 77, 76), 14)
-            addView(View(context).apply { setBackgroundColor(green) }, LinearLayout.LayoutParams(dp(8), dp(8)).apply { setMargins(0,0,dp(10),0) })
-            addView(TextView(context).apply {
-                text = "ORACLE CORE ONLINE"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = .10f; setTextColor(white)
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(TextView(context).apply {
-                text = "V6g-FINAL-B514"; textSize = 9f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyanSoft)
-            })
-        }, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(18), 0, 0) })
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(context).apply { text="LOCAL MARKET INTELLIGENCE"; textSize=9f; letterSpacing=.12f; typeface=Typeface.DEFAULT_BOLD; setTextColor(muted) }, LinearLayout.LayoutParams(0,dp(30),1f))
-            addView(TextView(context).apply { text="●  READY"; textSize=10f; typeface=Typeface.DEFAULT_BOLD; setTextColor(green) })
-        }, LinearLayout.LayoutParams(-1,-2).apply { setMargins(0,dp(8),0,0) })
+        addView(View(context).apply { setBackgroundColor(gold) }, LinearLayout.LayoutParams(dp(220f), dp(1f)).apply { setMargins(0, dp(9f), 0, 0) })
     }
 
-    private fun moduleGrid() = LinearLayout(context).apply {
+    private fun cards() = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        addView(TextView(context).apply { text="ORACLE MODULES"; textSize=11f; typeface=Typeface.DEFAULT_BOLD; letterSpacing=.20f; setTextColor(gold) })
-        addView(TextView(context).apply { text="Choose your next move"; textSize=20f; typeface=Typeface.DEFAULT_BOLD; setTextColor(white); setPadding(0,dp(4),0,dp(12)) })
-        val modules = listOf(
-            arrayOf("01","PORTFOLIO","Poziții • P/L • alocare","portfolio"), arrayOf("02","GROWTH","Oportunități • scor • forecast","growth"),
-            arrayOf("03","ANALYSIS","Tehnic • fundamentals • scenarii","analysis"), arrayOf("04","WATCHLIST","Ticker-e urmărite","watchlist"),
-            arrayOf("05","ALERTS","Semnale și alerte active","alerts"), arrayOf("06","NEWS","Catalizatori și evenimente","news"),
-            arrayOf("07","KNOWLEDGE","Baza de cunoaștere Oracle","knowledge"), arrayOf("08","JURNAL","Istoric și activitate","journal")
+        val data = listOf(
+            arrayOf("PORTFOLIO", "OVERVIEW", "portfolio", "purple"),
+            arrayOf("WATCHLIST", "TRACK & FOCUS", "watchlist", "gold"),
+            arrayOf("ANALYSIS", "CHARTS & TOOLS", "analysis", "cyan"),
+            arrayOf("GROWTH", "FUTURE SCAN", "growth", "green"),
+            arrayOf("ALERTS", "STAY AHEAD", "alerts", "red"),
+            arrayOf("NEWS", "MARKET PULSE", "news", "cyan"),
+            arrayOf("KNOWLEDGE", "LEARN & EVOLVE", "knowledge", "gold"),
+            arrayOf("STOCK", "INTELLIGENCE", "stock", "purple")
         )
-        for (i in modules.indices step 2) {
+        for (r in 0..1) {
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            row.addView(card(modules[i]), LinearLayout.LayoutParams(0,dp(112),1f).apply { setMargins(0,0,dp(7),dp(8)) })
-            row.addView(card(modules[i+1]), LinearLayout.LayoutParams(0,dp(112),1f).apply { setMargins(dp(7),0,0,dp(8)) })
+            for (c in 0..3) {
+                val item = data[r * 4 + c]
+                row.addView(card(item), LinearLayout.LayoutParams(0, dp(151f), 1f).apply {
+                    setMargins(if (c == 0) 0 else dp(4f), 0, if (c == 3) 0 else dp(4f), dp(8f))
+                })
+            }
             addView(row)
         }
     }
 
-    private fun card(m: Array<String>) = LinearLayout(context).apply {
-        val accent = when (m[0]) { "01","04" -> cyan; "02","05" -> gold; "03","07" -> cyanSoft; else -> Color.rgb(173,135,255) }
-        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(14),dp(10),dp(12),dp(10)); background = rounded(panel2,Color.rgb(36,53,77),18)
-        isClickable = true; isFocusable = true; elevation = dp(3).toFloat(); setOnClickListener { onOpen(m[3]) }
+    private fun card(item: Array<String>) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+        setPadding(dp(4f), dp(6f), dp(4f), dp(5f))
+        background = clippedPanel()
+        isClickable = true; isFocusable = true
+        setOnClickListener { onOpen(item[2]) }
+        val accent = when (item[3]) {
+            "purple" -> Color.rgb(204, 79, 255)
+            "cyan" -> Color.rgb(25, 215, 255)
+            "green" -> Color.rgb(119, 255, 39)
+            "red" -> Color.rgb(255, 69, 48)
+            else -> gold
+        }
+        addView(OracleCardGlyph(context, accent, item[2]), LinearLayout.LayoutParams(-1, dp(83f)))
+        addView(TextView(context).apply {
+            text = item[0]; textSize = 12.5f; letterSpacing = .08f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(white); gravity = Gravity.CENTER; maxLines = 1
+        }, LinearLayout.LayoutParams(-1, dp(24f)))
+        addView(TextView(context).apply {
+            text = item[1]; textSize = 7.5f; letterSpacing = .10f; setTextColor(muted); gravity = Gravity.CENTER; maxLines = 1
+        }, LinearLayout.LayoutParams(-1, dp(18f)))
+        addView(View(context).apply { setBackgroundColor(accent) }, LinearLayout.LayoutParams(dp(38f), dp(1f)).apply { setMargins(0, dp(4f), 0, 0) })
+    }
+
+    private fun status() = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(13f), dp(8f), dp(13f), dp(8f)); background = clippedPanel()
+        addView(OracleCardGlyph(context, green, "eye"), LinearLayout.LayoutParams(dp(72f), dp(78f)))
         addView(LinearLayout(context).apply {
-            orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL
-            addView(TextView(context).apply { text=m[0]; textSize=9f; typeface=Typeface.DEFAULT_BOLD; setTextColor(accent); gravity=Gravity.CENTER; background=rounded(Color.TRANSPARENT,accent,10); setPadding(dp(8),0,dp(8),0) },LinearLayout.LayoutParams(dp(32),dp(22)))
-            addView(Space(context),LinearLayout.LayoutParams(0,1,1f))
-            addView(TextView(context).apply { text="›"; textSize=24f; setTextColor(muted); gravity=Gravity.CENTER },LinearLayout.LayoutParams(dp(20),dp(28)))
-        },LinearLayout.LayoutParams(-1,dp(26)))
-        addView(TextView(context).apply { text=m[1]; textSize=14f; typeface=Typeface.DEFAULT_BOLD; setTextColor(white); setPadding(0,dp(7),0,dp(2)) })
-        addView(TextView(context).apply { text=m[2]; textSize=9.5f; setTextColor(muted); maxLines=2 })
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(context).apply { text="ORACLE READY"; textSize=12f; letterSpacing=.04f; typeface=Typeface.DEFAULT_BOLD; setTextColor(white) })
+            addView(TextView(context).apply { text="Market Intelligence Active"; textSize=9f; setTextColor(green); setPadding(0,dp(5f),0,0) })
+        }, LinearLayout.LayoutParams(0,-1,1f))
+        addView(View(context).apply { setBackgroundColor(gold) }, LinearLayout.LayoutParams(dp(1f), dp(62f)))
+        addView(OracleCardGlyph(context, gold, "signal"), LinearLayout.LayoutParams(dp(70f), dp(78f)))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(context).apply { text="LOCAL INTELLIGENCE"; textSize=11f; letterSpacing=.03f; typeface=Typeface.DEFAULT_BOLD; setTextColor(white) })
+            addView(TextView(context).apply { text="Synced & Protected"; textSize=9f; setTextColor(green); setPadding(0,dp(5f),0,0) })
+        }, LinearLayout.LayoutParams(0,-1,1f))
+        addView(View(context).apply { setBackgroundColor(green) }, LinearLayout.LayoutParams(dp(16f), dp(16f)).apply { setMargins(dp(5f),0,dp(3f),0) })
     }
 
     private fun footer() = LinearLayout(context).apply {
-        orientation=LinearLayout.VERTICAL
-        addView(View(context).apply { setBackgroundColor(Color.rgb(31,49,72)) },LinearLayout.LayoutParams(-1,dp(1)))
-        addView(TextView(context).apply { text="ORACLE  •  V6g-FINAL-B514  •  START"; textSize=9f; typeface=Typeface.DEFAULT_BOLD; letterSpacing=.14f; gravity=Gravity.CENTER; setTextColor(Color.rgb(108,124,150)); setPadding(0,dp(12),0,0) })
+        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+        addView(TextView(context).apply { text="O R A C L E"; textSize=15f; letterSpacing=.45f; typeface=Typeface.SERIF; setTextColor(gold) })
+        addView(TextView(context).apply { text="S E E   M O R E .   K N O W   F I R S T ."; textSize=7f; letterSpacing=.20f; setTextColor(muted); setPadding(0,dp(5f),0,0) })
     }
 
-    private fun rounded(fill:Int, stroke:Int, radius:Int) = GradientDrawable().apply { setColor(fill); setCornerRadius(dp(radius).toFloat()); setStroke(dp(1),stroke) }
+    private fun clippedPanel() = GradientDrawable().apply {
+        setColor(Color.argb(205, 4, 7, 14)); setStroke(dp(1f), gold); cornerRadius = dp(10f).toFloat()
+    }
+    private fun outline(color:Int, radius:Int) = GradientDrawable().apply { setColor(Color.TRANSPARENT); setStroke(dp(1f), color); cornerRadius=dp(radius.toFloat()).toFloat() }
 
-    private class StartBackground(context: Context) : View(context) {
-        private val p=Paint(Paint.ANTI_ALIAS_FLAG); private val d=resources.displayMetrics.density
-        override fun onDraw(c:Canvas) {
-            val w=width.toFloat(); val h=height.toFloat()
-            p.shader=LinearGradient(0f,0f,w,h,Color.rgb(2,5,12),Color.rgb(5,11,22),Shader.TileMode.CLAMP); c.drawRect(0f,0f,w,h,p); p.shader=null
-            p.style=Paint.Style.STROKE; p.strokeWidth=d; p.color=Color.rgb(42,202,255); p.alpha=28
-            val step=54f*d; var x=-h
-            while(x<w+h){c.drawLine(x,0f,x+h,h,p);x+=step}; var y=0f
-            while(y<h){c.drawLine(0f,y,w,y,p);y+=step}
-            p.style=Paint.Style.FILL; p.alpha=18; c.drawCircle(w*.86f,h*.16f,110f*d,p); p.alpha=12; c.drawCircle(w*.14f,h*.72f,150f*d,p); p.alpha=255
+    private class OracleMysticCanvas(context: Context) : View(context) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG); private val path = Path()
+        private val gold = Color.rgb(255, 196, 48); private val bright = Color.rgb(255, 225, 105)
+        private val white = Color.rgb(248, 245, 234)
+        override fun onDraw(c: Canvas) {
+            val w = width.toFloat(); val h = height.toFloat(); val cx = w/2f; val cy = h*.49f; val r=min(w*.43f,h*.39f)
+            p.style=Paint.Style.FILL; p.shader=LinearGradient(0f,0f,w,h,Color.rgb(1,2,5),Color.rgb(8,6,5),Shader.TileMode.CLAMP); c.drawRect(0f,0f,w,h,p); p.shader=null
+            p.style=Paint.Style.STROKE; p.strokeWidth=1f*density; p.color=gold; p.alpha=55
+            for(i in 1..8) c.drawCircle(cx,cy,r*i/8f,p)
+            for(i in 0 until 12){ val a=i*Math.PI/6; c.drawLine(cx+Math.cos(a)*r*.05,cy+Math.sin(a)*r*.05,cx+Math.cos(a)*r,cy+Math.sin(a)*r,p) }
+            p.strokeWidth=1.2f*density; p.alpha=145
+            c.drawCircle(cx,cy,r*.72f,p); c.drawCircle(cx,cy,r*.61f,p); c.drawCircle(cx,cy,r*.43f,p)
+            // stylized eye
+            path.reset(); path.moveTo(cx-r*.58f,cy); path.cubicTo(cx-r*.30f,cy-r*.34f,cx+r*.30f,cy-r*.34f,cx+r*.58f,cy); path.cubicTo(cx+r*.30f,cy+r*.34f,cx-r*.30f,cy+r*.34f,cx-r*.58f,cy)
+            p.color=bright; p.alpha=235; p.strokeWidth=2.2f*density; c.drawPath(path,p)
+            p.color=gold; p.strokeWidth=1.2f*density; p.alpha=255; c.drawCircle(cx,cy,r*.14f,p); p.style=Paint.Style.FILL; c.drawCircle(cx,cy,r*.065f,p)
+            // vertical oracle axis and eye above
+            p.style=Paint.Style.STROKE; p.strokeWidth=1f*density; p.alpha=210
+            c.drawLine(cx, dp(10f).toFloat(), cx, cy-r*.78f,p); c.drawLine(cx,cy+r*.78f,cx,h-dp(12f).toFloat(),p)
+            val ty=dp(60f).toFloat(); path.reset(); path.moveTo(cx-dp(38f),ty); path.lineTo(cx,ty-dp(24f)); path.lineTo(cx+dp(38f),ty); path.lineTo(cx,ty+dp(24f)); path.close(); c.drawPath(path,p); c.drawCircle(cx,ty,dp(9f).toFloat(),p)
+            p.style=Paint.Style.FILL; c.drawCircle(cx,dp(10f).toFloat(),dp(3f).toFloat(),p)
+            // subtle cloud / constellation texture
+            p.alpha=55; for(i in 0..28){ val x=(i*83%maxOf(1,width)).toFloat(); val y=(i*47%maxOf(1,height)).toFloat(); c.drawCircle(x,y,1.5f*density,p) }
+            // logo typography is native text, not baked into an image
+            p.alpha=255; p.color=white; p.textAlign=Paint.Align.CENTER; p.typeface=Typeface.create(Typeface.SERIF,Typeface.BOLD); p.textSize=dp(30f).toFloat(); c.drawText("ORACLE",cx,cy+r*.52f,p)
+            p.color=gold; p.typeface=Typeface.DEFAULT_BOLD; p.textSize=dp(8f).toFloat(); c.drawText("STOCK INTELLIGENCE",cx,cy+r*.61f,p)
+            p.textAlign=Paint.Align.LEFT
+        }
+        private val density get() = resources.displayMetrics.density
+    }
+
+    private class OracleCardGlyph(context: Context, private val accent: Int, private val kind: String) : View(context) {
+        private val p=Paint(Paint.ANTI_ALIAS_FLAG); private val path=Path(); private val d=resources.displayMetrics.density
+        override fun onDraw(c:Canvas){
+            val w=width.toFloat(); val h=height.toFloat(); val cx=w/2f; val cy=h/2f; val r=min(w,h)*.39f
+            p.style=Paint.Style.STROKE; p.strokeWidth=1f*d; p.color=accent; p.alpha=120
+            c.drawCircle(cx,cy,r,p); c.drawCircle(cx,cy,r*.78f,p); c.drawCircle(cx,cy,r*.54f,p)
+            p.alpha=245; p.strokeWidth=2f*d
+            when(kind){
+                "eye" -> { path.reset(); path.moveTo(cx-r*.65f,cy); path.cubicTo(cx-r*.3f,cy-r*.55f,cx+r*.3f,cy-r*.55f,cx+r*.65f,cy); path.cubicTo(cx+r*.3f,cy+r*.55f,cx-r*.3f,cy+r*.55f,cx-r*.65f,cy); c.drawPath(path,p); c.drawCircle(cx,cy,r*.18f,p) }
+                "signal" -> { for(i in -2..2){val bh=(kotlin.math.abs(i)+1)*r*.45f; c.drawLine(cx+i*r*.28f,cy+bh,cx+i*r*.28f,cy-bh,p)} }
+                "portfolio" -> { c.drawRect(cx-r*.28f,cy-r*.30f,cx+r*.28f,cy+r*.28f,p); c.drawCircle(cx+r*.20f,cy+r*.20f,r*.18f,p) }
+                "watchlist" -> { path.reset(); path.moveTo(cx-r*.62f,cy); path.cubicTo(cx-r*.3f,cy-r*.55f,cx+r*.3f,cy-r*.55f,cx+r*.62f,cy); path.cubicTo(cx+r*.3f,cy+r*.55f,cx-r*.3f,cy+r*.55f,cx-r*.62f,cy); c.drawPath(path,p); c.drawCircle(cx,cy,r*.16f,p) }
+                "analysis" -> { path.reset(); path.moveTo(cx-r*.55f,cy+r*.35f); path.lineTo(cx-r*.18f,cy); path.lineTo(cx+r*.05f,cy+r*.12f); path.lineTo(cx+r*.52f,cy-r*.42f); c.drawPath(path,p) }
+                "growth" -> { path.reset(); path.moveTo(cx-r*.5f,cy+r*.3f); path.lineTo(cx-r*.15f,cy); path.lineTo(cx+r*.05f,cy+r*.1f); path.lineTo(cx+r*.5f,cy-r*.4f); c.drawPath(path,p) }
+                "alerts" -> { c.drawCircle(cx,cy-r*.08f,r*.38f,p); c.drawLine(cx-r*.52f,cy+r*.42f,cx+r*.52f,cy+r*.42f,p) }
+                "news" -> { c.drawRect(cx-r*.45f,cy-r*.42f,cx+r*.45f,cy+r*.42f,p); for(i in 0..2)c.drawLine(cx-r*.28f,cy-r*.18f+i*r*.18f,cx+r*.28f,cy-r*.18f+i*r*.18f,p) }
+                "knowledge" -> { c.drawRect(cx-r*.45f,cy-r*.4f,cx,cy+r*.4f,p); c.drawRect(cx,cy-r*.4f,cx+r*.45f,cy+r*.4f,p) }
+                "stock" -> { path.reset(); path.moveTo(cx-r*.45f,cy); path.lineTo(cx-r*.12f,cy-r*.3f); path.lineTo(cx+r*.12f,cy+r*.28f); path.lineTo(cx+r*.48f,cy-r*.42f); c.drawPath(path,p) }
+            }
+            p.style=Paint.Style.FILL; p.alpha=255; c.drawCircle(cx,cy-r*.88f,r*.035f,p)
         }
     }
 }
