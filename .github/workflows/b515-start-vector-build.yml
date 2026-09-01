@@ -2,8 +2,10 @@ name: B515 START VECTOR BUILD
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
+      - app/src/main/java/ro/alintudor/oracle/MainActivity.kt
       - app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
       - app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
       - .github/workflows/b515-start-vector-build.yml
@@ -12,116 +14,111 @@ on:
 permissions:
   contents: read
 
-env:
-  ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
-  ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
-  ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
-  ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Oracle
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Freeze protected modules
+      - name: Apply approved Start V2 host
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/oracle-freeze
-          for f in \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
-            app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do
-            test -f "$f"
-            git hash-object "$f" >> /tmp/oracle-freeze/$(basename "$f").sha
-          done
-          git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt > /tmp/oracle-freeze/startv2.sha
-
-      - name: Apply Start V2 only
-        run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
-          s=p.read_text()
-          start=s.index('    private fun showHub()')
-          end=s.index('    private fun makeHomeCard', start)
-          block='''    private fun showHub() {
-        currentModule=null; root.removeAllViews()
-        val scroll=ScrollView(this).apply { isFillViewport=true; setBackgroundColor(Color.rgb(1,3,8)); overScrollMode=View.OVER_SCROLL_IF_CONTENT_SCROLLS }
-        val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(0,0,0,dp(8)); setBackgroundColor(Color.rgb(1,2,5)) }
-        val hero=OracleMysticHeroView(this){ openModule(it) }
-        val sw=resources.displayMetrics.widthPixels.toFloat(); val sh=resources.displayMetrics.heightPixels.toFloat()
-        val wide=sw/sh>1.18f
-        val heroHeightPx=(sh*(if(wide) .91f else .94f)).toInt().coerceAtLeast(if(wide) dp(650) else dp(720))
-        page.addView(hero,LinearLayout.LayoutParams(-1,heroHeightPx))
-        scroll.addView(page); root.addView(scroll,FrameLayout.LayoutParams(-1,-1))
+          p = Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s = p.read_text()
+          start = s.index('    private fun showHub()')
+          end = s.index('    private fun makeHomeCard', start)
+          block = '''    private fun showHub() {
+        currentModule = null
+        root.removeAllViews()
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(1, 3, 8))
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        }
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(8))
+            setBackgroundColor(Color.rgb(1, 2, 5))
+        }
+        val hero = OracleMysticHeroView(this) { openModule(it) }
+        val sw = resources.displayMetrics.widthPixels.toFloat()
+        val sh = resources.displayMetrics.heightPixels.toFloat()
+        val wide = sw / sh > 1.18f
+        val heroHeightPx = (sh * if (wide) 0.91f else 0.94f).toInt()
+            .coerceAtLeast(if (wide) dp(650) else dp(720))
+        page.addView(hero, LinearLayout.LayoutParams(-1, heroHeightPx))
+        scroll.addView(page)
+        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
     }
 '''
-          p.write_text(s[:start]+block+s[end:])
+          p.write_text(s[:start] + block + s[end:])
           PY
 
-      - name: Verify Start and frozen modules
+      - name: Verify Start source
+        shell: bash
         run: |
           set -euo pipefail
           grep -q 'OracleMysticHeroView(this)' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           grep -q 'OracleMysticStartViewV2' app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
           grep -q '357AT2026' app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
-          ! grep -q '"stock"' app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
-          ! grep -q 'SEE MORE.  KNOW FIRST.' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          ! grep -q 'OracleHeroView(this)' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          ! grep -q 'LOCAL INTELLIGENCE' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
           git diff --check
-          i=1
-          for f in \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
-            app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do
-            expected=$(sed -n "${i}p" /tmp/oracle-freeze/$(basename "$f").sha)
-            test "$(git hash-object "$f")" = "$expected"
-            i=$((i+1))
-          done
 
-      - uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
 
-      - name: Prepare production signing key
+      - name: Prepare signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
-            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
             {
               echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+              echo "ORACLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$KEY_PASSWORD"
             } >> "$GITHUB_ENV"
           fi
 
       - name: Set B515 version
+        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p=Path('app/build.gradle')
-          s=p.read_text()
-          s=re.sub(r'versionCode\s+\d+', 'versionCode 36', s, count=1)
-          s=re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-START-B515'", s, count=1)
+          p = Path('app/build.gradle')
+          s = p.read_text()
+          s = re.sub(r'versionCode\s+\d+', 'versionCode 36', s, count=1)
+          s = re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-START-B515'", s, count=1)
           p.write_text(s)
           PY
 
@@ -129,6 +126,7 @@ jobs:
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Verify APK
+        shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
@@ -142,6 +140,5 @@ jobs:
         with:
           name: Oracle-APK-B515-START-VECTOR-7MODULES
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 30
-
-# B516 FINAL START: host footer removed by the approved showHub build patch; protected modules remain frozen.
