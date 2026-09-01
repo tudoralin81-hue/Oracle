@@ -8,7 +8,6 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Space
 import android.widget.TextView
 
 /** Premium Start/Home shell. Navigation only; Oracle modules remain untouched. */
@@ -37,8 +36,7 @@ class PremiumStartView(context: Context, private val onOpen: (String) -> Unit) :
         brand.addView(tv("ORACLE", 30f, Color.WHITE, true))
         brand.addView(tv("AI STOCK INTELLIGENCE", 10f, Color.rgb(120, 145, 180), true))
         top.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
-        val live = tv("●  LIVE", 11f, Color.rgb(50, 220, 135), true).apply { gravity = Gravity.CENTER }
-        top.addView(live, LinearLayout.LayoutParams(dp(82), dp(36)))
+        top.addView(tv("●  LIVE", 11f, Color.rgb(50, 220, 135), true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(82), dp(36)))
         page.addView(top)
         page.addView(tv("Your market command center", 14f, Color.rgb(160, 170, 190)).apply { setPadding(0, dp(4), 0, dp(16)) })
 
@@ -47,27 +45,29 @@ class PremiumStartView(context: Context, private val onOpen: (String) -> Unit) :
         }
         pulse.addView(tv("MARKET PULSE", 11f, Color.rgb(255, 210, 60), true))
         pulse.addView(tv("Oracle is ready", 22f, Color.WHITE, true).apply { setPadding(0, dp(5), 0, dp(2)) })
-        pulse.addView(tv("Refresh data from the module you need. No engine or model changes.", 12f, Color.rgb(150, 165, 190)))
+        pulse.addView(tv("Your command center for analysis, opportunities and portfolio decisions.", 12f, Color.rgb(150, 165, 190)))
         page.addView(pulse, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, dp(14)) })
 
         page.addView(tv("QUICK ACCESS", 11f, Color.rgb(125, 150, 190), true).apply { setPadding(dp(4), dp(3), 0, dp(9)) })
         val grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val rows = listOf(
-            listOf("analysis" to "ANALYSIS" to "Deep stock analysis" , "watchlist" to "WATCHLIST" to "Your saved tickers"),
-            listOf("growth" to "GROWTH" to "Return & contribution" , "portfolio" to "PORTFOLIO" to "Positions & P/L"),
-            listOf("news" to "NEWS" to "Catalysts & events" , "alerts" to "ALERTS" to "Active signals")
+            listOf(Triple("analysis", "ANALYSIS", "Deep stock analysis"), Triple("watchlist", "WATCHLIST", "Your saved tickers")),
+            listOf(Triple("growth", "GROWTH", "Return & contribution"), Triple("portfolio", "PORTFOLIO", "Positions & P/L")),
+            listOf(Triple("news", "NEWS", "Catalysts & events"), Triple("alerts", "ALERTS", "Active signals"))
         )
         rows.forEach { pair ->
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            pair.forEach { item -> row.addView(card(item.first, item.second, item.third), LinearLayout.LayoutParams(0, dp(106), 1f).apply { setMargins(0, 0, dp(7), dp(8)) }) }
-            page.addView(row)
+            pair.forEachIndexed { index, item ->
+                row.addView(card(item.first, item.second, item.third), LinearLayout.LayoutParams(0, dp(106), 1f).apply { if (index == 0) setMargins(0, 0, dp(7), dp(8)) else setMargins(0, 0, 0, dp(8)) })
+            }
+            grid.addView(row)
         }
+        page.addView(grid)
 
         val bottom = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(13), dp(14), dp(13)); background = bg(Color.rgb(7, 11, 21), 15) }
         bottom.addView(tv("ORACLE READY", 12f, Color.rgb(50, 220, 135), true), LinearLayout.LayoutParams(0, -2, 1f))
         bottom.addView(tv("B514 • STABLE BASE", 10f, Color.rgb(120, 135, 160), true))
         page.addView(bottom, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, 0) })
-
         addView(page, LayoutParams(-1, -2))
     }
 
@@ -77,7 +77,7 @@ class PremiumStartView(context: Context, private val onOpen: (String) -> Unit) :
         isClickable = true; isFocusable = true; elevation = dp(2).toFloat()
         setOnClickListener { onOpen(key) }
         addView(tv(title, 16f, Color.WHITE, true))
-        addView(tv(subtitle, 11f, Color.rgb(145, 160, 185)).apply { setPadding(0, dp(4), 0, dp(0)) })
+        addView(tv(subtitle, 11f, Color.rgb(145, 160, 185)).apply { setPadding(0, dp(4), 0, 0) })
         addView(tv("OPEN  ›", 10f, Color.rgb(105, 160, 235), true).apply { setPadding(0, dp(9), 0, 0) })
     }
 }
