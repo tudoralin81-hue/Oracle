@@ -15,3 +15,5 @@ class OracleMysticHeroView(context: Context, private val onModule: (String) -> U
         start.draw(canvas)
     }
 }
+
+// B516 FINAL START: build trigger for footer-free native Start.
