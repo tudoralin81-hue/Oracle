@@ -1,1 +1,2 @@
-B516 FINAL: approved native Start layout; remove only the bottom host footer. Keep modules frozen and retain 357AT2026.
+RUN B516 FINAL NO FOOTER — 2026-09-01 18:25 EEST
+Approved Start layout only. Remove the bottom host footer completely. Keep 7 modules frozen and retain 357AT2026.
