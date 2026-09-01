@@ -25,6 +25,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Restore complete B514 MainActivity baseline
+        run: git show 65e4dc85fe7a1bd52a92f4d1032803a552595f59:app/src/main/java/ro/alintudor/oracle/MainActivity.kt > app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+
+      - name: Activate final Premium Start only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s=p.read_text()
+          old='''    private fun showHub() {\n        currentModule=null; root.removeAllViews()\n        val scroll=ScrollView(this).apply { isFillViewport=true; setBackgroundColor(Color.rgb(1,3,8)) }\n        val page=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(10),dp(6),dp(10),dp(24)) }\n        val hero=OracleHeroView(this){ openModule(it) }\n        val heroHeightPx=(resources.displayMetrics.heightPixels*.80f).toInt().coerceAtLeast(dp(620))\n        page.addView(hero,LinearLayout.LayoutParams(-1,heroHeightPx))\n        val status=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; setPadding(dp(14),dp(11),dp(14),dp(11)); setBackgroundColor(Color.rgb(8,12,24)) }\n        status.addView(View(this).apply{setBackgroundColor(Color.rgb(50,220,135))},LinearLayout.LayoutParams(dp(8),dp(8)))\n        status.addView(TextView(this).apply{text=\"  ORACLE READY\";textSize=13f;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.WHITE)},LinearLayout.LayoutParams(0,-2,1f))\n        status.addView(TextView(this).apply{text=\"LOCAL INTELLIGENCE\";textSize=10f;setTextColor(Color.rgb(140,150,170))})\n        page.addView(status,LinearLayout.LayoutParams(-1,-2).apply{setMargins(0,dp(8),0,dp(8))})\n        scroll.addView(page); root.addView(scroll,FrameLayout.LayoutParams(-1,-1))\n    }'''
+          new='''    private fun showHub() {\n        currentModule=null\n        root.removeAllViews()\n        root.addView(PremiumStartView(this){ openModule(it) }, FrameLayout.LayoutParams(-1,-1))\n    }'''
+          if old not in s:
+              raise SystemExit('B514 baseline showHub target not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+
       - name: Verify frozen modules byte-for-byte
         shell: bash
         run: |
