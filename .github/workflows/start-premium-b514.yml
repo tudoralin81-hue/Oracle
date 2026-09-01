@@ -1,0 +1,61 @@
+name: B514 Premium Start
+
+on:
+  push:
+    branches: [ui/start-premium-b514]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MAIN_FILE: app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+
+jobs:
+  patch-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout B514 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace only Start/Home renderer
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path("${{ env.MAIN_FILE }}")
+          s = p.read_text(encoding="utf-8")
+          start = s.index("    private fun showHub() {")
+          end = s.index("    private fun makeHomeCard", start)
+          new_block = '''    private fun showHub() {
+        currentModule = null
+        root.removeAllViews()
+        root.addView(PremiumStartView(this) { openModule(it) }, FrameLayout.LayoutParams(-1, -1))
+    }
+'''
+          p.write_text(s[:start] + new_block + s[end:], encoding="utf-8")
+      - name: Commit Start-only patch
+        run: |
+          git config user.name "oracle-build-bot"
+          git config user.email "actions@github.com"
+          git add app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          git diff --cached --quiet || git commit -m "UI: replace Start with premium B514 dashboard"
+          git push
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build installable APK
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-B514-START-PREMIUM
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
