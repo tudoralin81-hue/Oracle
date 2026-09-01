@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/b514_build_growth.py
       - scripts/apply_growth_v597_reference.py
+      - scripts/apply_growth_sector_metadata.py
       - scripts/apply_growth_loader.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
       - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
@@ -53,6 +54,9 @@ jobs:
 
       - name: Apply Oracle Growth V5.9.7 reference rules
         run: python3 scripts/apply_growth_v597_reference.py
+
+      - name: Apply Growth sector/company metadata correction
+        run: python3 scripts/apply_growth_sector_metadata.py
 
       - name: Apply Oracle-style Growth loader
         run: python3 scripts/apply_growth_loader.py
