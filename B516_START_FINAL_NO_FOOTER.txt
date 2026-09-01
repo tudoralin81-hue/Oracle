@@ -1,2 +1,2 @@
-RUN B516 FINAL NO FOOTER — 2026-09-01 18:25 EEST
-Approved Start layout only. Remove the bottom host footer completely. Keep 7 modules frozen and retain 357AT2026.
+RUN B516 FINAL NO FOOTER — repaired workflow — 2026-09-01 18:27 EEST
+Remove the bottom host footer completely. Keep the approved 7-module Start, 357AT2026, and all protected modules unchanged.
