@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - app/src/main/java/ro/alintudor/oracle/OracleStartView.kt
+      - app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
       - .github/workflows/b514-start-redesign-final.yml
   workflow_dispatch:
 
@@ -52,12 +52,25 @@ jobs:
           Path('/tmp/oracle-freeze/main-without-start.sha').write_text(hashlib.sha256((s[:start]+s[end:]).encode()).hexdigest())
           PY
 
+      - name: Wire native mystical Start
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ro/alintudor/oracle/MainActivity.kt')
+          s=p.read_text()
+          old='val hero=OracleHeroView(this){ openModule(it) }'
+          new='val hero=OracleMysticHeroView(this){ openModule(it) }'
+          if old not in s:
+              raise SystemExit('B514 Start hook not found; refusing to modify another version.')
+          p.write_text(s.replace(old,new,1))
+          PY
+
       - name: Verify current Start composition
         run: |
           set -euo pipefail
-          grep -q 'class OracleStartView' app/src/main/java/ro/alintudor/oracle/OracleStartView.kt
-          grep -q 'OracleStartView(this)' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
-          ! grep -qE 'R\.drawable\.(oracle|mystic|start)' app/src/main/java/ro/alintudor/oracle/OracleStartView.kt
+          grep -q 'class OracleMysticHeroView' app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
+          grep -q 'OracleMysticHeroView(this)' app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+          ! grep -qE 'R\.drawable\.(oracle|mystic|start)' app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
           git diff --check
 
       - name: HARD VERIFY protected modules byte-for-byte
