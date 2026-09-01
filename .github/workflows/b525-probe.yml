@@ -1,0 +1,13 @@
+name: Oracle B525 Actions Probe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        run: echo "ORACLE_ACTIONS_PROBE_OK"
