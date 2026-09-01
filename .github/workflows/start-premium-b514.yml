@@ -26,7 +26,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Restore complete B514 MainActivity baseline
-        run: git show 65e4dc85fe7a1bd52a92f4d1032803a552595f59:app/src/main/java/ro/alintudor/oracle/MainActivity.kt > app/src/main/java/ro/alintudor/oracle/MainActivity.kt
+        run: |
+          git fetch --no-tags --depth=1 origin 65e4dc85fe7a1bd52a92f4d1032803a552595f59
+          git show 65e4dc85fe7a1bd52a92f4d1032803a552595f59:app/src/main/java/ro/alintudor/oracle/MainActivity.kt > app/src/main/java/ro/alintudor/oracle/MainActivity.kt
 
       - name: Activate final Premium Start only
         run: |
