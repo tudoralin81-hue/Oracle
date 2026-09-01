@@ -1,2 +1,2 @@
-RUN B516 FINAL NO FOOTER — duplicate-class repair — 2026-09-01 18:31 EEST
-Remove the bottom host footer completely. Keep the approved 7-module Start, 357AT2026, and all protected modules unchanged.
+RUN B517 INSTALLABLE FINAL — 2026-09-01 21:59 EEST
+Use the approved 7-module Start from B515/B516, remove the bottom host footer completely, keep 357AT2026, and do not modify protected modules. Build and sign the release APK with the repository signing key.
