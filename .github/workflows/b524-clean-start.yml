@@ -18,7 +18,7 @@ jobs:
           ref: main
           fetch-depth: 1
 
-      - name: Apply approved Start V2 — remove footer card
+      - name: Apply approved Start V2 and remove status card from source
         shell: bash
         run: |
           set -euo pipefail
@@ -54,9 +54,17 @@ jobs:
           ]
           block = '\n'.join(lines) + '\n'
           p.write_text(s[:start] + block + s[end:])
+
+          # The visible ORACLE READY / LOCAL INTELLIGENCE card is drawn inside Start V2.
+          v = Path('app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt')
+          t = v.read_text()
+          old = '        drawStatus(c, wide, time)\n'
+          if old not in t:
+              raise SystemExit('Expected Start V2 status-card call not found')
+          v.write_text(t.replace(old, '', 1))
           PY
 
-      - name: Verify Start V2 source
+      - name: Verify exact Start V2 source
         shell: bash
         run: |
           set -euo pipefail
@@ -66,12 +74,13 @@ jobs:
           ! grep -q 'OracleHeroView(this)' "$MAIN"
           ! grep -q 'ORACLE READY' "$MAIN"
           ! grep -q 'LOCAL INTELLIGENCE' "$MAIN"
+          ! grep -q 'drawStatus(c, wide, time)' "$START"
           grep -q '357AT2026' "$START"
           ! grep -q '"stock"' "$START"
           git diff --check
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -135,7 +144,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B528-START-NO-FOOTER
+          name: Oracle-APK-B528-START-NO-STATUS-CARD
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
