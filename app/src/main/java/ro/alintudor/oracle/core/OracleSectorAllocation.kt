@@ -8,12 +8,11 @@ package ro.alintudor.oracle.core
 object OracleSectorAllocation {
     private const val MIN_FACTOR = 0.50
     private const val MAX_FACTOR = 1.25
-    private const val STEP = 0.025
 
     /** Allocation correction is separate from the 12-component Growth score. */
     fun factorFor(sector: String?): Double {
         val s = sector?.trim()?.lowercase() ?: return 1.0
-        val raw = when {
+        return when {
             s.contains("biotech") || s.contains("biotechnology") -> 0.750
             s.contains("semiconductor") || s.contains("eda") -> 0.900
             s.contains("fintech") || s.contains("financial technology") -> 0.900
@@ -24,16 +23,13 @@ object OracleSectorAllocation {
             s.contains("industr") -> 1.000
             s.contains("utilities") -> 1.100
             else -> 1.000
-        }
-        return snapToStep(raw.coerceIn(MIN_FACTOR, MAX_FACTOR))
+        }.coerceIn(MIN_FACTOR, MAX_FACTOR)
     }
 
-    /** Allocation final = base allocation * sector factor, rounded to 0.025%. */
+    /** Allocation final = continuous base allocation * sector factor, rounded to exactly 1 decimal %. */
     fun apply(baseAllocation: Double, sector: String?): Double =
-        snapToStep((baseAllocation * factorFor(sector)).coerceIn(0.0, 8.0))
+        kotlin.math.round((baseAllocation * factorFor(sector)).coerceIn(0.0, 8.0) * 10.0) / 10.0
 
     /** Retained for API compatibility: sector does not modify score weights in V5.9.7. */
     fun correctedWeights(base: IntArray, sector: String?): IntArray = base.copyOf()
-
-    private fun snapToStep(value: Double): Double = kotlin.math.round(value / STEP) * STEP
 }
