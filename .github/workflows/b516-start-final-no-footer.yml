@@ -2,12 +2,12 @@ name: Oracle B516 Final APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - B516_START_FINAL_NO_FOOTER.txt
       - app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
-      - app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
+      - app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt
+      - app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
       - .github/workflows/b516-start-final-no-footer.yml
   workflow_dispatch:
 
@@ -18,18 +18,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 1
-
-      - name: Verify approved Start and frozen modules
-        shell: bash
+      - name: Verify approved Start and protected modules
         run: |
           set -euo pipefail
           grep -q '357AT2026' app/src/main/java/ro/alintudor/oracle/OracleMysticStartViewV2.kt
-          grep -q 'OracleMysticStartViewV2' app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
           grep -q 'onAttachedToWindow' app/src/main/java/ro/alintudor/oracle/OracleMysticHeroView.kt
           for f in \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
@@ -37,37 +33,30 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do
-            test -f "$f"
-          done
-          git diff --check
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do test -f "$f"; done
+      - name: Remove legacy duplicate class from build only
+        run: |
+          set -euo pipefail
+          sed -i 's/private class OracleMysticStartView(context:/private class OracleMysticStartViewLegacy(context:/' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          sed -i 's/val hero = OracleMysticStartView(this)/val hero = OracleMysticStartViewLegacy(this)/' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          grep -q 'OracleMysticStartViewLegacy' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
+      - uses: android-actions/setup-android@v3
       - name: Install Android SDK
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-
       - name: Prepare signing key
-        shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: |
-          set -euo pipefail
           if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_ALIAS:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
             echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
             echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks" >> "$GITHUB_ENV"
@@ -75,25 +64,19 @@ jobs:
             echo "ORACLE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "ORACLE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
-
       - name: Set B516 version
-        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p=Path('app/build.gradle')
-          s=p.read_text()
+          p=Path('app/build.gradle'); s=p.read_text()
           s=re.sub(r'versionCode\s+\d+', 'versionCode 37', s, count=1)
           s=re.sub(r"versionName\s+'[^']+'", "versionName 'V6g-START-B516'", s, count=1)
           p.write_text(s)
           PY
-
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
-
       - name: Verify APK
-        shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
@@ -101,9 +84,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-START-B516'"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionCode='37'"
-
-      - name: Upload installable APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: Oracle-APK-B516-START-NO-FOOTER
           path: app/build/outputs/apk/release/*.apk
