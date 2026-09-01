@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt
+      - app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
       - app/src/main/res/drawable-nodpi/oracle_start_b514.jpg
       - .github/workflows/b514-mystic-start-final.yml
   workflow_dispatch:
@@ -43,7 +44,7 @@ jobs:
             git hash-object "$f"
           done > /tmp/oracle-freeze/protected.sha
 
-      - name: Connect mystic Start without touching modules
+      - name: Connect B514 Start to the supplied artwork
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -55,6 +56,21 @@ jobs:
           p.write_text(s[:a]+replacement+s[b:],encoding='utf-8')
           PY
 
+      - name: Remove duplicate private artwork class from build copy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
+          s=p.read_text(encoding='utf-8')
+          marker='\nprivate class OracleMysticStartView'
+          if marker in s:
+              s=s.split(marker,1)[0]+'\n'
+              p.write_text(s,encoding='utf-8')
+          PY
+          test "$(grep -c 'class OracleMysticStartView' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt || true)" = "0"
+          grep -q 'class OracleMysticStartView' app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt
+          test -f app/src/main/res/drawable-nodpi/oracle_start_b514.jpg
+
       - name: HARD byte-for-byte freeze verification
         run: |
           set -euo pipefail
@@ -65,7 +81,6 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do
-            test -f "$f"
             git hash-object "$f"
           done > /tmp/oracle-freeze/protected.after.sha
           cmp /tmp/oracle-freeze/protected.sha /tmp/oracle-freeze/protected.after.sha
