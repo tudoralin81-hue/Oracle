@@ -22,7 +22,6 @@ class OracleMysticStartView(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val hits = mutableListOf<Pair<RectF, String>>()
-
     private val gold = Color.rgb(238, 190, 60)
     private val brightGold = Color.rgb(255, 215, 82)
     private val white = Color.rgb(244, 239, 226)
@@ -40,16 +39,10 @@ class OracleMysticStartView(
         Module("stock", "STOCK", "INTELLIGENCE", Color.rgb(220, 65, 255))
     )
 
-    private data class Module(
-        val key: String,
-        val title: String,
-        val subtitle: String,
-        val color: Int
-    )
+    private data class Module(val key: String, val title: String, val subtitle: String, val color: Int)
 
     override fun onDraw(c: Canvas) {
         super.onDraw(c)
-
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
@@ -75,13 +68,13 @@ class OracleMysticStartView(
         val eyeY = py(if (wide) 235f else 285f)
         val eyeR = ps(if (wide) 112f else 132f)
 
-        drawBackgroundGrid(c, cx, eyeY, ps(if (wide) 110f else 105f), ps(if (wide) 18f else 18f), t, scale)
+        drawBackgroundGrid(c, cx, eyeY, ps(if (wide) 110f else 105f), ps(18f), scale)
         drawCentered(c, "ORACLE", cx, py(if (wide) 78f else 105f), ps(31f), brightGold, Typeface.SERIF, 0.18f)
         drawCentered(c, "STOCK INTELLIGENCE", cx, py(if (wide) 102f else 130f), ps(9f), gold, Typeface.DEFAULT, 0.25f)
         drawSigil(c, cx, py(if (wide) 38f else 57f), ps(22f), brightGold)
         drawAnimatedEye(c, cx, eyeY, eyeR, t)
-
         drawCentered(c, "SEE MORE.  KNOW FIRST.", cx, py(if (wide) 382f else 465f), ps(10.5f), white, Typeface.DEFAULT, 0.27f)
+
         paint.style = Paint.Style.STROKE
         paint.color = gold
         paint.alpha = 180
@@ -93,32 +86,21 @@ class OracleMysticStartView(
         if (wide) {
             drawWideCards(c, px, py, ps, t)
             drawStatus(c, ::px, ::py, ::ps, t, true)
-            drawFooter(c, cx, py, ps, 865f)
+            drawFooter(c, cx, ::py, ::ps, 865f)
         } else {
             drawPhoneCards(c, px, py, ps, t)
             drawStatus(c, ::px, ::py, ::ps, t, false)
-            drawFooter(c, cx, py, ps, 1042f)
+            drawFooter(c, cx, ::py, ::ps, 1042f)
         }
-
         postInvalidateDelayed(32L)
     }
 
-    private fun drawBackgroundGrid(
-        c: Canvas,
-        cx: Float,
-        cy: Float,
-        first: Float,
-        step: Float,
-        time: Double,
-        scale: Float
-    ) {
+    private fun drawBackgroundGrid(c: Canvas, cx: Float, cy: Float, first: Float, step: Float, time: Double, scale: Float) {
         paint.style = Paint.Style.STROKE
         paint.color = gold
         paint.alpha = 30
         paint.strokeWidth = 0.55f * scale
-        for (i in 0 until 14) {
-            c.drawCircle(cx, cy, first + i * step, paint)
-        }
+        for (i in 0 until 14) c.drawCircle(cx, cy, first + i * step, paint)
         for (i in 0 until 32) {
             val a = i * Math.PI / 16.0
             val dx = cos(a).toFloat()
@@ -140,23 +122,19 @@ class OracleMysticStartView(
         paint.alpha = (175 + 75 * pulse).toInt()
         paint.strokeWidth = r * 0.018f
         c.drawPath(path, paint)
-
         paint.alpha = (45 + 85 * pulse).toInt()
         paint.strokeWidth = r * 0.012f
         c.drawCircle(x, y, r * (0.48f + 0.035f * pulse), paint)
-
         paint.color = green
         paint.alpha = (135 + 120 * pulse).toInt()
         paint.strokeWidth = r * 0.018f
         c.drawCircle(x, y, r * (0.30f + 0.025f * pulse), paint)
-
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(2, 12, 5)
         paint.alpha = 255
         c.drawCircle(x, y, r * 0.28f, paint)
         paint.color = Color.rgb(70, 255, 95)
         c.drawCircle(x, y, r * (0.095f + 0.035f * pulse), paint)
-
         paint.style = Paint.Style.STROKE
         paint.color = Color.rgb(255, 110, 35)
         paint.alpha = (75 + 90 * pulse).toInt()
@@ -165,23 +143,11 @@ class OracleMysticStartView(
             val a = i * Math.PI / 14.0
             val inner = r * 0.40f
             val outer = r * (0.56f + 0.055f * pulse)
-            c.drawLine(
-                x + cos(a).toFloat() * inner,
-                y + sin(a).toFloat() * inner,
-                x + cos(a).toFloat() * outer,
-                y + sin(a).toFloat() * outer,
-                paint
-            )
+            c.drawLine(x + cos(a).toFloat() * inner, y + sin(a).toFloat() * inner, x + cos(a).toFloat() * outer, y + sin(a).toFloat() * outer, paint)
         }
     }
 
-    private fun drawPhoneCards(
-        c: Canvas,
-        x: (Float) -> Float,
-        y: (Float) -> Float,
-        s: (Float) -> Float,
-        time: Double
-    ) {
+    private fun drawPhoneCards(c: Canvas, x: (Float) -> Float, y: (Float) -> Float, s: (Float) -> Float, time: Double) {
         val left = 20f
         val top = 510f
         val cw = 164f
@@ -198,13 +164,7 @@ class OracleMysticStartView(
         }
     }
 
-    private fun drawWideCards(
-        c: Canvas,
-        x: (Float) -> Float,
-        y: (Float) -> Float,
-        s: (Float) -> Float,
-        time: Double
-    ) {
+    private fun drawWideCards(c: Canvas, x: (Float) -> Float, y: (Float) -> Float, s: (Float) -> Float, time: Double) {
         val cw = 235f
         val ch = 112f
         val gap = 14f
@@ -226,18 +186,15 @@ class OracleMysticStartView(
         val cx = r.centerX()
         val cy = r.top + r.height() * 0.37f
         val ir = min(r.width(), r.height()) * 0.25f
-
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(2, 4, 7)
         paint.alpha = 250
         c.drawRoundRect(r, s(9f), s(9f), paint)
-
         paint.style = Paint.Style.STROKE
         paint.color = m.color
         paint.alpha = (150 + 95 * pulse).toInt()
         paint.strokeWidth = s(1.25f)
         c.drawRoundRect(r, s(9f), s(9f), paint)
-
         paint.alpha = (40 + 90 * pulse).toInt()
         paint.strokeWidth = s(1f)
         c.drawCircle(cx, cy, ir * (1.06f + 0.10f * pulse), paint)
@@ -248,7 +205,6 @@ class OracleMysticStartView(
         c.drawCircle(cx, cy, ir * 0.78f, paint)
         paint.alpha = 255
         paint.strokeWidth = s(1.9f)
-
         when (m.key) {
             "watchlist" -> drawEyeIcon(c, cx, cy, ir * 0.70f, m.color)
             "portfolio" -> {
@@ -277,7 +233,6 @@ class OracleMysticStartView(
             }
             else -> drawSigil(c, cx, cy, ir * 0.70f, m.color)
         }
-
         drawCentered(c, m.title, cx, r.top + r.height() * 0.72f, s(11.5f), white, Typeface.DEFAULT, 0.01f)
         drawCentered(c, m.subtitle, cx, r.top + r.height() * 0.87f, s(7.8f), m.color, Typeface.DEFAULT, 0.02f)
         paint.color = m.color
@@ -288,40 +243,28 @@ class OracleMysticStartView(
         drawDiamond(c, cx, r.bottom - s(13f), s(3.5f), m.color)
     }
 
-    private fun drawStatus(
-        c: Canvas,
-        x: (Float) -> Float,
-        y: (Float) -> Float,
-        s: (Float) -> Float,
-        time: Double,
-        wide: Boolean
-    ) {
+    private fun drawStatus(c: Canvas, x: (Float) -> Float, y: (Float) -> Float, s: (Float) -> Float, time: Double, wide: Boolean) {
         val pulse = (0.5 + 0.5 * sin(time * 0.85)).toFloat()
         val top = if (wide) 715f else 800f
         val bottom = if (wide) 795f else 886f
         val r = RectF(x(if (wide) 130f else 20f), y(top), x(if (wide) 990f else 700f), y(bottom))
-
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(3, 6, 8)
         paint.alpha = 250
         c.drawRoundRect(r, s(10f), s(10f), paint)
-
         paint.style = Paint.Style.STROKE
         paint.color = green
         paint.alpha = (120 + 110 * pulse).toInt()
         paint.strokeWidth = s(1.1f)
         c.drawRoundRect(r, s(10f), s(10f), paint)
-
         val baseX = if (wide) 190f else 72f
         val textX = if (wide) 235f else 112f
         val localX = if (wide) 630f else 416f
         val signalX = if (wide) 585f else 378f
         val dotX = if (wide) 955f else 675f
-
         drawMiniEye(c, x(baseX), y(top + 42f), s(24f), green, pulse)
         drawLeft(c, "ORACLE READY", x(textX), y(top + 37f), s(14f), white, Typeface.DEFAULT_BOLD)
         drawLeft(c, "Market Intelligence Active", x(textX), y(top + 61f), s(9f), green, Typeface.DEFAULT)
-
         paint.color = gold
         paint.alpha = (150 + 90 * pulse).toInt()
         paint.strokeWidth = s(0.9f)
@@ -331,10 +274,8 @@ class OracleMysticStartView(
             val half = s(9f + kotlin.math.abs(i) * 2f)
             c.drawLine(xx, y(top + 42f) - half, xx, y(top + 42f) + half, paint)
         }
-
         drawLeft(c, "LOCAL INTELLIGENCE", x(localX), y(top + 37f), s(13f), white, Typeface.DEFAULT_BOLD)
         drawLeft(c, "Synced & Protected", x(localX), y(top + 61f), s(9f), green, Typeface.DEFAULT)
-
         paint.style = Paint.Style.FILL
         paint.color = green
         paint.alpha = 255
