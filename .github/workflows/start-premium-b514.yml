@@ -44,3 +44,5 @@ jobs:
           name: Oracle-B514-START-PREMIUM
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+# Trigger clean Premium Start build after restoring B519 baseline.
