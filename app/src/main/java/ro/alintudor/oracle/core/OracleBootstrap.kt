@@ -7,7 +7,7 @@ import java.time.ZonedDateTime
 
 /** Canonical local seed and daily Growth snapshot migration. */
 object OracleBootstrap {
-    private const val VERSION = 20
+    private const val VERSION = 21
     private val BUCHAREST = ZoneId.of("Europe/Bucharest")
 
     private fun currentGrowthAnchor(nowMillis: Long): Long {
@@ -48,6 +48,12 @@ object OracleBootstrap {
         val previousVersion = repository.bootstrapVersion()
         val currentAnchor = currentGrowthAnchor(System.currentTimeMillis())
 
+        // B514 Growth reset: all earlier Growth snapshots were intermediate
+        // working data. Start this build with a clean current Growth state.
+        if (previousVersion < VERSION) {
+            repository.saveGrowth(emptyList())
+        }
+
         // Never leave an older Growth snapshot in the repository. In particular,
         // remove the former hard-coded 28.08.2026 seed before the UI can render it.
         if (previousVersion >= VERSION) {
@@ -72,7 +78,7 @@ object OracleBootstrap {
         }
 
         // Growth is generated only by OracleGrowthEngine for the current trading-day
-        // anchor. There is deliberately NO bundled/canonical 28.08.2026 snapshot.
+        // anchor. There is deliberately NO bundled/canonical historical snapshot.
         repository.saveGrowth(emptyList())
         repository.markBootstrap(VERSION)
     }
