@@ -1,9 +1,6 @@
 name: B514 Premium Start
 
-on:
-  push:
-    branches: [ui/start-premium-b514]
-  workflow_dispatch:
+on: push
 
 permissions:
   contents: write
@@ -35,6 +32,7 @@ jobs:
     }
 '''
           p.write_text(s[:start] + new_block + s[end:], encoding="utf-8")
+
       - name: Commit Start-only patch
         run: |
           git config user.name "oracle-build-bot"
