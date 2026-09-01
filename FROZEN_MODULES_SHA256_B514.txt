@@ -1,0 +1,5 @@
+# Byte-for-byte freeze baseline: Oracle-main-12.zip
+# These files must remain identical for the B514 Start redesign.
+0b42163f119dd600aa3b6bd6c8ff2ee76cbde2584ca26e026b3a066cab8ed303  app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+634cbad3d0a040a08386373895bfa1e8e2d5da9354859ced592d9e12c2833d9d  app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt
+ efb0b0c77d95531e7c33e2cfa5b5628deff9e  app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt
