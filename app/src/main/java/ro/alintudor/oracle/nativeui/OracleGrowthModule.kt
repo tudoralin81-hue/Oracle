@@ -11,6 +11,8 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
+import ro.alintudor.oracle.core.OracleGrowthJournalStore
 import ro.alintudor.oracle.core.OracleGrowthRecommendation
 import ro.alintudor.oracle.core.OracleNews
 import java.text.SimpleDateFormat
@@ -32,6 +34,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
     private val green = Color.rgb(105, 245, 35)
     private val red = Color.rgb(255, 80, 90)
     private val white = Color.WHITE
+    private val journalStore = OracleGrowthJournalStore(host.root.context)
 
     fun render(items: List<OracleGrowthRecommendation>, fallbackNews: List<OracleNews> = emptyList()) {
         host.content.removeAllViews()
@@ -42,6 +45,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
         // GrowthBanner from the shared module shell is the single Growth hero.
         // Do not add a second Growth banner here.
+        journalStore.record(items)
         addSummary(items)
 
         val ordered = listOf("SHORT", "MEDIUM", "LONG").mapNotNull { horizon ->
@@ -49,7 +53,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         }
         if (ordered.isNotEmpty()) addRecommendations(ordered, fallbackNews)
         addNews(ordered, fallbackNews)
-        addHistory(items)
+        addHistory(journalStore.load())
         addBuildFooter()
     }
 
@@ -182,20 +186,63 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(8)) })
     }
 
-    private fun addHistory(items: List<OracleGrowthRecommendation>) {
-        val label = TextView(host.root.context).apply { text = "JURNAL GROWTH • ISTORIC FORECAST"; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = .05f; setTextColor(cyan); setPadding(host.dp(4), host.dp(5), host.dp(4), host.dp(7)) }
-        host.content.addView(label)
-        items.sortedBy { it.referenceTimestamp }.forEach { item ->
-            val row = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(host.dp(10), host.dp(8), host.dp(10), host.dp(8)); background = rounded(bg, Color.rgb(34, 43, 65), 1, 11) }
-            row.addView(text(item.ticker, 13f, Typeface.DEFAULT_BOLD, white, 0, 0), LinearLayout.LayoutParams(host.dp(58), -2))
-            row.addView(text("${item.horizon}\nT0 ${formatT0(item.referenceTimestamp)}", 9f, Typeface.DEFAULT, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1.35f))
-            row.addView(text("Forecast\n${signedPct(item.forecastPct)}", 10f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(text("Scor\n${item.score}/100", 10f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, .8f))
-            host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
+    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
+        val wrapper = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(host.dp(4), host.dp(7), host.dp(4), host.dp(7)) }
+        val label = TextView(host.root.context).apply {
+            text = "ULTIMELE RECOMANDĂRI"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = .05f
+            setTextColor(cyan)
         }
-        host.content.addView(text("Istoricul este append-only: o schimbare de forecast nu rescrie T0.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), host.dp(4), 2), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(15)) })
+        wrapper.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        val download = TextView(host.root.context).apply {
+            text = "⇩  PDF"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.rgb(8, 15, 28), cyan, 1, 10)
+            setPadding(host.dp(13), host.dp(8), host.dp(13), host.dp(8))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Descarcă jurnalul Growth în PDF"
+            setOnClickListener {
+                val path = journalStore.exportPdf()
+                if (path != null) Toast.makeText(host.root.context, "Jurnalul Growth a fost salvat în Downloads.", Toast.LENGTH_LONG).show()
+                else Toast.makeText(host.root.context, "Nu există recomandări pentru export.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        wrapper.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
+        host.content.addView(wrapper, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(4)) })
+
+        if (entries.isEmpty()) {
+            host.content.addView(text("Nu există încă intrări în jurnal.", 10f, Typeface.DEFAULT, muted, host.dp(4), 3))
+            return
+        }
+
+        // Only the latest snapshot is shown on screen. The complete append-only
+        // journal is available through the PDF button and is never recomputed.
+        val latestAnchor = entries.maxOf { it.referenceTimestamp }
+        entries.filter { it.referenceTimestamp == latestAnchor }
+            .sortedWith(compareBy<OracleGrowthRecommendation> { horizonOrder(it.horizon) }.thenBy { it.ticker })
+            .forEach { item ->
+                val row = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(host.dp(10), host.dp(8), host.dp(10), host.dp(8))
+                    background = rounded(bg, Color.rgb(34, 43, 65), 1, 11)
+                }
+                row.addView(text(item.ticker, 13f, Typeface.DEFAULT_BOLD, white, 0, 0), LinearLayout.LayoutParams(host.dp(62), -2))
+                row.addView(text("${item.horizon}\nT0 ${formatT0(item.referenceTimestamp)}", 9f, Typeface.DEFAULT, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1.35f))
+                row.addView(text("Forecast\n${signedPct(item.forecastPct)}", 10f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(text("Scor\n${item.score}/100", 10f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, .8f))
+                host.content.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(6)) })
+            }
+        host.content.addView(text("Istoricul complet este append-only și include toate snapshot-urile salvate, inclusiv cele de astăzi.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), host.dp(4), 2), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(12)) })
     }
 
+    private fun horizonOrder(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> 0; "MEDIUM" -> 1; else -> 2 }
     private fun addBuildFooter() {
         host.content.addView(text("BUILD B514 • V6g-FINAL", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
     }
