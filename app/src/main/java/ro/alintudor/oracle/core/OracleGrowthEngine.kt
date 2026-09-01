@@ -13,7 +13,11 @@ import kotlin.math.sqrt
 object OracleGrowthEngine {
     private val universe = "NVDA,VRT,CEG,AMD,AVGO,PLTR,ANET,MU,AMZN,META,MSFT,GOOGL,GOOG,AAPL,TSLA,NFLX,CRWD,PANW,NOW,ORCL,CRM,ADBE,SNOW,DDOG,NET,ARM,TSM,ASML,QCOM,INTC,MRVL,SMCI,DELL,CLS,APH,GEV,ETN,FSLR,ENPH,LRCX,AMAT,KLAC,MELI,SHOP,COIN,HOOD,UBER,RKLB,LUNR,ACN,IBM,CSCO,INTU,ADP,ADSK,CDNS,SNPS,FTNT,FICO,MSI,HPE,HPQ,NTAP,WDC,STX,KEYS,ZS,OKTA,MDB,TEAM,HUBS,VEEV,PAYC,DOCU,TWLO,APP,ROKU,SPOT,U,LIN,WM,RSG,FAST,DECK,URI,CAT,CMI,PCAR,PH,ROK,EMR,HON,GE,LHX,RTX,NOC,GD,TDG,HEI,TT,CARR,JCI,IR,PWR,FIX,MTZ,EME,XOM,CVX,COP,EOG,OXY,SLB,HAL,MPC,PSX,VLO,WMB,KMI,OKE,LNG,DVN,FANG,APA,JPM,BAC,WFC,C,GS,MS,BLK,SCHW,COF,AXP,USB,PNC,TFC,BK,STT,NTRS,CBOE,CME,ICE,SPGI,MCO,MSCI,NDAQ,AMP,ALLY,DFS,UNH,LLY,JNJ,ABBV,MRK,PFE,BMY,AMGN,GILD,REGN,ISRG,ABT,TMO,DHR,SYK,BSX,MDT,BDX,EW,ZBH,RMD,DXCM,ALGN,IDXX,IQV,HCA,CI,ELV,HUM,CVS,MCK,CAH,COR,COST,WMT,TGT,HD,LOW,TJX,ROST,DG,DLTR,ORLY,AZO,ODP,BBY,NKE,LULU,CMG,MCD,SBUX,YUM,DRI,MAR,HLT,BKNG,EXPE,ABNB,PG,KO,PEP,PM,MO,CL,KMB,GIS,KHC,MDLZ,HSY,MNST,STZ,KDP,KR,CHD,CLX,EL,DIS,CMCSA,WBD,PARA,FOX,FOXA,T,VZ,TMUS,CHTR,EA,TTWO,RBLX,LYV,NEM,GOLD,FCX,NUE,STLD,DOW,DD,ECL,APD,SHW,MLM,VMC,ALB,MOS,CF,PLD,AMT,EQIX,CCI,O,OHI,WELL,VICI,PSA,SPG,AVB,EQR,ESS,INVH,ARE,NEE,DUK,SO,AEP,EXC,XEL,SRE,ED,PEG,WEC,DTE,FE,ETR,PPL,AES,CNP,CMS,NI,BA,LMT,UPS,FDX,DAL,UAL,LUV,AAL,GEHC,SWK,MMM".split(',')
     private data class C(val ticker:String,val price:Double,val score:Int,val rsi:Double?,val mom5:Double,val mom20:Double,val vr:Double,val macdHist:Double?,val ichi:Boolean,val sma200:Double?,val sma50:Double?,val adx:Double?,val atrPct:Double,val components:Map<String,Double>,val forecast:Map<String,Double>,val risk:String,val allocation:Double,val news:Int)
-    private val weights=mapOf("SHORT" to intArrayOf(21,18,12,16,12,8,3,4,2,2,1,1),"MEDIUM" to intArrayOf(12,12,16,12,9,9,9,5,6,5,4,1),"LONG" to intArrayOf(6,6,20,7,5,8,18,4,9,7,9,2))
+
+    // V5.9.7 authoritative raw profiles. They are normalized at score time.
+    // Order: News, Breakout, Trend, Momentum, Volume, S/R, Fundamentals,
+    // Bollinger, Ichimoku, Market/Sector, Risk/Reward, ADX.
+    private val weights=mapOf("SHORT" to intArrayOf(21,18,18,12,16,12,3,4,4,2,2,1),"MEDIUM" to intArrayOf(12,12,12,16,12,9,9,5,5,6,5,4),"LONG" to intArrayOf(6,6,6,19,7,9,18,4,4,9,7,2))
     private val keys=listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
 
     fun run(seed:List<OracleGrowthRecommendation> = emptyList()):List<OracleGrowthRecommendation>{
@@ -39,7 +43,7 @@ object OracleGrowthEngine {
             val meta=byTicker[pick.ticker]
             val sector=meta?.sector
             val correctedAllocation=OracleSectorAllocation.apply(pick.allocation,sector)
-            val correctedWeights=OracleSectorAllocation.correctedWeights(weights[h]!!,sector)
+            val correctedWeights=weights[h]!!.copyOf()
             out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=correctedWeights.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7_SECTOR_WEIGHTED")
         }
         return out
@@ -66,10 +70,11 @@ object OracleGrowthEngine {
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
-    /** Sector modifies the relative importance of the existing 12 factors; no 13th factor is added. */
+    /** V5.9.7: sector correction is applied only to allocation, never to score. */
     private fun horizonScore(c:Map<String,Double>,h:String,sector:String?):Int{
-        val w=OracleSectorAllocation.correctedWeights(weights[h]!!,sector)
-        val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*(w[it]/100.0)}).toInt().coerceIn(0,100)
+        val w=weights[h]!!
+        val total=w.sum().toDouble()
+        val raw=(keys.indices.sumOf{(c[keys[it]]?:50.0)*w[it].toDouble()}/total).toInt().coerceIn(0,100)
         return when{raw in 97..100->raw-3;raw in 92..96->raw-1;else->raw}
     }
 
