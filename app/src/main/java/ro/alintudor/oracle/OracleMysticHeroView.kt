@@ -15,55 +15,59 @@ class OracleMysticHeroView(context: Context, private val onModule: (String) -> U
     private val gold = Color.rgb(255, 194, 38)
     private val goldBright = Color.rgb(255, 225, 105)
     private val white = Color.rgb(248, 245, 235)
-    private val bg = Color.rgb(1, 3, 7)
     private val nodes = listOf(
-        Node("portfolio", "PORTFOLIO", Color.rgb(211, 76, 255), .17f, .82f, "OVERVIEW"),
-        Node("watchlist", "WATCHLIST", goldBright, .39f, .82f, "TRACK & FOCUS"),
-        Node("analysis", "ANALYSIS", Color.rgb(22, 218, 255), .61f, .82f, "CHARTS & TOOLS"),
-        Node("growth", "GROWTH", Color.rgb(118, 255, 40), .83f, .82f, "FUTURE SCAN"),
-        Node("alerts", "ALERTS", Color.rgb(255, 65, 40), .17f, .985f, "STAY AHEAD"),
-        Node("news", "NEWS", Color.rgb(20, 218, 255), .39f, .985f, "MARKET PULSE"),
-        Node("knowledge", "KNOWLEDGE", goldBright, .61f, .985f, "LEARN & EVOLVE"),
-        Node("stock", "STOCK", Color.rgb(211, 76, 255), .83f, .985f, "INTELLIGENCE")
+        Node("portfolio", "PORTFOLIO", Color.rgb(211, 76, 255), .17f, .78f, "OVERVIEW"),
+        Node("watchlist", "WATCHLIST", goldBright, .39f, .78f, "TRACK & FOCUS"),
+        Node("analysis", "ANALYSIS", Color.rgb(22, 218, 255), .61f, .78f, "CHARTS & TOOLS"),
+        Node("growth", "GROWTH", Color.rgb(118, 255, 40), .83f, .78f, "FUTURE SCAN"),
+        Node("alerts", "ALERTS", Color.rgb(255, 65, 40), .17f, .925f, "STAY AHEAD"),
+        Node("news", "NEWS", Color.rgb(20, 218, 255), .39f, .925f, "MARKET PULSE"),
+        Node("knowledge", "KNOWLEDGE", goldBright, .61f, .925f, "LEARN & EVOLVE"),
+        Node("stock", "STOCK", Color.rgb(211, 76, 255), .83f, .925f, "INTELLIGENCE")
     )
     private data class Node(val key:String,val label:String,val color:Int,val x:Float,val y:Float,val sub:String)
     private var hit = ArrayList<RectF>()
 
     override fun onDraw(c: Canvas) {
         val w=width.toFloat(); val h=height.toFloat(); val base=min(w,h); val cx=w*.5f
-        p.style=Paint.Style.FILL; p.shader=LinearGradient(0f,0f,w,h,Color.rgb(1,2,5),Color.rgb(9,6,4),Shader.TileMode.CLAMP); c.drawRect(0f,0f,w,h,p); p.shader=null
-        // orbital rings and fine geometry
-        val cy=h*.34f; val r=base*.31f
+        p.style=Paint.Style.FILL
+        p.shader=LinearGradient(0f,0f,w,h,Color.rgb(1,2,5),Color.rgb(9,6,4),Shader.TileMode.CLAMP)
+        c.drawRect(0f,0f,w,h,p); p.shader=null
+        val cy=h*.33f; val r=base*.31f
         p.style=Paint.Style.STROKE; p.strokeWidth=dp(.75f); p.color=gold; p.alpha=42
         for(i in 1..9)c.drawCircle(cx,cy,r*i/9f,p)
-        for(i in 0 until 18){val a=i*Math.PI/9; c.drawLine(cx+cos(a)*r*.05,cy+sin(a)*r*.05,cx+cos(a)*r,cy+sin(a)*r,p)}
+        for(i in 0 until 18){
+            val a=i*Math.PI/9.0
+            val ca=cos(a).toFloat(); val sa=sin(a).toFloat()
+            c.drawLine(cx+ca*r*.05f,cy+sa*r*.05f,cx+ca*r,cy+sa*r,p)
+        }
         p.alpha=105; p.strokeWidth=dp(1f); c.drawCircle(cx,cy,r*.68f,p); c.drawCircle(cx,cy,r*.53f,p)
-        // top oracle eye glyph
-        drawEye(c,cx,dp(67f).toFloat(),dp(30f).toFloat(),goldBright)
+        drawEye(c,cx,dp(67f),dp(30f),goldBright)
         p.style=Paint.Style.FILL; p.alpha=255; p.textAlign=Paint.Align.CENTER
-        p.typeface=Typeface.create(Typeface.SERIF,Typeface.NORMAL); p.textSize=dp(28f); p.color=goldBright; c.drawText("ORACLE",cx,dp(112f).toFloat(),p)
-        p.typeface=Typeface.DEFAULT_BOLD; p.textSize=dp(8f); p.letterSpacing=.25f; c.drawText("STOCK INTELLIGENCE",cx,dp(129f).toFloat(),p); p.letterSpacing=0f
-        // central mystical eye
+        p.typeface=Typeface.create(Typeface.SERIF,Typeface.NORMAL); p.textSize=dp(28f); p.color=goldBright; c.drawText("ORACLE",cx,dp(112f),p)
+        p.typeface=Typeface.DEFAULT_BOLD; p.textSize=dp(8f); p.letterSpacing=.25f; c.drawText("STOCK INTELLIGENCE",cx,dp(129f),p); p.letterSpacing=0f
         val ey=cy+dp(28f); drawEye(c,cx,ey,r*.72f,goldBright)
-        // iris / pupil / rays
         p.style=Paint.Style.STROKE; p.strokeWidth=dp(1.5f); p.color=goldBright; p.alpha=230
         c.drawCircle(cx,ey,r*.13f,p); p.style=Paint.Style.FILL; c.drawCircle(cx,ey,r*.055f,p)
         p.style=Paint.Style.STROKE; p.strokeWidth=dp(.7f); p.alpha=95
-        for(i in 0 until 32){val a=i*Math.PI/16; c.drawLine(cx+cos(a)*r*.16,ey+sin(a)*r*.16,cx+cos(a)*r*.30,ey+sin(a)*r*.30,p)}
-        // vertical axis and tiny diamond
-        p.color=gold; p.alpha=150; p.strokeWidth=dp(.7f); c.drawLine(cx,dp(15f).toFloat(),cx,h*.78f,p)
-        drawDiamond(c,cx,dp(145f).toFloat(),dp(5f).toFloat(),goldBright)
-        drawDiamond(c,cx,h*.75f,dp(5f).toFloat(),goldBright)
-        // tagline inside hero
+        for(i in 0 until 32){
+            val a=i*Math.PI/16.0; val ca=cos(a).toFloat(); val sa=sin(a).toFloat()
+            c.drawLine(cx+ca*r*.16f,ey+sa*r*.16f,cx+ca*r*.30f,ey+sa*r*.30f,p)
+        }
+        p.color=gold; p.alpha=150; p.strokeWidth=dp(.7f); c.drawLine(cx,dp(15f),cx,h*.76f,p)
+        drawDiamond(c,cx,dp(145f),dp(5f),goldBright); drawDiamond(c,cx,h*.72f,dp(5f),goldBright)
         p.style=Paint.Style.FILL; p.alpha=255; p.color=white; p.textSize=dp(9f); p.typeface=Typeface.DEFAULT_BOLD; p.letterSpacing=.28f
-        c.drawText("SEE MORE.  KNOW FIRST.",cx,h*.70f,p); p.letterSpacing=0f
-        p.style=Paint.Style.STROKE; p.strokeWidth=dp(.8f); p.color=gold; p.alpha=200; c.drawLine(cx-dp(105f),h*.735f,cx+dp(105f),h*.735f,p)
-        // card grid
-        hit.clear(); for(n in nodes){ val x=w*n.x; val y=h*n.y; val cw=w*.195f; val ch=h*.105f; val rect=RectF(x-cw/2,y-ch/2,x+cw/2,y+ch/2); hit.add(rect); drawCard(c,rect,n) }
+        c.drawText("SEE MORE.  KNOW FIRST.",cx,h*.655f,p); p.letterSpacing=0f
+        p.style=Paint.Style.STROKE; p.strokeWidth=dp(.8f); p.color=gold; p.alpha=200; c.drawLine(cx-dp(105f),h*.685f,cx+dp(105f),h*.685f,p)
+        hit.clear()
+        for(n in nodes){
+            val x=w*n.x; val y=h*n.y; val cw=w*.195f; val ch=h*.105f
+            val rect=RectF(x-cw/2f,y-ch/2f,x+cw/2f,y+ch/2f); hit.add(rect); drawCard(c,rect,n)
+        }
     }
 
     private fun drawCard(c:Canvas,rect:RectF,n:Node){
-        val rr=dp(8f); p.style=Paint.Style.FILL; p.color=Color.argb(225,2,5,10); p.alpha=225; c.drawRoundRect(rect,rr,rr,p)
+        val rr=dp(8f); p.style=Paint.Style.FILL; p.color=Color.rgb(2,5,10); p.alpha=225; c.drawRoundRect(rect,rr,rr,p)
         p.style=Paint.Style.STROKE; p.strokeWidth=dp(.9f); p.color=gold; p.alpha=220; c.drawRoundRect(rect,rr,rr,p)
         val cx=rect.centerX(); val cy=rect.top+rect.height()*.43f; val r=min(rect.width(),rect.height())*.25f
         p.color=n.color; p.alpha=235; p.strokeWidth=dp(1f); c.drawCircle(cx,cy,r,p); c.drawCircle(cx,cy,r*.72f,p); c.drawCircle(cx,cy,r*.45f,p)
