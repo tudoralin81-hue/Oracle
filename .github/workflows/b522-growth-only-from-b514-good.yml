@@ -7,6 +7,7 @@ on:
     paths:
       - scripts/b514_build_growth.py
       - scripts/apply_growth_v597_reference.py
+      - scripts/apply_growth_loader.py
       - .github/workflows/b522-growth-only-from-b514-good.yml
       - app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleLocalProcessor.kt
@@ -14,6 +15,7 @@ on:
       - app/src/main/java/ro/alintudor/oracle/core/OracleGrowthLiveData.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
       - app/src/main/java/ro/alintudor/oracle/core/OracleSectorAllocation.kt
+      - app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
       - BUILD_B514_NOW.txt
   workflow_dispatch:
 
@@ -51,6 +53,9 @@ jobs:
 
       - name: Apply Oracle Growth V5.9.7 reference rules
         run: python3 scripts/apply_growth_v597_reference.py
+
+      - name: Apply Oracle-style Growth loader
+        run: python3 scripts/apply_growth_loader.py
 
       - name: HARD VERIFY Analysis unchanged by Growth patch
         run: |
