@@ -64,7 +64,7 @@ jobs:
           s=p.read_text(encoding='utf-8')
           marker='\nprivate class OracleMysticStartView'
           if marker in s:
-              s=s.split(marker,1)[0]+'\n'
+              s=s.split(marker,1)[0].rstrip()+'\n'
               p.write_text(s,encoding='utf-8')
           PY
           test "$(grep -c 'class OracleMysticStartView' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt || true)" = "0"
@@ -81,6 +81,7 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt; do
+            test -f "$f"
             git hash-object "$f"
           done > /tmp/oracle-freeze/protected.after.sha
           cmp /tmp/oracle-freeze/protected.sha /tmp/oracle-freeze/protected.after.sha
