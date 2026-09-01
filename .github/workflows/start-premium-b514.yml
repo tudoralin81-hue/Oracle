@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          while read -r expected path; do
+          grep -v '^#' FROZEN_MODULES_SHA256_B514.txt | while read -r expected path; do
             [ -z "${expected:-}" ] && continue
             actual="$(git hash-object "$path")"
             if [ "$actual" != "$expected" ]; then
@@ -39,7 +39,7 @@ jobs:
               exit 1
             fi
             echo "LOCKED: $path"
-          done < FROZEN_MODULES_SHA256_B514.txt
+          done
 
       - name: Build release APK
         run: gradle :app:assembleRelease --stacktrace
