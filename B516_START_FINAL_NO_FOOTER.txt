@@ -1,0 +1,1 @@
+B516 FINAL: approved native Start layout; remove only the bottom host footer. Keep modules frozen and retain 357AT2026.
