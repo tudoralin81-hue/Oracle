@@ -1,12 +1,23 @@
-name: Build Oracle Knowledge Link
+name: Oracle Actions Sanity Test
+
 on:
+  push:
+    branches: [main]
+    paths:
+      - B519_START_FINAL.txt
+      - .github/workflows/build-knowledge-direct.yml
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Legacy workflow notice
-        run: echo 'Knowledge-link workflow is superseded by the current B510 build and is manual-only.'
+      - name: Runner sanity check
+        run: |
+          set -euo pipefail
+          echo "GitHub Actions runner is available"
+          test -f B519_START_FINAL.txt
