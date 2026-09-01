@@ -143,3 +143,5 @@ jobs:
           name: Oracle-APK-B515-START-VECTOR-7MODULES
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+# B516 FINAL START: host footer removed by the approved showHub build patch; protected modules remain frozen.
