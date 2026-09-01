@@ -15,6 +15,6 @@ df696f80628d10b8d968d8d65d18f01151eb7952e1368fcd1f938d49bb2ce7c7  app/src/main/j
 3ace4d41193a58c0c98fd2d1f71c06ffc82d23c5621a0ba51d4f7f714cdffa61  app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisWatchlistEyeOverlay.kt
 0b42163f119dd600aa3b6bd6c8ff2ee76cbde2584ca26e026b3a066cab8ed303  app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
 634cbad3d0a040a08386373895bfa1e8e2d5da9354859ced592d9e12c2833d9d  app/src/main/java/ro/alintudor/oracle/nativeui/OracleKnowledgeModule.kt
-efb0b0c77d95531e7c33e2cfa5b5628deff9e  app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt
+efb0eb0c77d95531e7c33e2cfa5b5628deff9e  app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt
 eb18e7f760c36b70bc26855166d84a2864f88ed0a8d52ee8f008442b599c614c  app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt
 be4f9a7df3563128cdf56b4fa192413ac7e21411c1150ddd09a21654b0d9cd13  app/src/main/java/ro/alintudor/oracle/nativeui/PortfolioExportHelpers.kt
