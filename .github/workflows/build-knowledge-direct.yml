@@ -11,12 +11,6 @@ on:
 permissions:
   contents: read
 
-env:
-  ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
-  ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
-  ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
-  ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,7 +21,6 @@ jobs:
           fetch-depth: 1
 
       - name: Patch actual launcher to approved Start V2
-        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -81,16 +74,19 @@ jobs:
           gradle-version: '8.10'
 
       - name: Prepare signing key
+        env:
+          ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+          ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+          ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+          ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
             echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
-            {
-              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
-              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
-              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
-              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
-            } >> "$GITHUB_ENV"
+            echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks" >> "$GITHUB_ENV"
+            echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
 
       - name: Set B519 version
