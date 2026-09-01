@@ -32,12 +32,20 @@ jobs:
           test -f "$A"
           echo "ANALYSIS_SHA=$(git hash-object "$A")" >> "$GITHUB_ENV"
       - name: Apply Growth-only changes
-        run: python3 scripts/b514_build_growth.py
+        run: |
+          python3 scripts/b514_build_growth.py
+          python3 scripts/apply_growth_v597_reference.py
       - name: Verify Analysis was not changed
         run: |
           A=app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
           test "$(git hash-object "$A")" = "$ANALYSIS_SHA"
           git diff --check
+      - name: Verify Growth allocation precision
+        run: |
+          E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          test -f "$E"
+          ! grep -q 'roundToHalf()' "$E"
+          grep -q 'OracleSectorAllocation.apply(pick.allocation,sector)' "$E"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
