@@ -13,346 +13,146 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/** B514 native Start screen. No image asset is used. Protected modules are untouched. */
+/** B514 native Start UI. No image asset. Protected modules are untouched. */
 class OracleMysticStartView(
     context: Context,
     private val onModule: (String) -> Unit
 ) : View(context) {
-
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private val hits = mutableListOf<Pair<RectF, String>>()
-
     private val gold = Color.rgb(238, 190, 60)
     private val brightGold = Color.rgb(255, 215, 82)
     private val white = Color.rgb(244, 239, 226)
     private val muted = Color.rgb(151, 143, 126)
-
-    private data class Module(
-        val key: String,
-        val title: String,
-        val subtitle: String,
-        val color: Int
-    )
-
     private val modules = listOf(
         Module("portfolio", "PORTFOLIO", "OVERVIEW", Color.rgb(205, 65, 255)),
-        Module("watchlist", "WATCHLIST", "TRACK & FOCUS", Color.rgb(250, 202, 55)),
-        Module("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(35, 215, 255)),
-        Module("growth", "GROWTH", "FUTURE SCAN", Color.rgb(120, 248, 50)),
-        Module("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 68, 45)),
-        Module("news", "NEWS", "MARKET PULSE", Color.rgb(38, 212, 255)),
-        Module("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", Color.rgb(248, 202, 55)),
-        Module("stock", "STOCK", "INTELLIGENCE", Color.rgb(202, 68, 255))
+        Module("watchlist", "WATCHLIST", "TRACK & FOCUS", Color.rgb(255, 202, 35)),
+        Module("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(25, 220, 255)),
+        Module("growth", "GROWTH", "FUTURE SCAN", Color.rgb(120, 255, 45)),
+        Module("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 55, 35)),
+        Module("news", "NEWS", "MARKET PULSE", Color.rgb(30, 210, 255)),
+        Module("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", Color.rgb(255, 205, 45)),
+        Module("stock", "STOCK", "INTELLIGENCE", Color.rgb(215, 60, 255))
     )
+    private data class Module(val key: String, val title: String, val subtitle: String, val color: Int)
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        val w = width.toFloat(); val h = height.toFloat()
+        val scale = min(w / 720f, h / 1180f).coerceAtLeast(0.42f)
+        val ox = (w - 720f * scale) / 2f
+        fun sx(v: Float) = ox + v * scale
+        fun sy(v: Float) = v * scale
+        fun ss(v: Float) = v * scale
+        paint.style = Paint.Style.FILL; paint.color = Color.rgb(1, 2, 4); paint.alpha = 255
+        canvas.drawRect(0f, 0f, w, h, paint)
 
-        val widthPx = width.toFloat()
-        val heightPx = height.toFloat()
-        val scale = min(widthPx / 720f, heightPx / 1180f).coerceAtLeast(0.42f)
-        val offsetX = (widthPx - 720f * scale) / 2f
-
-        fun sx(v: Float): Float = offsetX + v * scale
-        fun sy(v: Float): Float = v * scale
-        fun ss(v: Float): Float = v * scale
-
-        paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(2, 3, 5)
-        paint.alpha = 255
-        canvas.drawRect(0f, 0f, widthPx, heightPx, paint)
-
-        val centerX = sx(360f)
-        val eyeY = sy(286f)
-
-        // Fine mystical geometry, deliberately thin and rectangular UI around it.
-        paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 55
-        paint.strokeWidth = ss(0.55f)
-        for (i in 0 until 12) {
-            canvas.drawCircle(centerX, eyeY, ss(116f + i * 18f), paint)
-        }
-        for (i in 0 until 24) {
-            val angle = i * Math.PI / 12.0
-            val c = cos(angle).toFloat()
-            val s = sin(angle).toFloat()
-            canvas.drawLine(
-                centerX + c * ss(96f), eyeY + s * ss(96f),
-                centerX + c * ss(330f), eyeY + s * ss(330f), paint
-            )
+        val cx = sx(360f); val eyeY = sy(270f)
+        // Fine orbital geometry: thin, quiet background lines.
+        paint.style = Paint.Style.STROKE; paint.color = gold; paint.alpha = 38; paint.strokeWidth = ss(0.55f)
+        for (i in 0 until 13) canvas.drawCircle(cx, eyeY, ss(105f + i * 19f), paint)
+        for (i in 0 until 32) {
+            val a = i * Math.PI / 16.0; val c = cos(a).toFloat(); val s = sin(a).toFloat()
+            canvas.drawLine(cx + c * ss(90f), eyeY + s * ss(90f), cx + c * ss(335f), eyeY + s * ss(335f), paint)
         }
 
-        drawTopButton(canvas, sx(58f), sy(54f), ss(29f), false)
-        drawTopButton(canvas, sx(662f), sy(54f), ss(29f), true)
+        drawCentered(canvas, "STOCK INTELLIGENCE", cx, sy(30f), ss(9f), gold, Typeface.DEFAULT_BOLD, 0.08f)
+        drawSigil(canvas, cx, sy(75f), ss(28f), brightGold)
+        drawCentered(canvas, "ORACLE", cx, sy(130f), ss(31f), brightGold, Typeface.SERIF, 0.18f)
+        drawCentered(canvas, "STOCK INTELLIGENCE", cx, sy(155f), ss(9.5f), gold, Typeface.DEFAULT, 0.25f)
 
-        drawCenteredText(canvas, "STOCK INTELLIGENCE", centerX, sy(23f), ss(9f), gold, Typeface.DEFAULT_BOLD, 0.08f)
-        drawSigil(canvas, centerX, sy(82f), ss(30f))
-        drawCenteredText(canvas, "ORACLE", centerX, sy(138f), ss(31f), brightGold, Typeface.SERIF, 0.17f)
-        drawCenteredText(canvas, "STOCK INTELLIGENCE", centerX, sy(163f), ss(9.5f), gold, Typeface.DEFAULT, 0.25f)
-
-        drawEye(canvas, centerX, eyeY, ss(142f), brightGold)
-        paint.style = Paint.Style.FILL
-        paint.color = Color.BLACK
-        paint.alpha = 255
-        canvas.drawCircle(centerX, eyeY, ss(51f), paint)
-        paint.style = Paint.Style.STROKE
-        paint.color = brightGold
-        paint.alpha = 230
-        paint.strokeWidth = ss(2f)
-        canvas.drawCircle(centerX, eyeY, ss(57f), paint)
-        paint.strokeWidth = ss(0.7f)
-        paint.alpha = 125
-        for (i in 0 until 24) {
-            val angle = i * Math.PI / 12.0
-            canvas.drawLine(
-                centerX + cos(angle).toFloat() * ss(65f), eyeY + sin(angle).toFloat() * ss(65f),
-                centerX + cos(angle).toFloat() * ss(145f), eyeY + sin(angle).toFloat() * ss(145f), paint
-            )
-        }
-
-        drawCenteredText(canvas, "SEE MORE.  KNOW FIRST.", centerX, sy(500f), ss(10.5f), white, Typeface.DEFAULT, 0.27f)
-        paint.color = gold
-        paint.alpha = 190
-        paint.strokeWidth = ss(0.7f)
-        canvas.drawLine(sx(220f), sy(522f), sx(500f), sy(522f), paint)
-        drawDiamond(canvas, centerX, sy(522f), ss(4f), brightGold)
+        val t = System.nanoTime() / 1_000_000_000.0
+        drawAnimatedEye(canvas, cx, eyeY, ss(140f), t)
+        drawCentered(canvas, "SEE MORE.  KNOW FIRST.", cx, sy(468f), ss(10.5f), white, Typeface.DEFAULT, 0.27f)
+        paint.style = Paint.Style.STROKE; paint.color = gold; paint.alpha = 185; paint.strokeWidth = ss(0.7f)
+        canvas.drawLine(sx(220f), sy(490f), sx(500f), sy(490f), paint)
+        drawDiamond(canvas, cx, sy(490f), ss(4f), brightGold)
 
         hits.clear()
-        val cardLeft = 20f
-        val cardTop = 546f
-        val cardWidth = 164f
-        val cardHeight = 132f
-        val gap = 12f
-
-        for (index in modules.indices) {
-            val column = index % 4
-            val row = index / 4
-            val left = sx(cardLeft + column * (cardWidth + gap))
-            val top = sy(cardTop + row * (cardHeight + gap))
-            val rect = RectF(left, top, left + ss(cardWidth), top + ss(cardHeight))
-            hits += rect to modules[index].key
-            drawModuleCard(canvas, rect, modules[index], scale)
+        val left = 20f; val top = 514f; val cw = 164f; val ch = 132f; val gap = 12f
+        for (i in modules.indices) {
+            val col = i % 4; val row = i / 4
+            val r = RectF(sx(left + col * (cw + gap)), sy(top + row * (ch + gap)), sx(left + col * (cw + gap) + cw), sy(top + row * (ch + gap) + ch))
+            hits += r to modules[i].key
+            drawCard(canvas, r, modules[i], scale, t, i)
         }
 
-        drawStatusPanel(canvas, ::sx, ::sy, ::ss)
-
-        drawCenteredText(canvas, "ORACLE", centerX, sy(960f), ss(20f), gold, Typeface.SERIF, 0.34f)
-        drawCenteredText(canvas, "SEE MORE.  KNOW FIRST.", centerX, sy(986f), ss(8f), muted, Typeface.DEFAULT, 0.22f)
-        paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 150
-        paint.strokeWidth = ss(0.6f)
-        canvas.drawLine(sx(285f), sy(1007f), sx(435f), sy(1007f), paint)
-        drawDiamond(canvas, centerX, sy(1007f), ss(3f), gold)
-        drawCenteredText(canvas, "357AT2026", centerX, sy(1050f), ss(11f), brightGold, Typeface.DEFAULT_BOLD, 0.16f)
+        drawStatus(canvas, ::sx, ::sy, ::ss, t)
+        drawCentered(canvas, "ORACLE", cx, sy(955f), ss(20f), gold, Typeface.SERIF, 0.34f)
+        drawCentered(canvas, "SEE MORE.  KNOW FIRST.", cx, sy(981f), ss(8f), muted, Typeface.DEFAULT, 0.22f)
+        paint.style = Paint.Style.STROKE; paint.color = gold; paint.alpha = 145; paint.strokeWidth = ss(0.6f)
+        canvas.drawLine(sx(285f), sy(1002f), sx(435f), sy(1002f), paint); drawDiamond(canvas, cx, sy(1002f), ss(3f), gold)
+        drawCentered(canvas, "357AT2026", cx, sy(1045f), ss(11f), brightGold, Typeface.DEFAULT_BOLD, 0.16f)
+        postInvalidateDelayed(32L)
     }
 
-    private fun drawStatusPanel(
-        canvas: Canvas,
-        sx: (Float) -> Float,
-        sy: (Float) -> Float,
-        ss: (Float) -> Float
-    ) {
-        val panel = RectF(sx(20f), sy(834f), sx(700f), sy(922f))
-        paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(5, 6, 8)
-        paint.alpha = 245
-        canvas.drawRoundRect(panel, ss(9f), ss(9f), paint)
+    private fun drawAnimatedEye(c: Canvas, x: Float, y: Float, r: Float, time: Double) {
+        val pulse = (0.5 + 0.5 * sin(time * 2.2)).toFloat()
+        val colors = intArrayOf(Color.rgb(255, 65, 170), Color.rgb(30, 220, 255), Color.rgb(255, 195, 40))
         paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 180
-        paint.strokeWidth = ss(0.8f)
-        canvas.drawRoundRect(panel, ss(9f), ss(9f), paint)
-
-        drawMiniEye(canvas, sx(72f), sy(878f), ss(24f), Color.rgb(105, 235, 88))
-        drawLeftText(canvas, "ORACLE READY", sx(112f), sy(872f), ss(14f), white, Typeface.DEFAULT_BOLD)
-        drawLeftText(canvas, "Market Intelligence Active", sx(112f), sy(895f), ss(9f), Color.rgb(70, 218, 105), Typeface.DEFAULT)
-
-        paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 190
-        paint.strokeWidth = ss(0.9f)
-        canvas.drawCircle(sx(378f), sy(878f), ss(24f), paint)
-        for (i in -2..2) {
-            val x = sx(378f + i * 6f)
-            val half = sy(10f + kotlin.math.abs(i) * 2f)
-            canvas.drawLine(x, sy(878f) - half, x, sy(878f) + half, paint)
+        for (i in 0..2) {
+            paint.color = colors[i]; paint.alpha = (95 + pulse * 100).toInt(); paint.strokeWidth = r * (0.012f + i * 0.004f)
+            path.reset(); path.moveTo(x-r, y)
+            path.cubicTo(x-r*.58f, y-r*.55f, x+r*.58f, y-r*.55f, x+r, y)
+            path.cubicTo(x+r*.58f, y+r*.55f, x-r*.58f, y+r*.55f, x-r, y)
+            c.drawPath(path, paint)
         }
-        drawLeftText(canvas, "LOCAL INTELLIGENCE", sx(416f), sy(872f), ss(13f), white, Typeface.DEFAULT_BOLD)
-        drawLeftText(canvas, "Synced & Protected", sx(416f), sy(895f), ss(9f), Color.rgb(130, 200, 125), Typeface.DEFAULT)
-        paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(65, 228, 95)
-        paint.alpha = 255
-        canvas.drawCircle(sx(675f), sy(880f), ss(8f), paint)
+        paint.style = Paint.Style.FILL; paint.color = Color.BLACK; paint.alpha = 255; c.drawCircle(x, y, r*.36f, paint)
+        paint.style = Paint.Style.STROKE; paint.color = brightGold; paint.alpha = 255; paint.strokeWidth = r*.022f; c.drawCircle(x, y, r*.39f, paint)
+        paint.style = Paint.Style.FILL; paint.color = Color.rgb(255, 190, 45); paint.alpha = 255
+        c.drawCircle(x, y, r*(.13f + .025f*pulse), paint)
+        paint.style = Paint.Style.STROKE; paint.color = Color.rgb(255, 100, 35); paint.alpha = 170; paint.strokeWidth = r*.012f
+        for (i in 0 until 28) { val a=i*Math.PI/14.0; val inner=r*(.47f); val outer=r*(.66f+.05f*pulse); c.drawLine(x+cos(a).toFloat()*inner,y+sin(a).toFloat()*inner,x+cos(a).toFloat()*outer,y+sin(a).toFloat()*outer,paint) }
     }
 
-    private fun drawTopButton(canvas: Canvas, x: Float, y: Float, radius: Float, gear: Boolean) {
-        paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 220
-        paint.strokeWidth = radius * 0.035f
-        canvas.drawRoundRect(RectF(x - radius, y - radius, x + radius, y + radius), radius * 0.2f, radius * 0.2f, paint)
-        paint.strokeWidth = radius * 0.075f
-        if (!gear) {
-            for (i in -1..1) {
-                canvas.drawLine(x - radius * 0.35f, y + i * radius * 0.22f, x + radius * 0.35f, y + i * radius * 0.22f, paint)
-            }
-        } else {
-            canvas.drawCircle(x, y, radius * 0.25f, paint)
-            canvas.drawCircle(x, y, radius * 0.42f, paint)
-            for (i in 0 until 8) {
-                val angle = i * Math.PI / 4.0
-                canvas.drawLine(
-                    x + cos(angle).toFloat() * radius * 0.45f,
-                    y + sin(angle).toFloat() * radius * 0.45f,
-                    x + cos(angle).toFloat() * radius * 0.58f,
-                    y + sin(angle).toFloat() * radius * 0.58f,
-                    paint
-                )
-            }
+    private fun drawCard(c: Canvas, r: RectF, m: Module, scale: Float, time: Double, index: Int) {
+        fun s(v: Float)=v*scale
+        val pulse=(.5+.5*sin(time*1.8+index*.55)).toFloat()
+        val cx=r.centerX(); val cy=r.top+r.height()*.37f; val ir=min(r.width(),r.height())*.25f
+        paint.style=Paint.Style.FILL; paint.color=Color.rgb(3,4,7); paint.alpha=248; c.drawRoundRect(r,s(10f),s(10f),paint)
+        // Vivid animated border and glow rings.
+        paint.style=Paint.Style.STROKE; paint.color=m.color; paint.alpha=(155+80*pulse).toInt(); paint.strokeWidth=s(1.15f); c.drawRoundRect(r,s(10f),s(10f),paint)
+        paint.alpha=(45+70*pulse).toInt(); paint.strokeWidth=s(1.0f); c.drawCircle(cx,cy,ir*(1.10f+.07f*pulse),paint)
+        paint.alpha=210; paint.strokeWidth=s(1.1f); c.drawCircle(cx,cy,ir,paint); paint.alpha=125; c.drawCircle(cx,cy,ir*.78f,paint); paint.alpha=95; c.drawCircle(cx,cy,ir*.58f,paint)
+        paint.alpha=255; paint.strokeWidth=s(1.9f)
+        when(m.key){
+            "watchlist" -> drawEyeIcon(c,cx,cy,ir*.70f,m.color)
+            "portfolio" -> { c.drawRect(cx-ir*.45f,cy-ir*.35f,cx+ir*.45f,cy+ir*.35f,paint); c.drawCircle(cx+ir*.22f,cy+ir*.15f,ir*.17f,paint) }
+            "analysis","growth" -> { path.reset(); path.moveTo(cx-ir*.60f,cy+ir*.35f); path.lineTo(cx-ir*.20f,cy); path.lineTo(cx+ir*.02f,cy+ir*.15f); path.lineTo(cx+ir*.58f,cy-ir*.48f); c.drawPath(path,paint) }
+            "alerts" -> { c.drawArc(RectF(cx-ir*.48f,cy-ir*.45f,cx+ir*.48f,cy+ir*.45f),210f,120f,false,paint); c.drawLine(cx-ir*.22f,cy+ir*.40f,cx+ir*.22f,cy+ir*.40f,paint) }
+            "news" -> { c.drawRect(cx-ir*.46f,cy-ir*.43f,cx+ir*.46f,cy+ir*.43f,paint); for(i in -1..1)c.drawLine(cx-ir*.28f,cy+i*ir*.18f,cx+ir*.28f,cy+i*ir*.18f,paint) }
+            "knowledge" -> { c.drawRect(cx-ir*.48f,cy-ir*.43f,cx,cy+ir*.43f,paint); c.drawRect(cx,cy-ir*.43f,cx+ir*.48f,cy+ir*.43f,paint) }
+            else -> { paint.strokeWidth=s(1.8f); drawSigil(c,cx,cy,ir*.70f,m.color) }
         }
+        drawCentered(c,m.title,cx,r.top+r.height()*.72f,s(11.5f),white,Typeface.DEFAULT,0.01f)
+        drawCentered(c,m.subtitle,cx,r.top+r.height()*.87f,s(7.8f),m.color,Typeface.DEFAULT,0.02f)
+        paint.style=Paint.Style.STROKE; paint.color=m.color; paint.alpha=(130+100*pulse).toInt(); paint.strokeWidth=s(1f)
+        c.drawLine(cx-s(35f),r.bottom-s(13f),cx+s(35f),r.bottom-s(13f),paint); drawDiamond(c,cx,r.bottom-s(13f),s(3.5f),m.color)
     }
 
-    private fun drawSigil(canvas: Canvas, x: Float, y: Float, radius: Float) {
-        paint.style = Paint.Style.STROKE
-        paint.color = brightGold
-        paint.alpha = 240
-        paint.strokeWidth = radius * 0.06f
-        path.reset()
-        path.moveTo(x - radius * 0.75f, y)
-        path.lineTo(x, y - radius * 0.5f)
-        path.lineTo(x + radius * 0.75f, y)
-        path.lineTo(x, y + radius * 0.5f)
-        path.close()
-        canvas.drawPath(path, paint)
-        canvas.drawCircle(x, y, radius * 0.18f, paint)
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(x, y, radius * 0.055f, paint)
+    private fun drawStatus(c:Canvas,sx:(Float)->Float,sy:(Float)->Float,ss:(Float)->Float,time:Double){
+        val r=RectF(sx(20f),sy(814f),sx(700f),sy(902f)); val p=(.5+.5*sin(time*1.5)).toFloat()
+        paint.style=Paint.Style.FILL;paint.color=Color.rgb(4,6,9);paint.alpha=248;c.drawRoundRect(r,ss(10f),ss(10f),paint)
+        paint.style=Paint.Style.STROKE;paint.color=Color.rgb(120,220,60);paint.alpha=(130+80*p).toInt();paint.strokeWidth=ss(1f);c.drawRoundRect(r,ss(10f),ss(10f),paint)
+        drawMiniEye(c,sx(72f),sy(858f),ss(24f),Color.rgb(105,245,88),p)
+        drawLeft(c,"ORACLE READY",sx(112f),sy(852f),ss(14f),white,Typeface.DEFAULT_BOLD);drawLeft(c,"Market Intelligence Active",sx(112f),sy(875f),ss(9f),Color.rgb(70,235,105),Typeface.DEFAULT)
+        paint.color=gold;paint.alpha=210;paint.strokeWidth=ss(.9f);c.drawCircle(sx(378f),sy(858f),ss(24f),paint)
+        for(i in -2..2){val x=sx(378f+i*6f);val half=sy(10f+kotlin.math.abs(i)*2f);c.drawLine(x,sy(858f)-half,x,sy(858f)+half,paint)}
+        drawLeft(c,"LOCAL INTELLIGENCE",sx(416f),sy(852f),ss(13f),white,Typeface.DEFAULT_BOLD);drawLeft(c,"Synced & Protected",sx(416f),sy(875f),ss(9f),Color.rgb(135,215,130),Typeface.DEFAULT)
+        paint.style=Paint.Style.FILL;paint.color=Color.rgb(65,240,95);paint.alpha=255;c.drawCircle(sx(675f),sy(860f),ss(8f+2f*p),paint)
     }
 
-    private fun drawEye(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
-        paint.style = Paint.Style.STROKE
-        paint.color = color
-        paint.alpha = 235
-        paint.strokeWidth = radius * 0.018f
-        path.reset()
-        path.moveTo(x - radius, y)
-        path.cubicTo(x - radius * 0.58f, y - radius * 0.56f, x + radius * 0.58f, y - radius * 0.56f, x + radius, y)
-        path.cubicTo(x + radius * 0.58f, y + radius * 0.56f, x - radius * 0.58f, y + radius * 0.56f, x - radius, y)
-        canvas.drawPath(path, paint)
-    }
-
-    private fun drawModuleCard(canvas: Canvas, rect: RectF, module: Module, scale: Float) {
-        fun ss(v: Float): Float = v * scale
-        val x = rect.centerX()
-        val y = rect.top + rect.height() * 0.37f
-        val iconRadius = min(rect.width(), rect.height()) * 0.25f
-
-        paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(3, 4, 6)
-        paint.alpha = 247
-        canvas.drawRoundRect(rect, ss(8f), ss(8f), paint)
-
-        paint.style = Paint.Style.STROKE
-        paint.color = gold
-        paint.alpha = 205
-        paint.strokeWidth = ss(0.8f)
-        canvas.drawRoundRect(rect, ss(8f), ss(8f), paint)
-
-        paint.color = module.color
-        paint.alpha = 245
-        paint.strokeWidth = ss(1f)
-        canvas.drawCircle(x, y, iconRadius, paint)
-        canvas.drawCircle(x, y, iconRadius * 0.78f, paint)
-        canvas.drawCircle(x, y, iconRadius * 0.58f, paint)
-
-        when (module.key) {
-            "watchlist" -> drawEye(canvas, x, y, iconRadius * 0.78f, module.color)
-            "portfolio" -> canvas.drawRect(x - iconRadius * 0.45f, y - iconRadius * 0.38f, x + iconRadius * 0.45f, y + iconRadius * 0.38f, paint)
-            "analysis", "growth" -> {
-                path.reset()
-                path.moveTo(x - iconRadius * 0.6f, y + iconRadius * 0.35f)
-                path.lineTo(x - iconRadius * 0.18f, y)
-                path.lineTo(x + iconRadius * 0.05f, y + iconRadius * 0.16f)
-                path.lineTo(x + iconRadius * 0.58f, y - iconRadius * 0.48f)
-                canvas.drawPath(path, paint)
-            }
-            "alerts" -> canvas.drawArc(RectF(x - iconRadius * 0.45f, y - iconRadius * 0.43f, x + iconRadius * 0.45f, y + iconRadius * 0.43f), 210f, 120f, false, paint)
-            "news" -> {
-                canvas.drawRect(x - iconRadius * 0.46f, y - iconRadius * 0.43f, x + iconRadius * 0.46f, y + iconRadius * 0.43f, paint)
-                for (i in -1..1) canvas.drawLine(x - iconRadius * 0.27f, y + i * iconRadius * 0.18f, x + iconRadius * 0.27f, y + i * iconRadius * 0.18f, paint)
-            }
-            "knowledge" -> {
-                canvas.drawRect(x - iconRadius * 0.48f, y - iconRadius * 0.43f, x, y + iconRadius * 0.43f, paint)
-                canvas.drawRect(x, y - iconRadius * 0.43f, x + iconRadius * 0.48f, y + iconRadius * 0.43f, paint)
-            }
-            else -> drawSigil(canvas, x, y, iconRadius * 0.75f)
-        }
-
-        drawCenteredText(canvas, module.title, x, rect.top + rect.height() * 0.71f, ss(11.5f), white, Typeface.DEFAULT, 0.01f)
-        drawCenteredText(canvas, module.subtitle, x, rect.top + rect.height() * 0.84f, ss(7.5f), muted, Typeface.DEFAULT, 0.03f)
-        paint.color = module.color
-        paint.alpha = 220
-        paint.strokeWidth = ss(0.6f)
-        canvas.drawLine(x - ss(20f), rect.bottom - ss(11f), x + ss(20f), rect.bottom - ss(11f), paint)
-        drawDiamond(canvas, x, rect.bottom - ss(11f), ss(2.4f), module.color)
-    }
-
-    private fun drawMiniEye(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
-        drawEye(canvas, x, y, radius, color)
-        paint.style = Paint.Style.STROKE
-        paint.color = color
-        paint.strokeWidth = radius * 0.07f
-        canvas.drawCircle(x, y, radius * 0.24f, paint)
-    }
-
-    private fun drawDiamond(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
-        paint.style = Paint.Style.STROKE
-        paint.color = color
-        paint.alpha = 220
-        paint.strokeWidth = 0.7f * resources.displayMetrics.density
-        path.reset()
-        path.moveTo(x, y - radius)
-        path.lineTo(x + radius, y)
-        path.lineTo(x, y + radius)
-        path.lineTo(x - radius, y)
-        path.close()
-        canvas.drawPath(path, paint)
-    }
-
-    private fun drawCenteredText(canvas: Canvas, value: String, x: Float, y: Float, size: Float, color: Int, typeface: Typeface, spacing: Float) {
-        paint.style = Paint.Style.FILL
-        paint.alpha = 255
-        paint.color = color
-        paint.textSize = size
-        paint.typeface = typeface
-        paint.textAlign = Paint.Align.CENTER
-        paint.letterSpacing = spacing
-        canvas.drawText(value, x, y, paint)
-    }
-
-    private fun drawLeftText(canvas: Canvas, value: String, x: Float, y: Float, size: Float, color: Int, typeface: Typeface) {
-        paint.style = Paint.Style.FILL
-        paint.alpha = 255
-        paint.color = color
-        paint.textSize = size
-        paint.typeface = typeface
-        paint.textAlign = Paint.Align.LEFT
-        paint.letterSpacing = 0f
-        canvas.drawText(value, x, y, paint)
-    }
+    private fun drawMiniEye(c:Canvas,x:Float,y:Float,r:Float,color:Int,pulse:Float){paint.style=Paint.Style.STROKE;paint.color=color;paint.alpha=(170+70*pulse).toInt();paint.strokeWidth=r*.10f;path.reset();path.moveTo(x-r,y);path.cubicTo(x-r*.55f,y-r*.55f,x+r*.55f,y-r*.55f,x+r,y);path.cubicTo(x+r*.55f,y+r*.55f,x-r*.55f,y+r*.55f,x-r,y);c.drawPath(path,paint);c.drawCircle(x,y,r*.24f,paint)}
+    private fun drawEyeIcon(c:Canvas,x:Float,y:Float,r:Float,color:Int){paint.style=Paint.Style.STROKE;paint.color=color;paint.alpha=255;paint.strokeWidth=r*.09f;path.reset();path.moveTo(x-r,y);path.cubicTo(x-r*.55f,y-r*.55f,x+r*.55f,y-r*.55f,x+r,y);path.cubicTo(x+r*.55f,y+r*.55f,x-r*.55f,y+r*.55f,x-r,y);c.drawPath(path,paint);c.drawCircle(x,y,r*.23f,paint)}
+    private fun drawSigil(c:Canvas,x:Float,y:Float,r:Float,color:Int){paint.style=Paint.Style.STROKE;paint.color=color;paint.alpha=245;paint.strokeWidth=r*.065f;path.reset();path.moveTo(x-r*.75f,y);path.lineTo(x,y-r*.5f);path.lineTo(x+r*.75f,y);path.lineTo(x,y+r*.5f);path.close();c.drawPath(path,paint);c.drawCircle(x,y,r*.18f,paint)}
+    private fun drawDiamond(c:Canvas,x:Float,y:Float,r:Float,color:Int){paint.style=Paint.Style.STROKE;paint.color=color;paint.alpha=230;paint.strokeWidth=r*.32f;path.reset();path.moveTo(x,y-r);path.lineTo(x+r,y);path.lineTo(x,y+r);path.lineTo(x-r,y);path.close();c.drawPath(path,paint)}
+    private fun drawCentered(c:Canvas,text:String,x:Float,y:Float,size:Float,color:Int,typeface:Typeface,spacing:Float){paint.style=Paint.Style.FILL;paint.color=color;paint.alpha=255;paint.typeface=typeface;paint.textSize=size;paint.textAlign=Paint.Align.CENTER;paint.letterSpacing=spacing;c.drawText(text,x,y,paint);paint.letterSpacing=0f}
+    private fun drawLeft(c:Canvas,text:String,x:Float,y:Float,size:Float,color:Int,typeface:Typeface){paint.style=Paint.Style.FILL;paint.color=color;paint.alpha=255;paint.typeface=typeface;paint.textSize=size;paint.textAlign=Paint.Align.LEFT;c.drawText(text,x,y,paint)}
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_UP) {
-            for ((rect, key) in hits) {
-                if (rect.contains(event.x, event.y)) {
-                    onModule(key)
-                    return true
-                }
-            }
-        }
+        if(event.action==MotionEvent.ACTION_UP){ for((r,key) in hits) if(r.contains(event.x,event.y)){ onModule(key); performClick(); return true } }
         return true
     }
+    override fun performClick(): Boolean { super.performClick(); return true }
 }
