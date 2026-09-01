@@ -1,2 +1,2 @@
-RUN B516 FINAL NO FOOTER — repaired workflow — 2026-09-01 18:27 EEST
+RUN B516 FINAL NO FOOTER — duplicate-class repair — 2026-09-01 18:31 EEST
 Remove the bottom host footer completely. Keep the approved 7-module Start, 357AT2026, and all protected modules unchanged.
