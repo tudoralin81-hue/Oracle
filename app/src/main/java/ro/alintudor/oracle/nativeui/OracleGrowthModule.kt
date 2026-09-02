@@ -122,7 +122,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.addView(quoteLabel)
         card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
         card.addView(text("Maxim țintă: 20 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
-        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(275)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
 
         val handler = Handler(Looper.getMainLooper())
@@ -366,16 +366,17 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         visible.forEach { addEntry(it) }
         repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
         val expandedRows = all.drop(6)
-        expandedRows.forEach {
-            val row = historyRow(it)
+        val expandedViews = expandedRows.map { item ->
+            val row = historyRow(item)
             row.visibility = View.GONE
             rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+            row
         }
         var expanded = false
         arrow.setOnClickListener {
             expanded = !expanded
             arrow.text = if (expanded) "⌃" else "⌄"
-            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
         }
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
@@ -387,8 +388,14 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             setPadding(host.dp(10), host.dp(8), host.dp(10), host.dp(8))
             background = rounded(bg, accent, 1, 11)
             if (item == null) {
-                addView(text("—", 18f, Typeface.DEFAULT_BOLD, muted, 0, 0))
-                addView(text("—", 10f, Typeface.DEFAULT, muted, 0, 2))
+                val placeholderTop = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                placeholderTop.addView(text("—", 18f, Typeface.DEFAULT_BOLD, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+                placeholderTop.addView(text("›", 24f, Typeface.DEFAULT, muted, 0, 0))
+                addView(placeholderTop)
+                addView(text("02.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))
             } else {
                 val top = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 top.addView(text(item.ticker, 16f, Typeface.DEFAULT_BOLD, white, 0, 0), LinearLayout.LayoutParams(host.dp(72), -2))
@@ -430,18 +437,51 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         val f = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro", "RO")); f.timeZone = TimeZone.getTimeZone("Europe/Bucharest"); return f.format(Date(timestamp))
     }
 
-    private fun card(padding: Int) = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(padding), host.dp(padding), host.dp(padding), host.dp(padding)); background = rounded(bg, border, 1, 16) }
-    private fun rounded(fill: Int, stroke: Int, strokeWidth: Int, radius: Int) = GradientDrawable().apply { setColor(fill); if (strokeWidth > 0) setStroke(host.dp(strokeWidth), stroke); cornerRadius = host.dp(radius).toFloat() }
-    private fun divider() = View(host.root.context).apply { setBackgroundColor(Color.rgb(35, 48, 70)); layoutParams = LinearLayout.LayoutParams(-1, host.dp(1)) }
-    private fun metric(label: String, value: String, color: Int) = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(2), host.dp(2), host.dp(2), host.dp(2)); gravity = Gravity.CENTER; addView(text(label, 8f, Typeface.DEFAULT, muted, 0, 0).apply { gravity = Gravity.CENTER }); addView(text(value, 13f, Typeface.DEFAULT_BOLD, color, 0, 3).apply { gravity = Gravity.CENTER }) }
-    private fun text(value: String, size: Float, typeface: Typeface, color: Int, left: Int, top: Int) = TextView(host.root.context).apply { text = value; textSize = size; this.typeface = typeface; setTextColor(color); setPadding(left, top, 0, 0) }
+    private fun card(pad: Int): LinearLayout = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(host.dp(pad), host.dp(pad), host.dp(pad), host.dp(pad))
+        background = rounded(panel, border, 1, 16)
+    }
 
-    private class SparklineView(context: android.content.Context, private val lineColor: Int) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private fun text(value: String, size: Float, face: Typeface, color: Int, left: Int, bottom: Int): TextView = TextView(host.root.context).apply {
+        text = value
+        textSize = size
+        typeface = face
+        setTextColor(color)
+        if (left != 0 || bottom != 0) setPadding(host.dp(left), 0, 0, host.dp(bottom))
+    }
+
+    private fun metric(label: String, value: String, color: Int): LinearLayout = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        addView(text(label, 8f, Typeface.DEFAULT, muted, 0, 2))
+        addView(text(value, 13f, Typeface.DEFAULT_BOLD, color, 0, 0))
+    }
+
+    private fun divider(): View = View(host.root.context).apply { setBackgroundColor(border); layoutParams = LinearLayout.LayoutParams(-1, host.dp(1)) }
+
+    private fun rounded(fill: Int, stroke: Int, width: Int, radius: Int): GradientDrawable = GradientDrawable().apply {
+        setColor(fill)
+        setStroke(host.dp(width), stroke)
+        cornerRadius = host.dp(radius).toFloat()
+    }
+
+    private class SparklineView(context: android.content.Context, private val accent: Int) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2.2f }
+        private val path = Path()
         override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas); paint.color = lineColor; val p = Path(); val pts = floatArrayOf(.02f,.78f, .14f,.55f, .25f,.67f, .37f,.44f, .48f,.57f, .61f,.31f, .73f,.46f, .86f,.20f, .98f,.05f)
-            for (i in pts.indices step 2) { val x = pts[i] * width; val y = pts[i + 1] * height; if (i == 0) p.moveTo(x, y) else p.lineTo(x, y) }
-            canvas.drawPath(p, paint); canvas.drawCircle(width * .98f, height * .05f, 4f, paint)
+            super.onDraw(canvas)
+            paint.color = accent
+            val w = width.toFloat(); val h = height.toFloat()
+            val points = floatArrayOf(.02f,.65f,.18f,.42f,.34f,.58f,.50f,.28f,.66f,.48f,.82f,.18f,.98f,.02f)
+            path.reset()
+            for (i in points.indices step 2) {
+                val x = points[i] * w
+                val y = points[i + 1] * h
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            canvas.drawPath(path, paint)
+            canvas.drawCircle(points[points.size - 2] * w, points[points.size - 1] * h, 2.8f, paint)
         }
     }
 }
