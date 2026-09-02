@@ -14,6 +14,15 @@ p=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 s=p.read_text()
 s=s.replace('Executors.newFixedThreadPool(20)', 'Executors.newFixedThreadPool(16)')
 s=s.replace('executor.invokeAll(tasks, 18, TimeUnit.SECONDS)', 'executor.invokeAll(tasks, 25, TimeUnit.SECONDS)')
+# Enforce 15 parallel news requests, each bounded at 12 seconds.
+if 'val newsMap=top15.associateWith{newsScore(it)}' in s:
+    if 'import java.util.concurrent.Executors' not in s:
+        s=s.replace('import java.util.Locale', 'import java.util.Locale\nimport java.util.concurrent.Executors\nimport java.util.concurrent.TimeUnit')
+    news='''val newsExecutor=Executors.newFixedThreadPool(15)
+        val newsFutures=top15.associateWith{ticker->newsExecutor.submit<Int>{newsScore(ticker)}}
+        val newsMap=top15.associateWith{ticker->runCatching{newsFutures[ticker]!!.get(12,TimeUnit.SECONDS)}.getOrDefault(0)}
+        newsExecutor.shutdownNow()'''
+    s=s.replace('val newsMap=top15.associateWith{newsScore(it)}',news)
 p.write_text(s)
 
 # Real launcher: Growth gets a 45s wall-clock timeout and never spins forever.
@@ -56,4 +65,4 @@ if 'future.get(45, TimeUnit.SECONDS)' not in s:
 '''
     s=s.replace(anchor,anchor+growth,1)
 p.write_text(s)
-print('Final Growth hardening applied: NPE-safe cache + 16/25s scan + 45s launcher timeout')
+print('Final Growth hardening applied: NPE-safe cache + 16/25s scan + 15x12s news + 45s launcher timeout')
