@@ -1,0 +1,54 @@
+name: Oracle B537 Growth UI Final
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Growth UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+          s=p.read_text(encoding='utf-8')
+          # Put arrow immediately beside the title and keep PDF at the far right.
+          s=s.replace('header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))\n        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))\n        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, 1, 1f))', 'header.addView(title, LinearLayout.LayoutParams(-2, -2))\n        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))\n        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, 1, 1f))')
+          # The arrow controls the complete list below, not only rows beyond the first six.
+          s=re.sub(r'\s*val expandedViews = all\.drop\(6\).*?\n\s*arrow\.setOnClickListener \{ toggle\(\) \}', '\n        var expanded = true\n        val toggle: () -> Unit = {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            rows.visibility = if (expanded) View.VISIBLE else View.GONE\n            arrow.contentDescription = if (expanded) "Închide ultimele recomandări" else "Deschide ultimele recomandări"\n        }\n        arrow.setOnClickListener { toggle() }', s, count=1, flags=re.S)
+          # Empty historical slots explicitly carry the requested 31.08.2026 date.
+          s=s.replace('historyRow(null)', 'historyRow(null, "31.08.2026 16:00")')
+          s=s.replace('private fun historyRow(item: OracleGrowthRecommendation?): LinearLayout {','private fun historyRow(item: OracleGrowthRecommendation?, placeholderDate: String? = null): LinearLayout {')
+          s=s.replace('text("—", 10f, Typeface.DEFAULT, muted, 0, 2)', 'text(placeholderDate ?: "—", 10f, Typeface.DEFAULT, muted, 0, 2)')
+          s=s.replace('BUILD B535 • GROWTH','BUILD B537 • GROWTH')
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with: {accept-android-sdk-licenses: true}
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.10'}
+      - name: Build APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B537-GROWTH-UI-FINAL
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7
