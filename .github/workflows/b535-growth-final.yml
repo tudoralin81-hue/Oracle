@@ -13,6 +13,7 @@ jobs:
         with: {python-version: '3.x'}
       - run: sed -i 's/^a\.write_text(s\[:i\]+h+s\[j:\])$/p.write_text(s[:i]+h+s[j:])/g; /^PY$/d' scripts/build_b535_growth.py
       - run: python3 scripts/build_b535_growth.py
+      - run: sed -i 's/seed?\.company/null/g; s/seed?\.sector/null/g' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
