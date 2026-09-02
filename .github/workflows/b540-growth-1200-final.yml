@@ -10,9 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Freeze START, Growth UI and other modules
+      - name: Restore exact frozen B539 files
         run: |
           set -euo pipefail
+          git fetch --no-tags --depth=1 origin 3eb9b3284c24f94cf8126dd9916b615038664ae8
+          for f in \
+            app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
+            app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do
+            git checkout 3eb9b3284c24f94cf8126dd9916b615038664ae8 -- "$f"
+          done
           mkdir -p /tmp/oracle-freeze
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
@@ -48,13 +59,15 @@ jobs:
           gradle-version: '8.10'
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
-      - name: Verify APK and byte-frozen modules
+      - name: Verify APK and frozen modules
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-GROWTH-B540'"
+          BADGING="$($ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK")"
+          echo "$BADGING" | grep -q "versionCode='35'"
+          echo "$BADGING" | grep -q "versionName='V6g-GROWTH-B540'"
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
@@ -64,6 +77,8 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
+          grep -q 'TARGET_UNIVERSE_SIZE = 1200' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
