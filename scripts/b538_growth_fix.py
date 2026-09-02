@@ -131,6 +131,7 @@ if 'import ro.alintudor.oracle.core.OracleGrowthJournalStore' not in s:
 old = '''            Thread {
                 runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) }
             }.start()'''
+old_one_line = '        Thread { runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) } }.start()'
 newwarm = '''            Thread {
                 runCatching {
                     val growthJournal = OracleGrowthJournalStore(applicationContext)
@@ -143,9 +144,24 @@ newwarm = '''            Thread {
                     growthJournal.record(refreshed)
                 }
             }.start()'''
-if old not in s:
+if old in s:
+    s = s.replace(old, newwarm)
+elif old_one_line in s:
+    one_line_new = '''        Thread {
+            runCatching {
+                val growthJournal = OracleGrowthJournalStore(applicationContext)
+                val previous = repository.cachedGrowth()
+                val refreshed = OracleLocalProcessor.refreshGrowthOnly(repository)
+                if (previous.isNotEmpty() && refreshed.isNotEmpty() &&
+                    previous.first().referenceTimestamp != refreshed.first().referenceTimestamp) {
+                    growthJournal.record(previous)
+                }
+                growthJournal.record(refreshed)
+            }
+        }.start()'''
+    s = s.replace(old_one_line, one_line_new)
+else:
     raise SystemExit('Launcher warm-up block not found')
-s = s.replace(old, newwarm)
 p.write_text(s, encoding='utf-8')
 
 # PDF exports only the Growth journal window starting 31.08.2026.
