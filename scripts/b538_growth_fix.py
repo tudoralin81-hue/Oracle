@@ -86,7 +86,7 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
                 rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
             }
         }
-        var expanded = true
+        var expanded = false
         fun applyHistoryVisibility() {
             summaryViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
             olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
