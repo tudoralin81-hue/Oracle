@@ -65,6 +65,26 @@ class OracleMysticActivity : Activity() {
     private fun openModule(key: String) {
         currentModule = key
         runCatching { renderModule(key) }.onFailure { showModuleError(key, it) }
+
+        // GROWTH is a live, independent module. The real launcher is
+        // OracleMysticActivity, so Growth must be calculated here rather than
+        // relying on the dead MainActivity path or the general refresh chain.
+        if (key == "growth") {
+            Thread {
+                val result = runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) }
+                mainHandler.post {
+                    if (currentModule != "growth" || isFinishing) return@post
+                    result.onSuccess {
+                        runCatching { renderModule("growth") }
+                            .onFailure { showModuleError("growth", it) }
+                    }.onFailure { error ->
+                        showGrowthCalculationError(error)
+                    }
+                }
+            }.start()
+            return
+        }
+
         if (key == "analysis") return
         Thread {
             val result = runCatching { OracleLocalProcessor.refresh(repository) }
@@ -103,6 +123,39 @@ class OracleMysticActivity : Activity() {
 
     private fun handleBack() {
         if (currentModule != null) showHub() else finish()
+    }
+
+    private fun showGrowthCalculationError(error: Throwable) {
+        root.removeAllViews()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setBackgroundColor(Color.rgb(3, 5, 12))
+        }
+        box.addView(TextView(this).apply {
+            text = "GROWTH"
+            textSize = 24f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+        })
+        box.addView(TextView(this).apply {
+            text = "Calculul Growth nu s-a finalizat.\n\n${error.message ?: error.javaClass.simpleName}"
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(18), 0, dp(18))
+        })
+        box.addView(Button(this).apply {
+            text = "REÎNCEARCĂ"
+            setOnClickListener { openModule("growth") }
+        })
+        box.addView(Button(this).apply {
+            text = "ÎNAPOI LA ORACLE"
+            setOnClickListener { showHub() }
+        })
+        root.addView(box, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun showModuleError(key: String, error: Throwable) {
