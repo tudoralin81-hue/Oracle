@@ -1,0 +1,32 @@
+name: B535 Growth Runtime Final
+on:
+  push:
+    branches: [main]
+    paths: [B535_GROWTH_BUILD_TRIGGER.txt]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: sed -i 's/^a\.write_text(s\[:i\]+h+s\[j:\])$/p.write_text(s[:i]+h+s[j:])/g; /^PY$/d' scripts/build_b535_growth.py
+      - run: python3 scripts/build_b535_growth.py
+      - run: python3 scripts/fix_b535_growth_runtime.py
+      - run: sed -i 's/seed?\.company/null/g; s/seed?\.sector/null/g' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B535-GROWTH-FINAL-installable
+          path: app/build/outputs/apk/release/*.apk
