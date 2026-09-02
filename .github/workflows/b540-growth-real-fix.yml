@@ -1,10 +1,8 @@
 name: Oracle B540 Growth Real Fix
 # This workflow builds the Claude B540 source snapshot.
-# No app source files are modified by the workflow.
+# Only the requested GROWTH history-toggle UI patch is applied at build time.
+# START and all non-GROWTH modules remain protected by the frozen manifest.
 #
-# Temporary branch trigger: GitHub requires workflow_dispatch workflows to
-# exist on the default branch. The push trigger lets us build the isolated
-# B540 branch without touching main.
 on:
   push:
     branches:
@@ -40,6 +38,15 @@ jobs:
           grep -q 'Maxim țintă: 20 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
+
+      - name: Apply B540 GROWTH history toggle UI fix
+        run: |
+          set -euo pipefail
+          python3 scripts/b540_growth_history_toggle.py
+          grep -q 'The toggle belongs immediately beside the section title.' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'arrow.setOnClickListener' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          git diff --check
 
       - name: Set B540 identity
         run: |
