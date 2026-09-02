@@ -90,7 +90,8 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
           grep -q 'TARGET_UNIVERSE_SIZE=500' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -q 'sp500.csv' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'UNIVERSE_URL="https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'seenCompanies' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'DATE ÎNCĂRCATE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
