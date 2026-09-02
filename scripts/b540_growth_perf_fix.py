@@ -11,8 +11,10 @@ s=s.replace(old,new,1)
 
 if 'private var progressLoaded' not in s:
     marker='object OracleGrowthEngine {\n'
-    progress='''object OracleGrowthEngine {\n    @Volatile private var progressLoaded:Int=0\n    @Volatile private var progressTotal:Int=1200\n    @Volatile private var progressStartedAt:Long=0L\n    @Volatile private var progressFinished:Boolean=false\n    fun growthProgress():LongArray = longArrayOf(progressLoaded.toLong(), progressTotal.toLong(), progressStartedAt, if(progressFinished) 1L else 0L)\n'''
+    progress='''object OracleGrowthEngine {\n    @Volatile private var progressLoaded:Int=0\n    @Volatile private var progressTotal:Int=500\n    @Volatile private var progressStartedAt:Long=0L\n    @Volatile private var progressFinished:Boolean=false\n    fun growthProgress():LongArray = longArrayOf(progressLoaded.toLong(), progressTotal.toLong(), progressStartedAt, if(progressFinished) 1L else 0L)\n'''
     s=s.replace(marker,progress,1)
+else:
+    s=s.replace('progressTotal:Int=1200','progressTotal:Int=500')
 
 old2='''        val fundamentals=technicalShortlist.associate { c ->\n            c.ticker to runCatching { OracleRealData.fundamentals(c.ticker) }.getOrNull()\n        }\n        val sectorContexts=mutableMapOf<String,Double>()\n        val newsContexts=mutableMapOf<String,OracleNewsContext>()\n        for(c in technicalShortlist){\n            val f=fundamentals[c.ticker]\n            val sector=OracleRealData.resolvedSector(c.ticker,f?.sector)\n            if(sector != null && sector !in sectorContexts){\n                sectorContexts[sector]=runCatching { OracleRealData.sectorScore(OracleRealData.marketContext(sector)) }.getOrNull() ?: 50.0\n            }\n        }\n        val newsCandidates=technicalShortlist.take(15)\n        for(c in newsCandidates){\n            newsContexts[c.ticker]=runCatching { OracleRealData.newsContext(c.ticker) }.getOrDefault(OracleNewsContext(50,0,0,0,null))\n        }'''
 new2='''        val enrichmentDeadline=System.nanoTime()+7_000_000_000L\n        val enrichPool=java.util.concurrent.Executors.newFixedThreadPool(12)\n        val fundamentalFutures=technicalShortlist.associate{c->c.ticker to enrichPool.submit<OracleFundamentals?>{runCatching{OracleRealData.fundamentals(c.ticker)}.getOrNull()}}\n        val fundamentals=mutableMapOf<String,OracleFundamentals?>()\n        fundamentalFutures.forEach{(ticker,f)->val rem=enrichmentDeadline-System.nanoTime();if(rem>0)runCatching{f.get(rem,java.util.concurrent.TimeUnit.NANOSECONDS)}.getOrNull()?.let{fundamentals[ticker]=it}}\n        val newsCandidates=technicalShortlist.take(10)\n        val newsFutures=newsCandidates.associate{c->c.ticker to enrichPool.submit<OracleNewsContext>{runCatching{OracleRealData.newsContext(c.ticker)}.getOrDefault(OracleNewsContext(50,0,0,0,null))}}\n        val newsContexts=mutableMapOf<String,OracleNewsContext>()\n        newsFutures.forEach{(ticker,f)->val rem=enrichmentDeadline-System.nanoTime();if(rem>0)runCatching{f.get(rem,java.util.concurrent.TimeUnit.NANOSECONDS)}.getOrNull()?.let{newsContexts[ticker]=it}}\n        enrichPool.shutdownNow()\n        val sectorContexts=mutableMapOf<String,Double>()\n        val sectors=technicalShortlist.mapNotNull{OracleRealData.resolvedSector(it.ticker,fundamentals[it.ticker]?.sector)}.distinct()\n        val sectorPool=java.util.concurrent.Executors.newFixedThreadPool(8)\n        val sectorFutures=sectors.associateWith{sector->sectorPool.submit<Double>{runCatching{OracleRealData.sectorScore(OracleRealData.marketContext(sector))}.getOrNull()?:50.0}}\n        sectorFutures.forEach{(sector,f)->runCatching{f.get(2,java.util.concurrent.TimeUnit.SECONDS)}.getOrNull()?.let{sectorContexts[sector]=it}}\n        sectorPool.shutdownNow()'''
@@ -20,7 +22,7 @@ if old2 not in s: raise SystemExit('enrichment block not found')
 s=s.replace(old2,new2,1)
 p.write_text(s,encoding='utf-8')
 
-# Growth loader: deterministic 50-step progress, live ETA and quotes rotating every 15 seconds.
+# Growth loader: 50-step progress, live ETA and quotes rotating every 15 seconds.
 p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 s=p.read_text(encoding='utf-8')
 if 'import android.os.Handler' not in s:
@@ -51,9 +53,9 @@ new='''    private fun addLoadingState() {
         card.addView(spinner, LinearLayout.LayoutParams(host.dp(48), host.dp(48)).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 7).apply { gravity = Gravity.CENTER })
         card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 4).apply { gravity = Gravity.CENTER })
-        val progressLabel = text("DATE ÎNCĂRCATE: 0 / 1.200", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 4).apply { gravity = Gravity.CENTER }
+        val progressLabel = text("DATE ÎNCĂRCATE: 0 / 500", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 4).apply { gravity = Gravity.CENTER }
         card.addView(progressLabel)
-        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply { max = 1200; progress = 0; isIndeterminate = false }
+        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply { max = 500; progress = 0; isIndeterminate = false }
         card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(8), host.dp(3), host.dp(8), host.dp(3)) })
         val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 3).apply { gravity = Gravity.CENTER }
         card.addView(etaLabel)
