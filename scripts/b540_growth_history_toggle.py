@@ -1,14 +1,13 @@
 from pathlib import Path
 import hashlib
 
-# B540: the Claude ZIP is the source of truth. This script only reproduces
-# the exact two files that differ from the checked-in B539-derived snapshot.
-# It does not rewrite START or any frozen non-GROWTH file.
+# B540: the Claude ZIP is the source of truth. This script reproduces the
+# exact Claude GROWTH snapshot at build time. START and frozen non-GROWTH
+# files are never modified.
 
 M = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 s = M.read_text(encoding='utf-8')
 
-# Claude snapshot: exact percentage-only loader block.
 old_progress = '''// Requirement #6: the visible counter steps in increments of 50;
                 // the engine tracks the exact count internally.
                 val shown = if (loaded >= total) total else (loaded / 50) * 50
@@ -29,6 +28,10 @@ es = E.read_text(encoding='utf-8')
 es = es.replace(
     'private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target',
     'private const val TOTAL_BUDGET_NANOS = 44_000_000_000L // 1s buffer under the 45s target'
+)
+es = es.replace(
+    'private const val SCAN_BUDGET_NANOS = 13_000_000_000L',
+    'private const val SCAN_BUDGET_NANOS = 30_000_000_000L // scaled with TOTAL_BUDGET_NANOS so OHLCV fetch keeps its ~68% share of the run'
 )
 E.write_text(es, encoding='utf-8')
 
