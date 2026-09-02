@@ -18,6 +18,12 @@ object OracleMarketData {
     private const val CONNECT_TIMEOUT_MS = 8_000
     private const val READ_TIMEOUT_MS = 12_000
 
+    // GROWTH-only batch fetch timeouts (Requirement #5 — B540). Deliberately
+    // short: a batch request that stalls must fail fast so the caller can move
+    // on to the per-ticker fallback within the global Growth deadline.
+    private const val BATCH_CONNECT_TIMEOUT_MS = 3_000
+    private const val BATCH_READ_TIMEOUT_MS = 6_000
+
     /** Fetches OHLCV at the requested Analysis timeframe. */
     fun fetchForMode(ticker: String, mode: String): List<OracleOhlcvPoint> {
         val symbol = ticker.trim().uppercase()
@@ -39,6 +45,94 @@ object OracleMarketData {
 
     /** Backward-compatible daily feed used by existing Oracle components. */
     fun fetchDaily(ticker: String, range: String = "6mo"): List<OracleOhlcvPoint> = fetch(ticker, range, "1d")
+
+    /**
+     * GROWTH-only batch OHLCV fetch (Requirement #5/#11 — B540).
+     *
+     * Requests up to [tickers].size symbols in a single call to Yahoo's
+     * multi-symbol "spark" endpoint. That endpoint is materially less reliable
+     * than the single-symbol `v8/finance/chart` endpoint already used by
+     * [fetchDaily] elsewhere in Oracle (it is more prone to empty/partial
+     * responses and rate limiting) — this was the root cause of the B540
+     * "DATE ÎNCĂRCATE: 0 / 500" regression: every symbol in every batch failed
+     * silently and nothing ever fell back to the endpoint that actually works.
+     *
+     * This function now treats the batch call as a best-effort accelerator
+     * only: any ticker missing from the batch response (whole-batch failure,
+     * partial response, malformed row, rate limiting, timeout) is retried
+     * individually through the proven [fetch] path. A batch returning zero
+     * symbols therefore still yields real per-ticker data instead of silently
+     * contributing zero progress.
+     */
+    fun fetchDailyBatch(tickers: List<String>, range: String = "1y"): Map<String, List<OracleOhlcvPoint>> {
+        val symbols = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct()
+        if (symbols.isEmpty()) return emptyMap()
+        val out = LinkedHashMap<String, List<OracleOhlcvPoint>>()
+        val batchResult = runCatching { fetchSpark(symbols, range) }.getOrDefault(emptyMap())
+        out.putAll(batchResult)
+        val missing = symbols.filter { it !in out }
+        for (ticker in missing) {
+            val candles = runCatching { fetch(ticker, range, "1d") }.getOrDefault(emptyList())
+            if (candles.isNotEmpty()) out[ticker] = candles
+        }
+        return out
+    }
+
+    /** Yahoo multi-symbol spark endpoint. Returns only the symbols it could parse; never throws. */
+    private fun fetchSpark(symbols: List<String>, range: String): Map<String, List<OracleOhlcvPoint>> {
+        val joined = java.net.URLEncoder.encode(symbols.joinToString(","), "UTF-8")
+        val url = URL("https://query1.finance.yahoo.com/v8/finance/spark?symbols=$joined&range=$range&interval=1d&indicators=open,high,low,close,volume")
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = BATCH_CONNECT_TIMEOUT_MS
+            readTimeout = BATCH_READ_TIMEOUT_MS
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36")
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Referer", "https://finance.yahoo.com/")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return emptyMap()
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            parseSpark(body)
+        } catch (_: Exception) {
+            emptyMap()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun parseSpark(body: String): Map<String, List<OracleOhlcvPoint>> {
+        val root = JSONObject(body)
+        val results = root.optJSONObject("spark")?.optJSONArray("result") ?: return emptyMap()
+        val out = LinkedHashMap<String, List<OracleOhlcvPoint>>()
+        for (i in 0 until results.length()) {
+            val entry = results.optJSONObject(i) ?: continue
+            val symbol = entry.optString("symbol").uppercase()
+            if (symbol.isBlank()) continue
+            val response = entry.optJSONArray("response")?.optJSONObject(0) ?: continue
+            val timestamps = response.optJSONArray("timestamp") ?: continue
+            val quote = response.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0) ?: continue
+            val opens = quote.optJSONArray("open")
+            val highs = quote.optJSONArray("high")
+            val lows = quote.optJSONArray("low")
+            val closes = quote.optJSONArray("close")
+            val volumes = quote.optJSONArray("volume")
+            if (opens == null || highs == null || lows == null || closes == null) continue
+            val rows = ArrayList<OracleOhlcvPoint>(timestamps.length())
+            for (j in 0 until timestamps.length()) {
+                val open = opens.optDouble(j, Double.NaN)
+                val high = highs.optDouble(j, Double.NaN)
+                val low = lows.optDouble(j, Double.NaN)
+                val close = closes.optDouble(j, Double.NaN)
+                val volume = volumes?.optDouble(j, 0.0) ?: 0.0
+                if (!open.isFinite() || !high.isFinite() || !low.isFinite() || !close.isFinite()) continue
+                if (high <= 0.0 || low <= 0.0 || close <= 0.0) continue
+                rows += OracleOhlcvPoint(timestamps.optLong(j) * 1000L, open, high, low, close, volume)
+            }
+            if (rows.isNotEmpty()) out[symbol] = rows.sortedBy { it.timestamp }
+        }
+        return out
+    }
 
     private fun fetch(ticker: String, range: String, interval: String): List<OracleOhlcvPoint> {
         val symbol = ticker.trim().uppercase()

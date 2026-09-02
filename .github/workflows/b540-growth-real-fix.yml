@@ -4,9 +4,15 @@ name: Oracle B540 Growth Real Fix
 # non-GROWTH app/src file with its B539 SHA-256; the build fails if any of
 # them differ, which is the hash-verification requirement from the B540
 # GROWTH spec (section 13/14).
+#
+# Deliberately workflow_dispatch-only (no `push:` trigger). This repo has
+# ~30+ historical one-off workflow files that still trigger on every push to
+# main; running alongside them makes it impossible to tell which run's
+# result belongs to which workflow, and has been observed to produce
+# "FAILED, 0 jobs" runs repo-wide (queueing/limits, not a code failure).
+# Trigger this one explicitly from the Actions tab to get a clean, isolated
+# run and log.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

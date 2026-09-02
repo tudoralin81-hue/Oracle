@@ -6,15 +6,21 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.animation.ObjectAnimator
 import android.view.animation.LinearInterpolator
 import android.widget.Toast
+import ro.alintudor.oracle.core.OracleGrowthEngine
 import ro.alintudor.oracle.core.OracleGrowthJournalStore
+import ro.alintudor.oracle.core.OracleGrowthPhase
+import ro.alintudor.oracle.core.OracleGrowthProgress
 import ro.alintudor.oracle.core.OracleGrowthRecommendation
 import ro.alintudor.oracle.core.OracleNews
 import java.text.SimpleDateFormat
@@ -59,7 +65,35 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         addBuildFooter()
     }
 
+    // B540 — investor quotes rotated in the loader every 15s (Requirement #7).
+    // Local strings only; no network request is made to show them.
+    private val loaderQuotes = listOf(
+        "\"Price is what you pay; value is what you get.\"\n— Benjamin Graham",
+        "\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\"\n— Warren Buffett",
+        "\"The most important quality for an investor is temperament, not intellect.\"\n— Warren Buffett",
+        "\"It's only when the tide goes out that you learn who's been swimming naked.\"\n— Warren Buffett",
+        "\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\"\n— Benjamin Graham",
+        "\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\"\n— Benjamin Graham",
+        "\"Invert, always invert.\"\n— Charlie Munger",
+        "\"Behind every stock is a company. Find out what it's doing.\"\n— Peter Lynch",
+        "\"The four most dangerous words in investing are: this time it's different.\"\n— Sir John Templeton"
+    )
+
+    /**
+     * B540 loading state (Requirement #6/#7/#11).
+     *
+     * Shows real progress ("DATE ÎNCĂRCATE: X / 500", updated in steps of 50),
+     * an ETA computed from actual throughput, and a rotating investor quote.
+     * If [OracleGrowthEngine] has already finished with zero OHLCV received,
+     * this renders an explicit error state instead — it never spins forever.
+     */
     private fun addLoadingState() {
+        val initial = OracleGrowthEngine.growthProgress()
+        if (initial.phase == OracleGrowthPhase.NO_DATA) {
+            addNoDataState(initial)
+            return
+        }
+
         val card = card(18)
         card.gravity = Gravity.CENTER
         val spinner = ImageView(host.root.context).apply {
@@ -76,9 +110,83 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.addView(spinner, LinearLayout.LayoutParams(host.dp(54), host.dp(54)).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
         card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
-        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 10f, Typeface.DEFAULT, muted, 0, 7).apply { gravity = Gravity.CENTER })
-        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(190)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
+        card.addView(progressLabel)
+        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false
+        }
+        card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(10), host.dp(6), host.dp(10), host.dp(3)) })
+        val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
+        card.addView(etaLabel)
+        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
+        card.addView(quoteLabel)
+        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
+        card.addView(text("Maxim țintă: 20 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(275)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
+
+        val handler = Handler(Looper.getMainLooper())
+        var quoteIndex = 0
+        val quoteRunnable = object : Runnable {
+            override fun run() {
+                quoteIndex = (quoteIndex + 1) % loaderQuotes.size
+                quoteLabel.text = loaderQuotes[quoteIndex]
+                handler.postDelayed(this, 15_000L)
+            }
+        }
+        handler.postDelayed(quoteRunnable, 15_000L)
+
+        val progressRunnable = object : Runnable {
+            override fun run() {
+                val p = OracleGrowthEngine.growthProgress()
+                if (p.phase == OracleGrowthPhase.NO_DATA) {
+                    handler.removeCallbacksAndMessages(null)
+                    addNoDataState(p)
+                    return
+                }
+                val total = p.total.coerceAtLeast(1)
+                val loaded = p.loaded.coerceIn(0, total)
+                // Requirement #6: the visible counter steps in increments of 50;
+                // the engine tracks the exact count internally.
+                val shown = if (loaded >= total) total else (loaded / 50) * 50
+                progressBar.max = total
+                progressBar.progress = shown
+                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"
+                if (p.startedAtNanos > 0L) {
+                    val elapsed = (System.nanoTime() - p.startedAtNanos).coerceAtLeast(1L) / 1_000_000_000.0
+                    etaLabel.text = if (p.phase == OracleGrowthPhase.RUNNING) {
+                        if (shown > 0) {
+                            val eta = (elapsed * (total - shown) / shown).coerceAtLeast(0.0)
+                            "Timp estimat: ~${formatEta(eta)}"
+                        } else "Timp estimat: se calculează…"
+                    } else {
+                        "Analiza datelor: finalizată în ${String.format(Locale.US, "%.1f", elapsed)} s"
+                    }
+                }
+                if (p.phase == OracleGrowthPhase.RUNNING) handler.postDelayed(this, 500L)
+            }
+        }
+        handler.post(progressRunnable)
+    }
+
+    /** Requirement #6/#11: explicit, non-infinite error state when 0 OHLCV was received. */
+    private fun addNoDataState(progress: OracleGrowthProgress) {
+        host.content.removeAllViews()
+        val card = card(18)
+        card.gravity = Gravity.CENTER
+        card.background = rounded(bg, red, 1, 16)
+        card.addView(text("⚠", 28f, Typeface.DEFAULT_BOLD, red, 0, 0).apply { gravity = Gravity.CENTER })
+        card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
+        card.addView(text("Sursa de date OHLCV nu a răspuns.", 13f, Typeface.DEFAULT_BOLD, red, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Recomandările Growth nu au putut fi calculate (${progress.loaded} / ${progress.total} simboluri primite).", 11f, Typeface.DEFAULT, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Apasă ↻ (sus dreapta) pentru a reîncerca.", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(200)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        addBuildFooter()
+    }
+
+    private fun formatEta(seconds: Double): String {
+        val rounded = kotlin.math.ceil(seconds).toInt().coerceAtLeast(0)
+        return if (rounded < 60) "$rounded sec" else "${rounded / 60} min ${rounded % 60} sec"
     }
 
     private fun addSummary(items: List<OracleGrowthRecommendation>) {

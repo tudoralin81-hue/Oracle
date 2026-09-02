@@ -47,7 +47,9 @@ object OracleLocalProcessor {
                 return@synchronized current
             }
 
-            val generated = OracleGrowthEngine.run(current)
+            // B540: pass the repository's Context through — Growth-only orchestration
+            // needed so the engine can resolve/cache the S&P 500 universe (Requirement #2).
+            val generated = OracleGrowthEngine.run(repository.context, current)
             if (generated.isEmpty()) {
                 // Do not replace a valid snapshot with partial/empty data.
                 return@synchronized current.filter { it.referenceTimestamp == anchor }
