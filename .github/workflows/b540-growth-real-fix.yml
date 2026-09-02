@@ -5,14 +5,13 @@ name: Oracle B540 Growth Real Fix
 # them differ, which is the hash-verification requirement from the B540
 # GROWTH spec (section 13/14).
 #
-# Deliberately workflow_dispatch-only (no `push:` trigger). This repo has
-# ~30+ historical one-off workflow files that still trigger on every push to
-# main; running alongside them makes it impossible to tell which run's
-# result belongs to which workflow, and has been observed to produce
-# "FAILED, 0 jobs" runs repo-wide (queueing/limits, not a code failure).
-# Trigger this one explicitly from the Actions tab to get a clean, isolated
-# run and log.
+# Temporary branch trigger: GitHub requires workflow_dispatch workflows to
+# exist on the default branch. The push trigger lets us build the isolated
+# B540 branch without touching main. It can be removed after verification.
 on:
+  push:
+    branches:
+      - B540-CLAUDE-V2-EXACT
   workflow_dispatch:
 permissions:
   contents: read
@@ -64,11 +63,6 @@ jobs:
           gradle-version: '8.10'
 
       - name: Build release APK
-        # If ORACLE_KEYSTORE_* repository secrets are configured, app/build.gradle
-        # signs with them. Otherwise it falls back to the debug certificate — the
-        # APK still installs, it just is not a Play-Store-ready production
-        # signature. Configure these secrets in the repo if you need a
-        # production signature.
         env:
           ORACLE_KEYSTORE_FILE: ${{ secrets.ORACLE_KEYSTORE_FILE }}
           ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
