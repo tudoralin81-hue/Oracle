@@ -1,1 +1,1 @@
-B535 Growth launcher fix 2026-09-02 07:50
+B535 Growth launcher + timeout patch 2026-09-02 08:45
