@@ -21,11 +21,10 @@ jobs:
           set -euo pipefail
           sha256sum -c B540_FROZEN_MANIFEST.sha256 --strict
 
-      - name: Verify GROWTH-only fix markers are present
+      - name: Verify GROWTH source markers before patch
         run: |
           set -euo pipefail
           E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          M=app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           MD=app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt
           U=app/src/main/java/ro/alintudor/oracle/core/OracleSP500Universe.kt
           grep -q 'TARGET_SIZE = 500' "$U"
@@ -33,23 +32,22 @@ jobs:
           grep -q 'fun fetchDailyBatch' "$MD"
           grep -q 'OracleGrowthPhase' "$E"
           grep -q 'TOTAL_BUDGET_NANOS' "$E"
-          grep -q '45_000_000_000L' "$E"
-          grep -q 'PROGRES: 0%' "$M"
-          grep -q 'OracleGrowthPhase.NO_DATA' "$M"
-          grep -q 'Maxim țintă: 45 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
 
-      - name: Apply B540 GROWTH history toggle UI fix
+      - name: Apply B540 GROWTH history toggle and final loader patch
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
-          grep -q 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          M=app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'val allRows = mutableListOf<View>()' "$M"
+          grep -q 'var expanded = false' "$M"
+          grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' "$M"
+          grep -q 'PROGRES: $shownPct%' "$M"
+          grep -q '01.09.2026 16:00' "$M"
+          grep -q 'Maxim țintă: 45 secunde' "$M"
+          grep -q '45_000_000_000L' "$E"
           git diff --check
 
       - name: Set B540 identity
