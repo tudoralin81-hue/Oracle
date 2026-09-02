@@ -19,7 +19,7 @@ if M.exists():
         val syms = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct()
         if (syms.isEmpty()) return emptyMap()
         val symbolList = syms.joinToString(",")
-        val url = URL("https://query1.finance.yahoo.com/v8/finance/spark?symbols=$symbolList&range=$range&interval=1d")
+        val url = URL("https://query1.finance.yahoo.com/v7/finance/spark?symbols=$symbolList&range=$range&interval=1d&indicators=open,high,low,close,volume&includePrePost=false&corsDomain=finance.yahoo.com&.tsrc=finance")
         val c = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 2000
