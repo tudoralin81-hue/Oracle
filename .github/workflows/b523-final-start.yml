@@ -164,7 +164,20 @@ jobs:
           sed -i 's/^a\.write_text(s\[:i\]+h+s\[j:\])$/p.write_text(s[:i]+h+s[j:])/g; /^PY$/d' scripts/build_b535_growth.py
           python3 scripts/build_b535_growth.py
           python3 scripts/fix_b535_growth_runtime.py
+          python3 scripts/apply_growth_timeout_solution.py
           sed -i 's/seed?\.company/null/g; s/seed?\.sector/null/g' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+
+      - name: Verify Growth timeout solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'newFixedThreadPool(16)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'f.get(25,TimeUnit.SECONDS)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'newFixedThreadPool(15)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'f.get(12,TimeUnit.SECONDS)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'future.get(45, TimeUnit.SECONDS)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          grep -q 'Calculul Growth a depășit limita de 45 de secunde' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          git diff --check
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
