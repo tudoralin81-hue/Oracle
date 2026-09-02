@@ -1,4 +1,4 @@
-name: Oracle B537 Growth Final
+name: Oracle B536 Growth Final
 
 on:
   push:
@@ -37,27 +37,50 @@ jobs:
           grep -q '31.08.2026' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q '⌄' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'setImageResource(ro.alintudor.oracle.R.drawable.ic_oracle)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'BUILD B535' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'OracleRealData.fundamentals' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'OracleRealData.newsContext' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'OracleRealData.marketContext' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'refreshGrowthOnly(repository)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           git diff --check
-      - name: Apply build-only Kotlin correction
+      - name: Apply Growth corrections
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          
+          # Guarantee a real company name even when the repository metadata contains only the ticker.
+          p=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
+          s=p.read_text(encoding='utf-8')
+          old='val company=meta?.company?.takeIf { it.isNotBlank() && !it.equals(pick.ticker,true) } ?: lookupCompanyName(pick.ticker) ?: pick.ticker'
+          new='val company=knownCompanyName(pick.ticker, meta?.company) ?: lookupCompanyName(pick.ticker) ?: "Company ${pick.ticker}"'
+          if old not in s: raise SystemExit('company assignment anchor not found')
+          s=s.replace(old,new)
+          anchor='private fun lookupCompanyName(ticker:String):String? = runCatching {'
+          helper='''private fun knownCompanyName(ticker:String, metadata:String?):String? {\n        val key=ticker.uppercase(Locale.US)\n        val known=when(key){\n            "CF" -> "CF Industries Holdings, Inc."\n            "LNG" -> "Cheniere Energy, Inc."\n            "CRM" -> "Salesforce, Inc."\n            "NVDA" -> "NVIDIA Corporation"\n            "MSFT" -> "Microsoft Corporation"\n            "AAPL" -> "Apple Inc."\n            "AMZN" -> "Amazon.com, Inc."\n            "GOOGL","GOOG" -> "Alphabet Inc."\n            "META" -> "Meta Platforms, Inc."\n            "AMD" -> "Advanced Micro Devices, Inc."\n            "AVGO" -> "Broadcom Inc."\n            "PLTR" -> "Palantir Technologies Inc."\n            "ORCL" -> "Oracle Corporation"\n            "NOW" -> "ServiceNow, Inc."\n            "TSLA" -> "Tesla, Inc."\n            "VRT" -> "Vertiv Holdings Co"\n            "CEG" -> "Constellation Energy Corporation"\n            "MU" -> "Micron Technology, Inc."\n            "ANET" -> "Arista Networks, Inc."\n            "ADBE" -> "Adobe Inc."\n            "SNOW" -> "Snowflake Inc."\n            "DDOG" -> "Datadog, Inc."\n            "NET" -> "Cloudflare, Inc."\n            "PANW" -> "Palo Alto Networks, Inc."\n            "CRWD" -> "CrowdStrike Holdings, Inc."\n            "INTU" -> "Intuit Inc."\n            "IBM" -> "International Business Machines Corporation"\n            "CSCO" -> "Cisco Systems, Inc."\n            "QCOM" -> "QUALCOMM Incorporated"\n            "INTC" -> "Intel Corporation"\n            "AMAT" -> "Applied Materials, Inc."\n            "LRCX" -> "Lam Research Corporation"\n            "KLAC" -> "KLA Corporation"\n            "TSM" -> "Taiwan Semiconductor Manufacturing Company Limited"\n            "ASML" -> "ASML Holding N.V."\n            "JPM" -> "JPMorgan Chase & Co."\n            "BAC" -> "Bank of America Corporation"\n            "GS" -> "The Goldman Sachs Group, Inc."\n            "MS" -> "Morgan Stanley"\n            "BLK" -> "BlackRock, Inc."\n            "XOM" -> "Exxon Mobil Corporation"\n            "CVX" -> "Chevron Corporation"\n            "COP" -> "ConocoPhillips"\n            "SLB" -> "SLB"\n            "GE" -> "GE Aerospace"\n            "CAT" -> "Caterpillar Inc."\n            "HON" -> "Honeywell International Inc."\n            "RTX" -> "RTX Corporation"\n            "BA" -> "The Boeing Company"\n            "LLY" -> "Eli Lilly and Company"\n            "JNJ" -> "Johnson & Johnson"\n            "UNH" -> "UnitedHealth Group Incorporated"\n            "COST" -> "Costco Wholesale Corporation"\n            "WMT" -> "Walmart Inc."\n            "MCD" -> "McDonald's Corporation"\n            "NKE" -> "NIKE, Inc."\n            "DIS" -> "The Walt Disney Company"\n            "NFLX" -> "Netflix, Inc."\n            "UBER" -> "Uber Technologies, Inc."\n            "COIN" -> "Coinbase Global, Inc."\n            "HOOD" -> "Robinhood Markets, Inc."\n            else -> null\n        }\n        if(known!=null) return known\n        return metadata?.trim()?.takeIf { it.isNotBlank() && !it.equals(key,true) }\n    }\n\n    '''+anchor
+          if anchor not in s: raise SystemExit('company helper anchor not found')
+          s=s.replace(anchor,helper,1)
+          p.write_text(s,encoding='utf-8')
+          
+          # Normalize legacy journal rows at display time so old ticker-only entries also show full names.
           p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
           s=p.read_text(encoding='utf-8')
-          old='''        val expandedRows = all.drop(6)\n        expandedRows.forEach {\n            val row = historyRow(it)\n            row.visibility = View.GONE\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
-          new='''        val expandedViews = all.drop(6).map { item ->\n            historyRow(item).also { row -> row.visibility = View.GONE; rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) }) }\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedViews.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
-          if old in s: s=s.replace(old,new)
-          elif 'val expandedViews' not in s: raise SystemExit('history expansion patch anchor not found')
+          old='identity.addView(text(item.company.ifBlank { "—" }, 11f, Typeface.DEFAULT_BOLD, white, 0, 0))'
+          new='identity.addView(text(displayCompanyName(item.ticker,item.company), 11f, Typeface.DEFAULT_BOLD, white, 0, 0))'
+          if old not in s: raise SystemExit('history company anchor not found')
+          s=s.replace(old,new,1)
+          anchor='private fun horizonOrder(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> 0; "MEDIUM" -> 1; else -> 2 }'
+          helper='''private fun displayCompanyName(ticker:String, stored:String):String {\n        val key=ticker.uppercase(Locale.US)\n        val known=when(key){\n            "CF" -> "CF Industries Holdings, Inc."\n            "LNG" -> "Cheniere Energy, Inc."\n            "CRM" -> "Salesforce, Inc."\n            "NVDA" -> "NVIDIA Corporation"\n            "MSFT" -> "Microsoft Corporation"\n            "AAPL" -> "Apple Inc."\n            "AMZN" -> "Amazon.com, Inc."\n            "GOOGL","GOOG" -> "Alphabet Inc."\n            "META" -> "Meta Platforms, Inc."\n            "AMD" -> "Advanced Micro Devices, Inc."\n            "AVGO" -> "Broadcom Inc."\n            "PLTR" -> "Palantir Technologies Inc."\n            "ORCL" -> "Oracle Corporation"\n            "NOW" -> "ServiceNow, Inc."\n            "TSLA" -> "Tesla, Inc."\n            "VRT" -> "Vertiv Holdings Co"\n            "CEG" -> "Constellation Energy Corporation"\n            "MU" -> "Micron Technology, Inc."\n            "ANET" -> "Arista Networks, Inc."\n            "ADBE" -> "Adobe Inc."\n            "SNOW" -> "Snowflake Inc."\n            "DDOG" -> "Datadog, Inc."\n            "NET" -> "Cloudflare, Inc."\n            "PANW" -> "Palo Alto Networks, Inc."\n            "CRWD" -> "CrowdStrike Holdings, Inc."\n            "INTU" -> "Intuit Inc."\n            "IBM" -> "International Business Machines Corporation"\n            "CSCO" -> "Cisco Systems, Inc."\n            "QCOM" -> "QUALCOMM Incorporated"\n            "INTC" -> "Intel Corporation"\n            "AMAT" -> "Applied Materials, Inc."\n            "LRCX" -> "Lam Research Corporation"\n            "KLAC" -> "KLA Corporation"\n            "TSM" -> "Taiwan Semiconductor Manufacturing Company Limited"\n            "ASML" -> "ASML Holding N.V."\n            "JPM" -> "JPMorgan Chase & Co."\n            "BAC" -> "Bank of America Corporation"\n            "GS" -> "The Goldman Sachs Group, Inc."\n            "MS" -> "Morgan Stanley"\n            "BLK" -> "BlackRock, Inc."\n            "XOM" -> "Exxon Mobil Corporation"\n            "CVX" -> "Chevron Corporation"\n            "COP" -> "ConocoPhillips"\n            "GE" -> "GE Aerospace"\n            "CAT" -> "Caterpillar Inc."\n            "HON" -> "Honeywell International Inc."\n            "RTX" -> "RTX Corporation"\n            "BA" -> "The Boeing Company"\n            "LLY" -> "Eli Lilly and Company"\n            "JNJ" -> "Johnson & Johnson"\n            "UNH" -> "UnitedHealth Group Incorporated"\n            "COST" -> "Costco Wholesale Corporation"\n            "WMT" -> "Walmart Inc."\n            "MCD" -> "McDonald's Corporation"\n            "NKE" -> "NIKE, Inc."\n            "DIS" -> "The Walt Disney Company"\n            "NFLX" -> "Netflix, Inc."\n            "UBER" -> "Uber Technologies, Inc."\n            "COIN" -> "Coinbase Global, Inc."\n            "HOOD" -> "Robinhood Markets, Inc."\n            else -> null\n        }\n        return known ?: stored.trim().takeIf { it.isNotBlank() && !it.equals(key,true) } ?: "Company $key"\n    }\n\n    '''+anchor
+          if anchor not in s: raise SystemExit('history helper anchor not found')
+          s=s.replace(anchor,helper,1)
           p.write_text(s,encoding='utf-8')
           PY
-      - name: Set B535 identity
+          
+          grep -q 'knownCompanyName' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'displayCompanyName' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'refreshGrowthOnly(repository)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          git diff --check
+      - name: Set B536 identity
         shell: bash
         run: |
           set -euo pipefail
@@ -65,8 +88,8 @@ jobs:
           from pathlib import Path
           import re
           p=Path('app/build.gradle'); s=p.read_text(encoding='utf-8')
-          s=re.sub(r'versionCode\s+\d+', 'versionCode 30', s, count=1)
-          s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B535'", s, count=1)
+          s=re.sub(r'versionCode\s+\d+', 'versionCode 31', s, count=1)
+          s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B536'", s, count=1)
           p.write_text(s,encoding='utf-8')
           PY
       - uses: actions/setup-java@v4
@@ -95,11 +118,11 @@ jobs:
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-GROWTH-B535'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-GROWTH-B536'"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B535-GROWTH-FINAL
+          name: Oracle-APK-B536-GROWTH-FINAL
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
