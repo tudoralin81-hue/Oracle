@@ -45,6 +45,7 @@ jobs:
           set -euo pipefail
           python3 scripts/b540_growth_1200_build.py
           python3 scripts/b540_growth_perf_fix.py
+          python3 scripts/b540_growth_spark_fix.py
           python3 scripts/b540_growth_loader_runtime_fix.py
           git diff --check
       - name: Set B540 identity
@@ -92,7 +93,7 @@ jobs:
           grep -q 'TARGET_UNIVERSE_SIZE=500' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'UNIVERSE_URL="https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'seenCompanies' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -q 'fetchDailySingle' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'chunked(25)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'Mozilla/5.0' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
@@ -100,6 +101,7 @@ jobs:
           grep -q 'Maxim țintă: 20 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'host.dp(400)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q '0 / 500' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'v7/finance/spark' app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -108,4 +110,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 # B540: frozen B539 non-Growth modules + Growth-only S&P 500 runtime, progress and quote loader.
-# Rebuild from the latest Yahoo chart-per-symbol runtime fix.
