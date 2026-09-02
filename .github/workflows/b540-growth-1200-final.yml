@@ -27,7 +27,6 @@ jobs:
           mkdir -p /tmp/oracle-freeze
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
