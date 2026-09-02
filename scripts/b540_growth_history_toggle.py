@@ -26,8 +26,8 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
         header.addView(title, LinearLayout.LayoutParams(-2, -2))
 
-        // The toggle belongs immediately beside the section title.
-        // It is CLOSED by default; only older rows are hidden/revealed.
+        // Toggle is immediately beside the title and controls the whole history list.
+        // CLOSED is the mandatory initial state; tapping arrow or title opens it.
         val arrow = TextView(host.root.context).apply {
             text = "⌄"
             textSize = 23f
@@ -69,12 +69,15 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
         card.addView(rows)
 
+        val visibleRows = mutableListOf<View>()
         fun addPlaceholder() {
             val row = historyRow(null)
+            visibleRows += row
             rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
         }
         fun addEntry(item: OracleGrowthRecommendation) {
             val row = historyRow(item)
+            visibleRows += row
             rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
         }
 
@@ -82,16 +85,16 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         visible.forEach { addEntry(it) }
         repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
 
-        val expandedViews = all.drop(6).map { item ->
+        val olderRows = all.drop(6).map { item ->
             val row = historyRow(item)
-            row.visibility = View.GONE
             rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
             row
         }
 
+        val allRows = visibleRows + olderRows
         var expanded = false
         fun applyHistoryVisibility() {
-            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
             arrow.text = if (expanded) "⌃" else "⌄"
             arrow.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
         }
@@ -103,7 +106,7 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
             expanded = !expanded
             applyHistoryVisibility()
         }
-        // Explicit initial state: collapsed.
+        // Explicit initial state: CLOSED.
         applyHistoryVisibility()
 
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
@@ -111,4 +114,4 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
 '''
 s = s[:start] + new + s[end:]
 p.write_text(s, encoding='utf-8')
-print('B540 GROWTH history toggle fixed: arrow beside title, closed by default')
+print('B540 GROWTH history toggle: whole section collapsed by default; arrow/title expand it')
