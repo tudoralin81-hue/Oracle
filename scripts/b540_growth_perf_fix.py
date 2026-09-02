@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 # Performance + live Growth progress + investor quotes. Growth-only; frozen modules are restored by workflow.
 p=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
@@ -114,6 +115,13 @@ new='''    private fun addLoadingState() {
     private fun formatEta(seconds: Double): String {
         val rounded = kotlin.math.ceil(seconds).toInt().coerceAtLeast(0)
         return if (rounded < 60) "$rounded sec" else "${rounded / 60} min ${rounded % 60} sec"
-    }'''
-s=s[:start]+new+s[end:]
+    }
+
+# Normalize loader helper names after the generated function has been replaced.
+p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+s=p.read_text(encoding='utf-8')
+s=s.replace('isFinished(', 'loaderFinished(').replace('formatEta(', 'loaderEta(')
+s=re.sub(r'\n    private fun loaderFinished\(p: LongArray\): Boolean[^\n]*\n', '\n', s)
+s=re.sub(r'\n    private fun loaderEta\(seconds: Double\): String \{\n.*?\n    \}', '', s, flags=re.S)
+s += '''\n\n    private fun loaderFinished(p: LongArray): Boolean = p.size >= 4 && p[3] == 1L\n\n    private fun loaderEta(seconds: Double): String {\n        val rounded = kotlin.math.ceil(seconds).toInt().coerceAtLeast(0)\n        return if (rounded < 60) "$rounded sec" else "${rounded / 60} min ${rounded % 60} sec"\n    }\n'''
 p.write_text(s,encoding='utf-8')
