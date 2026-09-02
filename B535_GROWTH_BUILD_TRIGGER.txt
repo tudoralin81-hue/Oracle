@@ -1,1 +1,1 @@
-B535 Growth NPE fix + timeout verified 2026-09-02 09:24
+B535 Growth NPE cache fix + final bounded runtime 2026-09-02 09:31
