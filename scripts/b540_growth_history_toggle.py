@@ -1,27 +1,126 @@
 from pathlib import Path
 import hashlib
+import re
 
-# B540: the Claude ZIP is the source of truth. This script reproduces the
-# exact Claude GROWTH snapshot at build time. START and frozen non-GROWTH
-# files are never modified.
+# B540: Claude ZIP is the source of truth. Reproduce the exact Claude GROWTH
+# files at build time; START and frozen non-GROWTH files are never modified.
 
 M = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 s = M.read_text(encoding='utf-8')
 
-old_progress = '''// Requirement #6: the visible counter steps in increments of 50;
-                // the engine tracks the exact count internally.
-                val shown = if (loaded >= total) total else (loaded / 50) * 50
-                progressBar.max = total
-                progressBar.progress = shown
-                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"'''
-new_progress = '''// B540 update: only a percentage is ever shown — the raw counts
+# Replace the entire loader section with the exact block from Claude's ZIP.
+loader = '''    /**
+     * B540 loading state (Requirement #6/#7/#11).
+     *
+     * Shows real progress as a percentage only ("DATE ÎNCĂRCATE: XX%") plus the
+     * matching bar — the underlying counts (and therefore the size of the
+     * monitored universe) are tracked internally but never rendered — an ETA
+     * computed from actual throughput, and an investor quote that rotates in
+     * a randomized, non-repeating order. If [OracleGrowthEngine] has already
+     * finished with zero OHLCV received, this renders an explicit error state
+     * instead — it never spins forever.
+     */
+    private fun addLoadingState() {
+        val initial = OracleGrowthEngine.growthProgress()
+        if (initial.phase == OracleGrowthPhase.NO_DATA) {
+            addNoDataState(initial)
+            return
+        }
+
+        val card = card(18)
+        card.gravity = Gravity.CENTER
+        val spinner = ImageView(host.root.context).apply {
+            setImageResource(ro.alintudor.oracle.R.drawable.ic_oracle)
+            contentDescription = "Oracle se calculează"
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            val rotation = ObjectAnimator.ofFloat(this, View.ROTATION, 0f, 360f).apply {
+                duration = 1100L
+                repeatCount = ObjectAnimator.INFINITE
+                interpolator = LinearInterpolator()
+            }
+            rotation.start()
+        }
+        card.addView(spinner, LinearLayout.LayoutParams(host.dp(54), host.dp(54)).apply { gravity = Gravity.CENTER })
+        card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
+        card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
+        val progressLabel = text("DATE ÎNCĂRCATE: 0%", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
+        card.addView(progressLabel)
+        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100; progress = 0; isIndeterminate = false
+        }
+        card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(10), host.dp(6), host.dp(10), host.dp(3)) })
+        val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
+        card.addView(etaLabel)
+        // Random, non-repeating rotation order for the investor quotes (B540 update).
+        var quoteOrder = loaderQuotes.indices.shuffled()
+        var quotePos = 0
+        val quoteLabel = text(loaderQuotes[quoteOrder[quotePos]], 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
+        card.addView(quoteLabel)
+        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
+        card.addView(text("Maxim țintă: 45 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        addBuildFooter()
+
+        val handler = Handler(Looper.getMainLooper())
+        val quoteRunnable = object : Runnable {
+            override fun run() {
+                quotePos++
+                if (quotePos >= quoteOrder.size) {
+                    // Every quote has been shown once; reshuffle for the next pass
+                    // and nudge away from an immediate repeat of the last one shown.
+                    val lastShown = quoteOrder.last()
+                    var next = loaderQuotes.indices.shuffled()
+                    if (next.size > 1 && next.first() == lastShown) {
+                        next = next.toMutableList().apply { add(1, removeAt(0)) }
+                    }
+                    quoteOrder = next
+                    quotePos = 0
+                }
+                quoteLabel.text = loaderQuotes[quoteOrder[quotePos]]
+                handler.postDelayed(this, 15_000L)
+            }
+        }
+        handler.postDelayed(quoteRunnable, 15_000L)
+
+        val progressRunnable = object : Runnable {
+            override fun run() {
+                val p = OracleGrowthEngine.growthProgress()
+                if (p.phase == OracleGrowthPhase.NO_DATA) {
+                    handler.removeCallbacksAndMessages(null)
+                    addNoDataState(p)
+                    return
+                }
+                val total = p.total.coerceAtLeast(1)
+                val loaded = p.loaded.coerceIn(0, total)
+                // B540 update: only a percentage is ever shown — the raw counts
                 // (and so the size of the monitored universe) stay internal to
                 // the engine and are never rendered in the UI.
                 val pct = ((loaded * 100.0) / total).toInt().coerceIn(0, 100)
                 progressBar.progress = pct
-                progressLabel.text = "DATE ÎNCĂRCATE: $pct%"'''
-s = s.replace(old_progress, new_progress)
-M.write_text(s, encoding='utf-8')
+                progressLabel.text = "DATE ÎNCĂRCATE: $pct%"
+                if (p.startedAtNanos > 0L) {
+                    val elapsed = (System.nanoTime() - p.startedAtNanos).coerceAtLeast(1L) / 1_000_000_000.0
+                    etaLabel.text = if (p.phase == OracleGrowthPhase.RUNNING) {
+                        if (pct > 0) {
+                            val eta = (elapsed * (100 - pct) / pct).coerceAtLeast(0.0)
+                            "Timp estimat: ~${formatEta(eta)}"
+                        } else "Timp estimat: se calculează…"
+                    } else {
+                        "Analiza datelor: finalizată în ${String.format(Locale.US, "%.1f", elapsed)} s"
+                    }
+                }
+                if (p.phase == OracleGrowthPhase.RUNNING) handler.postDelayed(this, 500L)
+            }
+        }
+        handler.post(progressRunnable)
+    }
+
+'''
+pattern = r'    /\*\*\n     \* B540 loading state \(Requirement #6/#7/#11\)\..*?\n    private fun addNoDataState'
+s2, n = re.subn(pattern, loader + '    /** Requirement #6/#11: explicit, non-infinite error state when 0 OHLCV was received. */\n    private fun addNoDataState', s, count=1, flags=re.S)
+if n != 1:
+    raise SystemExit(f'Claude loader block replacement failed: matches={n}')
+M.write_text(s2, encoding='utf-8')
 
 E = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 es = E.read_text(encoding='utf-8')
