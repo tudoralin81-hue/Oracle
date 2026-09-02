@@ -28,14 +28,14 @@ jobs:
           M=app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           MD=app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt
           U=app/src/main/java/ro/alintudor/oracle/core/OracleSP500Universe.kt
-          grep -q 'TARGET_SIZE = 500' "$U"
-          grep -q 'fun companies(context: Context)' "$U"
-          grep -q 'fun fetchDailyBatch' "$MD"
-          grep -q 'OracleGrowthPhase' "$E"
-          grep -q 'TOTAL_BUDGET_NANOS' "$E"
-          grep -q 'DATE ÎNCĂRCATE' "$M"
-          grep -q 'OracleGrowthPhase.NO_DATA' "$M"
-          grep -q 'Maxim țintă: 20 secunde' "$M"
+          grep -Fq 'TARGET_SIZE = 500' "$U"
+          grep -Fq 'fun companies(context: Context)' "$U"
+          grep -Fq 'fun fetchDailyBatch' "$MD"
+          grep -Fq 'OracleGrowthPhase' "$E"
+          grep -Fq 'TOTAL_BUDGET_NANOS' "$E"
+          grep -Fq 'DATE ÎNCĂRCATE' "$M"
+          grep -Fq 'OracleGrowthPhase.NO_DATA' "$M"
+          grep -Fq 'Maxim țintă: 20 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
 
@@ -43,20 +43,20 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
-          grep -q 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q '45_000_000_000L' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -q '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq '45_000_000_000L' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -Fq '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
 
       - name: Set B540 identity
         run: |
           set -euo pipefail
-          grep -q "versionCode 30" app/build.gradle
-          grep -q "versionName 'B540'" app/build.gradle
+          grep -Fq "versionCode 30" app/build.gradle
+          grep -Fq "versionName 'B540'" app/build.gradle
 
       - uses: actions/setup-java@v4
         with:
@@ -85,8 +85,8 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           BADGING="$($ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK")"
-          echo "$BADGING" | grep -q "versionCode='30'"
-          echo "$BADGING" | grep -q "versionName='B540'"
+          echo "$BADGING" | grep -Fq "versionCode='30'"
+          echo "$BADGING" | grep -Fq "versionName='B540'"
           sha256sum -c B540_FROZEN_MANIFEST.sha256 --strict
           sha256sum "$APK"
 
