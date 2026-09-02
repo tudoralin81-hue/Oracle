@@ -15,7 +15,6 @@ for i in range(brace, len(s)):
             end = i + 1
             break
 if end is None: raise SystemExit('Could not locate addHistory end')
-# Keep the known-working toggle implementation, only defaulting to closed.
 new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         val card = card(12)
         val header = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -64,7 +63,8 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         }
         var expanded = false
         fun applyHistoryVisibility() {
-            summaryViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            // The latest 6 rows are always visible. The arrow only expands/collapses older rows.
+            summaryViews.forEach { it.visibility = View.VISIBLE }
             olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
             arrow.text = if (expanded) "⌃" else "⌄"
             arrow.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
@@ -136,13 +136,11 @@ newpdf = '''        val cutoff = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro
         val entries = load().filter { it.referenceTimestamp >= cutoff }
         if (entries.isEmpty()) return null'''
 if oldpdf in s: s = s.replace(oldpdf, newpdf)
-# Provenance: only canonical engine output may enter the append-only journal.
 s = s.replace('''    fun record(items: List<OracleGrowthRecommendation>) {
         if (items.isEmpty()) return''', '''    fun record(items: List<OracleGrowthRecommendation>) {
         val verified = items.filter { it.source.startsWith("ORACLE_ENGINE_V5.9.7") }
         if (verified.isEmpty()) return''')
 s = s.replace('items.forEach { if (keys.add(key(it))) current.add(it) }', 'verified.forEach { if (keys.add(key(it))) current.add(it) }')
-# Persist provenance and factor values so a future journal export can be audited.
 s = s.replace('put("weights", org.json.JSONArray().apply { item.weights.forEach { put(it) } })', 'put("weights", org.json.JSONArray().apply { item.weights.forEach { put(it) } }); put("factorValues", org.json.JSONArray().apply { item.factorValues.forEach { put(it) } }); put("generatedAt", item.generatedAt); put("source", item.source)')
 oldctor = '''                o.optString("horizon"), o.optString("ticker"), o.optString("company"), o.optString("sector"),
                 o.optInt("score"), o.optString("signal"), o.optString("risk"), o.optDouble("allocationMax"),
