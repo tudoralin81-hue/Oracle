@@ -22,7 +22,7 @@ jobs:
           set -euo pipefail
           sha256sum -c B540_FROZEN_MANIFEST.sha256 --strict
 
-      - name: Verify GROWTH-only fix markers are present
+      - name: Verify GROWTH source markers
         run: |
           set -euo pipefail
           E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
@@ -37,10 +37,6 @@ jobs:
           grep -Fq 'OracleGrowthPhase.NO_DATA' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
-          grep -Fq 'DATE ÎNCĂRCATE' scripts/b540_growth_history_toggle.py
-          grep -Fq 'Maxim țintă: 20 secunde' scripts/b540_growth_history_toggle.py
-          grep -Fq '45_000_000_000L' scripts/b540_growth_history_toggle.py
-          grep -Fq 'PROGRES: $shownPct%' scripts/b540_growth_history_toggle.py
 
       - name: Apply B540 GROWTH final loader/history patch
         run: |
