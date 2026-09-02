@@ -34,7 +34,10 @@ class OracleGrowthJournalStore(private val context: Context) {
     fun load(): List<OracleGrowthRecommendation> = parse(prefs.getString("entries", "[]") ?: "[]")
 
     fun exportPdf(): String? {
-        val entries = load()
+        // Export the complete journal, including historical recommendations from 31.08.2026 onward.
+        val cutoff = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro", "RO")).apply { timeZone = zone }
+            .parse("31.08.2026 00:00")?.time ?: 0L
+        val entries = load().filter { it.referenceTimestamp >= cutoff }
         if (entries.isEmpty()) return null
 
         val document = PdfDocument()
@@ -72,7 +75,7 @@ class OracleGrowthJournalStore(private val context: Context) {
         canvas.drawLine(margin, y, pageWidth - margin, y, mutedPaint)
         y += 16f
 
-        entries.forEach { item ->
+        entries.sortedByDescending { it.referenceTimestamp }.forEach { item ->
             if (y > pageHeight - 54f) newPage()
             val values = arrayOf(
                 dateFormat.format(Date(item.referenceTimestamp)), item.ticker, item.horizon,
