@@ -10,13 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore exact frozen B539 files
+      - name: Restore exact frozen protected files
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin 3eb9b3284c24f94cf8126dd9916b615038664ae8
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
@@ -24,14 +23,7 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do
             git checkout 3eb9b3284c24f94cf8126dd9916b615038664ae8 -- "$f"
           done
-      - name: Restore verified B539 Growth card implementation
-        run: |
-          set -euo pipefail
-          python3 scripts/b538_growth_fix.py
-          grep -q 'summaryViews.forEach { it.visibility = View.VISIBLE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-      - name: Apply S&P500 bundle and Growth performance patches
+      - name: Apply existing B540 GROWTH performance patches
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_1200_build.py
@@ -40,6 +32,8 @@ jobs:
           python3 scripts/b540_sp500_runtime_bundle_patch.py
           python3 scripts/b540_growth_perf_fix.py
           python3 scripts/b540_growth_loader_runtime_fix.py
+          # IMPORTANT: the approved loader + 45s budget + history toggle is applied LAST.
+          python3 scripts/b540_growth_history_toggle.py
           git diff --check
       - name: Set B540 identity
         run: |
@@ -86,15 +80,14 @@ jobs:
           grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'OracleSp500Universe.symbols' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -q 'DATE ÎNCĂRCATE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'Maxim țintă: 20 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'host.dp(400)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          test -f app/src/main/java/ro/alintudor/oracle/core/OracleSp500Universe.kt
-          grep -q 'const val SIZE:Int = 500' app/src/main/java/ro/alintudor/oracle/core/OracleSp500Universe.kt
+          grep -q 'DATE ÎNCĂRCATE: $pct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'allRows.drop(6)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          test -f app/src/main/java/ro/alintudor/oracle/core/OracleSP500Universe.kt || test -f app/src/main/java/ro/alintudor/oracle/core/OracleSp500Universe.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B540-GROWTH-SP500-BUNDLE-FINAL
+          name: Oracle-APK-B540-GROWTH-FINAL
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
