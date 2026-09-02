@@ -16,14 +16,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 2
-
       - name: Freeze protected modules
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/oracle-freeze
           for f in app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/before
-
       - name: Patch Growth history
         shell: bash
         run: |
@@ -31,7 +29,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           gm=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
           s=gm.read_text(encoding='utf-8')
           start=s.index('    private fun addHistory(')
@@ -76,14 +73,12 @@ jobs:
               }
               header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
               card.addView(header)
-
               val all = entries
                   .filter { it.referenceTimestamp > 0L && it.referenceTimestamp >= startHistoryTimestamp() }
                   .sortedWith(compareByDescending<OracleGrowthRecommendation> { it.referenceTimestamp }
                       .thenBy { horizonOrder(it.horizon) }.thenBy { it.ticker })
               val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
               card.addView(rows)
-
               fun addEntry(item: OracleGrowthRecommendation) {
                   val row = historyRow(item)
                   rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
@@ -92,11 +87,9 @@ jobs:
                   val row = historyRow(null, dateText)
                   rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
               }
-
               val visible = all.take(6)
               visible.forEach { addEntry(it) }
               repeat(maxOf(0, 6 - visible.size)) { addPlaceholder("31.08.2026 16:00") }
-
               val expandedViews = all.drop(6).map { item ->
                   historyRow(item).also { row ->
                       row.visibility = View.GONE
@@ -113,33 +106,15 @@ jobs:
               title.setOnClickListener { toggle() }
               host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
           }
-
+          """
           s=s[:start]+block+s[end:]
           s=s.replace('private fun historyRow(item: OracleGrowthRecommendation?): LinearLayout {','private fun historyRow(item: OracleGrowthRecommendation?, placeholderDate: String? = null): LinearLayout {')
           s=s.replace('addView(text("—", 10f, Typeface.DEFAULT, muted, 0, 2))','addView(text(placeholderDate ?: "—", 10f, Typeface.DEFAULT, muted, 0, 2))',1)
           s=s.replace('BUILD B535 • GROWTH','BUILD B537 • GROWTH')
           gm.write_text(s,encoding='utf-8')
-
-          rp=Path('app/src/main/java/ro/alintudor/oracle/core/OracleRepository.kt')
-          rs=rp.read_text(encoding='utf-8')
-          marker='    fun cachedGrowth(): List<OracleGrowthRecommendation> = parseGrowth(prefs.getString("growth", "[]") ?: "[]")\n'
-          insert=marker+'\n    fun archiveGrowthSnapshot() {\n        OracleGrowthJournalStore(context).record(cachedGrowth())\n    }\n'
-          if 'fun archiveGrowthSnapshot()' not in rs:
-              if marker not in rs: raise SystemExit('repository marker not found')
-              rs=rs.replace(marker,insert,1)
-              rp.write_text(rs,encoding='utf-8')
-
-          bs=Path('app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt')
-          b=bs.read_text(encoding='utf-8')
-          b=b.replace('if (previousVersion < VERSION) {\n            repository.saveGrowth(emptyList())','if (previousVersion < VERSION) {\n            repository.archiveGrowthSnapshot()\n            repository.saveGrowth(emptyList())',1)
-          b=b.replace('if (repository.cachedGrowth().any { it.referenceTimestamp != currentAnchor }) {\n                repository.saveGrowth(emptyList())','if (repository.cachedGrowth().any { it.referenceTimestamp != currentAnchor }) {\n                repository.archiveGrowthSnapshot()\n                repository.saveGrowth(emptyList())',1)
-          bs.write_text(b,encoding='utf-8')
           PY
           git diff --check
           grep -q '31.08.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'fun archiveGrowthSnapshot' app/src/main/java/ro/alintudor/oracle/core/OracleRepository.kt
-          grep -q 'repository.archiveGrowthSnapshot()' app/src/main/java/ro/alintudor/oracle/core/OracleBootstrap.kt
-
       - name: Set B537 identity
         shell: bash
         run: |
@@ -152,7 +127,6 @@ jobs:
           s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B537'", s, count=1)
           p.write_text(s,encoding='utf-8')
           PY
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
