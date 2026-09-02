@@ -33,10 +33,22 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/before
+      - name: Restore verified B539 Growth card implementation
+        run: |
+          set -euo pipefail
+          python3 scripts/b538_growth_fix.py
+          grep -q 'summaryViews.forEach { it.visibility = View.VISIBLE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          git diff --check
       - name: Apply Growth 1200 performance patch only
-        run: python3 scripts/b540_growth_1200_build.py
+        run: |
+          set -euo pipefail
+          python3 scripts/b540_growth_1200_build.py
+          git diff --check
       - name: Set B540 identity
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -70,14 +82,13 @@ jobs:
           echo "$BADGING" | grep -q "versionName='V6g-GROWTH-B540'"
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
-            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
-          grep -q 'TARGET_UNIVERSE_SIZE = 1200' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'TARGET_UNIVERSE_SIZE=1200' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
