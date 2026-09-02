@@ -2,6 +2,7 @@ name: Oracle B540 Growth Real Fix
 # This workflow builds the Claude B540 source snapshot.
 # Only the requested GROWTH loader/history patch is applied at build time.
 # START and all non-GROWTH modules remain protected by the frozen manifest.
+# BUILD TRIGGER: final 45s percentage-only loader run.
 #
 on:
   push:
