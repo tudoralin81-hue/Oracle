@@ -7,30 +7,103 @@ UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 M = Path('app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt')
 if M.exists():
     s = M.read_text(encoding='utf-8')
-    # Replace only the contents of existing Kotlin string literals.
     s = s.replace('Oracle-Stock-Intelligence/1.0', UA)
     marker = '    /** Fetches OHLCV at the requested Analysis timeframe. */'
-    if 'fun fetchDailySingle(' not in s:
-        i = s.find(marker)
-        if i < 0:
-            raise SystemExit('MarketData marker not found')
-        single = '''    fun fetchDailySingle(ticker: String, range: String = "1y"): List<OracleOhlcvPoint> {\n        val symbol = ticker.trim().uppercase()\n        if (symbol.isBlank()) return emptyList()\n        val encoded = java.net.URLEncoder.encode(symbol, "UTF-8")\n        val url = URL("https://query1.finance.yahoo.com/v8/finance/chart/$encoded?range=$range&interval=1d&events=history")\n        val c = (url.openConnection() as HttpURLConnection).apply {\n            requestMethod = "GET"\n            connectTimeout = 1500\n            readTimeout = 3500\n            setRequestProperty("User-Agent", "__UA__")\n            setRequestProperty("Accept", "application/json")\n        }\n        return try {\n            if (c.responseCode !in 200..299) return emptyList()\n            val root = JSONObject(c.inputStream.bufferedReader().use { it.readText() })\n            val result = root.optJSONObject("chart")?.optJSONArray("result")?.optJSONObject(0) ?: return emptyList()\n            val ts = result.optJSONArray("timestamp") ?: return emptyList()\n            val q = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0) ?: return emptyList()\n            val o = q.optJSONArray("open") ?: return emptyList()\n            val h = q.optJSONArray("high") ?: return emptyList()\n            val l = q.optJSONArray("low") ?: return emptyList()\n            val cl = q.optJSONArray("close") ?: return emptyList()\n            val v = q.optJSONArray("volume")\n            val out = ArrayList<OracleOhlcvPoint>(ts.length())\n            for (j in 0 until ts.length()) {\n                val oo = o.optDouble(j, Double.NaN)\n                val hh = h.optDouble(j, Double.NaN)\n                val ll = l.optDouble(j, Double.NaN)\n                val cc = cl.optDouble(j, Double.NaN)\n                if (oo.isFinite() && hh.isFinite() && ll.isFinite() && cc.isFinite() && hh > 0.0 && ll > 0.0 && cc > 0.0) {\n                    out += OracleOhlcvPoint(ts.optLong(j) * 1000L, oo, hh, ll, cc, v?.optDouble(j, 0.0) ?: 0.0)\n                }\n            }\n            out.sortedBy { it.timestamp }\n        } catch (_: Exception) {\n            emptyList()\n        } finally {\n            c.disconnect()\n        }\n    }\n\n'''.replace('__UA__', UA)
-        s = s[:i] + single + s[i:]
-    # Remove the old Spark batch function if the earlier patch inserted it.
+    # Remove any previous generated batch/single adapters, then install one known-good Spark adapter.
+    s = re.sub(r'\n    fun fetchDailySingle\(.*?\n    \}\n', '\n', s, count=1, flags=re.S)
     s = re.sub(r'\n    fun fetchDailyBatch\(.*?\n    \}\n', '\n', s, count=1, flags=re.S)
+    i = s.find(marker)
+    if i < 0:
+        raise SystemExit('MarketData marker not found')
+    batch = '''    fun fetchDailyBatch(tickers: List<String>, range: String = "1y"): Map<String, List<OracleOhlcvPoint>> {
+        val syms = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct()
+        if (syms.isEmpty()) return emptyMap()
+        val symbolList = syms.joinToString(",")
+        val url = URL("https://query1.finance.yahoo.com/v8/finance/spark?symbols=$symbolList&range=$range&interval=1d")
+        val c = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 2000
+            readTimeout = 6000
+            setRequestProperty("User-Agent", "__UA__")
+            setRequestProperty("Accept", "application/json")
+        }
+        return try {
+            if (c.responseCode !in 200..299) return emptyMap()
+            val result = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+                .optJSONObject("spark")?.optJSONArray("result") ?: return emptyMap()
+            buildMap {
+                for (x in 0 until result.length()) {
+                    val item = result.optJSONObject(x) ?: continue
+                    val ticker = item.optString("symbol").uppercase()
+                    val response = item.optJSONArray("response")?.optJSONObject(0) ?: continue
+                    val ts = response.optJSONArray("timestamp") ?: continue
+                    val q = response.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0) ?: continue
+                    val o = q.optJSONArray("open") ?: continue
+                    val h = q.optJSONArray("high") ?: continue
+                    val l = q.optJSONArray("low") ?: continue
+                    val cl = q.optJSONArray("close") ?: continue
+                    val v = q.optJSONArray("volume")
+                    val rows = ArrayList<OracleOhlcvPoint>(ts.length())
+                    for (j in 0 until ts.length()) {
+                        val oo = o.optDouble(j, Double.NaN)
+                        val hh = h.optDouble(j, Double.NaN)
+                        val ll = l.optDouble(j, Double.NaN)
+                        val cc = cl.optDouble(j, Double.NaN)
+                        if (oo.isFinite() && hh.isFinite() && ll.isFinite() && cc.isFinite() && hh > 0.0 && ll > 0.0 && cc > 0.0) {
+                            rows += OracleOhlcvPoint(ts.optLong(j) * 1000L, oo, hh, ll, cc, v?.optDouble(j, 0.0) ?: 0.0)
+                        }
+                    }
+                    if (rows.size >= 60) put(ticker, rows.sortedBy { it.timestamp })
+                }
+            }
+        } catch (_: Exception) {
+            emptyMap()
+        } finally {
+            c.disconnect()
+        }
+    }
+
+'''.replace('__UA__', UA)
+    s = s[:i] + batch + s[i:]
     M.write_text(s, encoding='utf-8')
 
 E = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 if E.exists():
     s = E.read_text(encoding='utf-8')
     s = s.replace('Oracle-Stock-Intelligence/1.0', UA)
-    s = s.replace('universe.chunked(50)', 'universe.chunked(25)')
+    # Spark is reliable when requests are kept small; 10 symbols also gives granular progress.
+    s = s.replace('universe.chunked(50)', 'universe.chunked(10)')
+    s = s.replace('universe.chunked(25)', 'universe.chunked(10)')
+    # Replace the single-symbol 18s scan, if present, with one global batched scan.
     old_start = '        val progressCounter=java.util.concurrent.atomic.AtomicInteger(0)\n'
     old_end = '        val candidateList=candidates.toList()'
     if old_start in s and old_end in s:
         a = s.index(old_start)
         b = s.index(old_end, a) + len(old_end)
-        new = '''        val progressCounter=java.util.concurrent.atomic.AtomicInteger(0)\n        val candidates=java.util.concurrent.ConcurrentLinkedQueue<C>()\n        val deadline=System.nanoTime()+18_000_000_000L\n        // Contract marker: UI reports work in groups of 25/50. Real OHLCV is fetched from\n        // Yahoo chart per symbol because the Spark endpoint used previously returned no usable OHLCV.\n        val scanPool=java.util.concurrent.Executors.newFixedThreadPool(12)\n        val chunked25Marker = universe.chunked(25).size\n        val completion=java.util.concurrent.ExecutorCompletionService<Pair<String,List<OracleOhlcvPoint>>?>(scanPool)\n        try {\n            for (ticker in universe) completion.submit {\n                val d=OracleMarketData.fetchDailySingle(ticker,"1y")\n                if (d.size>=60) ticker to d else null\n            }\n            repeat(universe.size) {\n                val rem=deadline-System.nanoTime()\n                if (rem<=0) return@repeat\n                val f=runCatching { completion.poll(rem,java.util.concurrent.TimeUnit.NANOSECONDS) }.getOrNull() ?: return@repeat\n                val pair=runCatching { f.get() }.getOrNull()\n                val loaded=progressCounter.incrementAndGet().coerceAtMost(universe.size)\n                progressLoaded=loaded\n                if (pair!=null) evaluate(pair.first,pair.second)?.let { candidates.add(it) }\n            }\n        } finally {\n            scanPool.shutdownNow()\n        }\n        progressLoaded=progressCounter.get().coerceAtMost(universe.size)\n        progressFinished=true\n        if(candidates.isEmpty())return emptyList()\n        val candidateList=candidates.toList()'''
+        new = '''        val progressCounter=java.util.concurrent.atomic.AtomicInteger(0)
+        val candidates=java.util.concurrent.ConcurrentLinkedQueue<C>()
+        val deadline=System.nanoTime()+18_000_000_000L
+        val scanPool=java.util.concurrent.Executors.newFixedThreadPool(12)
+        try {
+            val futures=universe.chunked(10).map { batch ->
+                scanPool.submit {
+                    val data=OracleMarketData.fetchDailyBatch(batch,"1y")
+                    val loaded=progressCounter.addAndGet(data.size).coerceAtMost(universe.size)
+                    progressLoaded=loaded
+                    for ((ticker,candles) in data) {
+                        if (System.nanoTime() < deadline && candles.size >= 60) evaluate(ticker,candles)?.let { candidates.add(it) }
+                    }
+                }
+            }
+            futures.forEach { f ->
+                val rem=deadline-System.nanoTime()
+                if (rem > 0) runCatching { f.get(rem,java.util.concurrent.TimeUnit.NANOSECONDS) }
+            }
+        } finally { scanPool.shutdownNow() }
+        progressLoaded=progressCounter.get().coerceAtMost(universe.size)
+        progressFinished=true
+        if(candidates.isEmpty())return emptyList()
+        val candidateList=candidates.toList()'''
         s = s[:a] + new + s[b:]
     E.write_text(s, encoding='utf-8')
 
