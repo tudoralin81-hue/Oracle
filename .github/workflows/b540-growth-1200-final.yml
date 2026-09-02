@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
           python3 scripts/b540_growth_1200_build.py
           python3 scripts/b540_growth_perf_fix.py
+          grep -q 'import android.widget.ProgressBar' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt || sed -i '/import android.widget.TextView/a import android.widget.ProgressBar' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
       - name: Set B540 identity
         run: |
@@ -100,4 +101,4 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
-# B540 retry: frozen B539 UI/modules + Growth-only 1200 performance changes.
+# B540: frozen B539 UI/modules + Growth-only 1200 performance, progress and quote loader.
