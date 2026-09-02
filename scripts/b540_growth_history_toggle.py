@@ -10,8 +10,8 @@ loader = '''    /**
      * Shows real progress as a percentage only ("DATE ÎNCĂRCATE: XX%") plus the
      * matching bar — the underlying counts (and therefore the size of the
      * monitored universe) are tracked internally but never rendered — an ETA
-     * computed from actual throughput, and an investor quote that rotates in
-     * a randomized, non-repeating order. If [OracleGrowthEngine] has already
+     * computed from actual throughput, and an investor quote that rotates in a
+     * randomized, non-repeating order. If [OracleGrowthEngine] has already
      * finished with zero OHLCV received, this renders an explicit error state
      * instead — it never spins forever.
      */
@@ -92,10 +92,72 @@ loader = '''    /**
 pattern = r'    /\*\*\n     \* B540 loading state \(Requirement #6/#7/#11\)\..*?\n    private fun addNoDataState'
 s2, n = re.subn(pattern, loader + '    /** Requirement #6/#11: explicit, non-infinite error state when 0 OHLCV was received. */\n    private fun addNoDataState', s, count=1, flags=re.S)
 if n != 1: raise SystemExit(f'loader replacement failed: {n}')
+# Keep the existing history implementation, but make the arrow sit beside the title
+# and make the entire header a reliable toggle target. Default is collapsed.
+history_old = '''        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+
+        val download = TextView(host.root.context).apply {'''
+history_new = '''        val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
+        header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+
+        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(0, 0, 0, host.dp(2))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Extinde sau restrânge ultimele recomandări"
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+
+        val download = TextView(host.root.context).apply {'''
+s2, n2 = s2.replace(history_old, history_new, 1), s2.count(history_old)
+if n2 != 1: raise SystemExit(f'header replacement failed: {n2}')
+old_arrow_block = '''        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(0, 0, 0, host.dp(2))
+            isClickable = true
+            isFocusable = true
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+        card.addView(header)'''
+new_arrow_block = '''        card.addView(header)'''
+if old_arrow_block not in s2: raise SystemExit('duplicate arrow block not found')
+s2 = s2.replace(old_arrow_block, new_arrow_block, 1)
+old_listener = '''        var expanded = false
+        arrow.setOnClickListener {
+            expanded = !expanded
+            arrow.text = if (expanded) "⌃" else "⌄"
+            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+        }'''
+new_listener = '''        var expanded = false
+        fun applyHistoryVisibility() {
+            arrow.text = if (expanded) "⌃" else "⌄"
+            arrow.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
+            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+        }
+        header.setOnClickListener {
+            expanded = !expanded
+            applyHistoryVisibility()
+        }
+        arrow.setOnClickListener {
+            expanded = !expanded
+            applyHistoryVisibility()
+        }
+        applyHistoryVisibility()'''
+if old_listener not in s2: raise SystemExit('toggle listener block not found')
+s2 = s2.replace(old_listener, new_listener, 1)
 M.write_text(s2, encoding='utf-8')
 E = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 es = E.read_text(encoding='utf-8')
 es = es.replace('private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target','private const val TOTAL_BUDGET_NANOS = 44_000_000_000L // 1s buffer under the 45s target')
 es = es.replace('private const val SCAN_BUDGET_NANOS = 13_000_000_000L','private const val SCAN_BUDGET_NANOS = 30_000_000_000L // scaled with TOTAL_BUDGET_NANOS so OHLCV fetch keeps its ~68% share of the run')
 E.write_text(es, encoding='utf-8')
-print('B540 GROWTH loader/engine patch applied')
+print('B540 GROWTH loader/engine patch + history arrow toggle applied')
