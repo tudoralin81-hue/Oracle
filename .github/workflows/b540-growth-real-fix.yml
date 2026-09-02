@@ -2,7 +2,7 @@ name: Oracle B540 Growth Real Fix
 # This workflow builds the Claude B540 source snapshot.
 # Only the requested GROWTH loader/history patch is applied at build time.
 # START and all non-GROWTH modules remain protected by the frozen manifest.
-# BUILD TRIGGER: final 45s percentage-only loader run.
+# BUILD TRIGGER: exact Claude snapshot reproduction + release APK.
 #
 on:
   push:
@@ -38,18 +38,23 @@ jobs:
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
 
-      - name: Apply B540 GROWTH final loader/history patch
+      - name: Reproduce exact Claude GROWTH files
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
-          # Exact Claude snapshot uses expandedViews for the collapsed history rows.
-          grep -Fq 'val expandedViews = expandedRows.map' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq 'expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq '45_000_000_000L' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -Fq '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          expected = {
+            'app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt': '683eea654306692a0d207cae5109dc4c51897b83',
+            'app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt': 'd087f7e508daff3f54b3e29eb7cb96892dc08e82',
+          }
+          for path, want in expected.items():
+              data = Path(path).read_bytes()
+              got = hashlib.sha1(f'blob {len(data)}\\0'.encode() + data).hexdigest()
+              assert got == want, f'{path}: {got} != {want}'
+          print('EXACT CLAUDE SNAPSHOT: PASS')
+          PY
           git diff --check
 
       - name: Set B540 identity
