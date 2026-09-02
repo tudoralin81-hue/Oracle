@@ -1,6 +1,7 @@
 from pathlib import Path
 
-# B540: history section is collapsed by default; arrow beside title toggles the whole list.
+# B540: history section is collapsed by default. The toggle is a single clickable
+# title+arrow control placed immediately beside the title; PDF stays on the right.
 p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 s = p.read_text(encoding='utf-8')
 start = s.index('    private fun addHistory(')
@@ -24,9 +25,16 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
-        header.addView(title, LinearLayout.LayoutParams(-2, -2))
 
+        var expanded = false
+        val toggle = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Extinde ultimele recomandări"
+        }
+        val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
         val arrow = TextView(host.root.context).apply {
             text = "⌄"
             textSize = 23f
@@ -34,12 +42,10 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
             gravity = Gravity.CENTER
             setTextColor(cyan)
             setPadding(host.dp(4), 0, host.dp(8), host.dp(2))
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Extinde ultimele recomandări"
         }
-        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
-        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, 1, 1f))
+        toggle.addView(title, LinearLayout.LayoutParams(-2, -2))
+        toggle.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+        header.addView(toggle, LinearLayout.LayoutParams(0, host.dp(40), 1f))
 
         val download = TextView(host.root.context).apply {
             text = "⇩  PDF"
@@ -85,17 +91,12 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
         repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
         all.drop(6).forEach { addEntry(it) }
 
-        var expanded = false
         fun applyHistoryVisibility() {
             allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
             arrow.text = if (expanded) "⌃" else "⌄"
-            arrow.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
+            toggle.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
         }
-        arrow.setOnClickListener {
-            expanded = !expanded
-            applyHistoryVisibility()
-        }
-        title.setOnClickListener {
+        toggle.setOnClickListener {
             expanded = !expanded
             applyHistoryVisibility()
         }
@@ -105,5 +106,6 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
     }
 '''
 s = s[:start] + new + s[end:]
+s = s.replace('addView(text("02.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))', 'addView(text("01.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))')
 p.write_text(s, encoding='utf-8')
-print('B540 GROWTH final collapsed-history build: arrow beside title; closed on launch; click opens full history')
+print('B540 GROWTH final history toggle: title+arrow is one clickable control; collapsed by default; placeholders use 01.09.2026 16:00')
