@@ -1,12 +1,12 @@
 name: Oracle B540 Growth Real Fix
 # This workflow builds the Claude B540 source snapshot.
-# Only the requested GROWTH history-toggle UI patch is applied at build time.
+# Only the requested GROWTH loader/history patch is applied at build time.
 # START and all non-GROWTH modules remain protected by the frozen manifest.
 #
 on:
   push:
     branches:
-      - B540-CLAUDE-V2-EXACT
+      - B540-final-loader-45s-percent
   workflow_dispatch:
 permissions:
   contents: read
@@ -33,9 +33,10 @@ jobs:
           grep -q 'fun fetchDailyBatch' "$MD"
           grep -q 'OracleGrowthPhase' "$E"
           grep -q 'TOTAL_BUDGET_NANOS' "$E"
-          grep -q 'DATE ÎNCĂRCATE' "$M"
+          grep -q '45_000_000_000L' "$E"
+          grep -q 'PROGRES: 0%' "$M"
           grep -q 'OracleGrowthPhase.NO_DATA' "$M"
-          grep -q 'Maxim țintă: 20 secunde' "$M"
+          grep -q 'Maxim țintă: 45 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
 
@@ -46,6 +47,9 @@ jobs:
           grep -q 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
 
       - name: Set B540 identity
