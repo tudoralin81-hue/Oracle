@@ -73,3 +73,5 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+# Trigger a fresh build on the fixed hardening script.
