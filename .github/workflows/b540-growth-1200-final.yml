@@ -27,6 +27,7 @@ jobs:
           mkdir -p /tmp/oracle-freeze
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
@@ -44,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_1200_build.py
+          python3 scripts/b540_growth_perf_fix.py
           git diff --check
       - name: Set B540 identity
         run: |
@@ -81,6 +83,7 @@ jobs:
           echo "$BADGING" | grep -q "versionName='V6g-GROWTH-B540'"
           for f in \
             app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt \
+            app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt \
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt \
@@ -89,6 +92,7 @@ jobs:
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
           grep -q 'TARGET_UNIVERSE_SIZE=1200' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
@@ -96,4 +100,4 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
-# B540 retry trigger: build only from the verified B539 base and Growth-only changes.
+# B540 retry: frozen B539 UI/modules + Growth-only 1200 performance changes.
