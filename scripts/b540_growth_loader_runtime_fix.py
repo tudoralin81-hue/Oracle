@@ -17,7 +17,7 @@ if M.exists():
         val syms = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct()
         if (syms.isEmpty()) return emptyMap()
         val encoded = java.net.URLEncoder.encode(syms.joinToString(","), "UTF-8")
-        val u = URL("https://query1.finance.yahoo.com/v8/finance/spark?symbols=$encoded&range=$range&interval=1d")
+        val u = URL("https://query1.finance.yahoo.com/v7/finance/spark?symbols=$encoded&range=$range&interval=1d")
         val c = (u.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 2500
@@ -29,8 +29,7 @@ if M.exists():
             if (c.responseCode !in 200..299) return emptyMap()
             val root = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
             val out = linkedMapOf<String, List<OracleOhlcvPoint>>()
-            // Yahoo Spark commonly returns a top-level object keyed by ticker:
-            // {"AAPL":{"timestamp":[],"open":[],"high":[],"low":[],"close":[],"volume":[]}}
+            // Yahoo Spark returns a top-level object keyed by ticker for the legacy Spark API.
             for (symbol in syms) {
                 val a = root.optJSONObject(symbol) ?: continue
                 val ts = a.optJSONArray("timestamp") ?: continue
