@@ -1,4 +1,4 @@
-name: Oracle B537 Growth Clean Final
+name: Oracle B538 Growth History PDF Final
 on:
   push:
     branches: [main]
@@ -16,12 +16,17 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/oracle-freeze
           for f in app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/before
-      - name: Patch Growth UI safely
+      - name: Patch Growth history and rollover archive
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
+          # --- Growth UI: arrow must always toggle the actual six-row summary,
+          # not only rows beyond six. This makes the control observable even
+          # when the journal currently contains only three recommendations.
           p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
           s=p.read_text(encoding='utf-8')
           start=s.index('    private fun addHistory(')
@@ -37,91 +42,163 @@ jobs:
                       break
           if end is None: raise SystemExit('Could not locate addHistory end')
           new='''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
-              val card = card(12)
-              val header = LinearLayout(host.root.context).apply {
-                  orientation = LinearLayout.HORIZONTAL
-                  gravity = Gravity.CENTER_VERTICAL
-              }
-              val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
-              header.addView(title, LinearLayout.LayoutParams(-2, -2))
-              val arrow = TextView(host.root.context).apply {
-                  text = "⌄"
-                  textSize = 23f
-                  typeface = Typeface.DEFAULT_BOLD
-                  gravity = Gravity.CENTER
-                  setTextColor(cyan)
-                  setPadding(host.dp(4), 0, host.dp(8), host.dp(2))
-                  isClickable = true
-                  isFocusable = true
-                  contentDescription = "Extinde sau restrânge ultimele recomandări"
-              }
-              header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
-              header.addView(View(host.root.context), LinearLayout.LayoutParams(0, 1, 1f))
-              val download = TextView(host.root.context).apply {
-                  text = "⇩  PDF"
-                  textSize = 11f
-                  typeface = Typeface.DEFAULT_BOLD
-                  gravity = Gravity.CENTER
-                  setTextColor(Color.WHITE)
-                  background = rounded(Color.rgb(8, 15, 28), cyan, 1, 10)
-                  setPadding(host.dp(13), host.dp(8), host.dp(13), host.dp(8))
-                  isClickable = true
-                  isFocusable = true
-                  contentDescription = "Descarcă jurnalul Growth în PDF"
-                  setOnClickListener {
-                      val path = journalStore.exportPdf()
-                      if (path != null) Toast.makeText(host.root.context, "Jurnalul Growth a fost salvat în Downloads.", Toast.LENGTH_LONG).show()
-                      else Toast.makeText(host.root.context, "Nu există recomandări pentru export.", Toast.LENGTH_SHORT).show()
-                  }
-              }
-              header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
-              card.addView(header)
+        val card = card(12)
+        val header = LinearLayout(host.root.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
+        header.addView(title, LinearLayout.LayoutParams(-2, -2))
+        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(host.dp(4), 0, host.dp(8), host.dp(2))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Extinde sau restrânge ultimele recomandări"
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, 1, 1f))
+        val download = TextView(host.root.context).apply {
+            text = "⇩  PDF"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.rgb(8, 15, 28), cyan, 1, 10)
+            setPadding(host.dp(13), host.dp(8), host.dp(13), host.dp(8))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Descarcă jurnalul Growth în PDF"
+            setOnClickListener {
+                val path = journalStore.exportPdf()
+                if (path != null) Toast.makeText(host.root.context, "Jurnalul Growth a fost salvat în Downloads.", Toast.LENGTH_LONG).show()
+                else Toast.makeText(host.root.context, "Nu există recomandări pentru export.", Toast.LENGTH_SHORT).show()
+            }
+        }
+        header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
+        card.addView(header)
 
-              val all = entries
-                  .filter { it.referenceTimestamp > 0L && it.referenceTimestamp >= startHistoryTimestamp() }
-                  .sortedWith(compareByDescending<OracleGrowthRecommendation> { it.referenceTimestamp }
-                      .thenBy { horizonOrder(it.horizon) }.thenBy { it.ticker })
-              val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-              card.addView(rows)
+        val all = entries
+            .filter { it.referenceTimestamp > 0L && it.referenceTimestamp >= startHistoryTimestamp() }
+            .sortedWith(compareByDescending<OracleGrowthRecommendation> { it.referenceTimestamp }
+                .thenBy { horizonOrder(it.horizon) }.thenBy { it.ticker })
+        val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(rows)
 
-              fun addEntry(item: OracleGrowthRecommendation) {
-                  val row = historyRow(item)
-                  rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
-              }
-              fun addPlaceholder() {
-                  val row = historyRow(null, "31.08.2026 16:00")
-                  rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
-              }
+        val summaryViews = mutableListOf<View>()
+        fun addSummaryEntry(item: OracleGrowthRecommendation) {
+            val row = historyRow(item)
+            summaryViews += row
+            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+        }
+        fun addPlaceholder() {
+            val row = historyRow(null, "31.08.2026 16:00")
+            summaryViews += row
+            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+        }
+        all.take(6).forEach(::addSummaryEntry)
+        repeat(maxOf(0, 6 - minOf(6, all.size))) { addPlaceholder() }
 
-              val visible = all.take(6)
-              visible.forEach { addEntry(it) }
-              repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
-              val expandedViews = all.drop(6).map { item ->
-                  val row = historyRow(item)
-                  row.visibility = View.GONE
-                  rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
-                  row
-              }
-              var expanded = true
-              arrow.setOnClickListener {
-                  expanded = !expanded
-                  arrow.text = if (expanded) "⌃" else "⌄"
-                  expandedViews.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }
-              }
-              title.setOnClickListener { arrow.performClick() }
-              host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
-          }'''
+        val olderViews = all.drop(6).map { item ->
+            historyRow(item).also { row ->
+                row.visibility = View.GONE
+                rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+            }
+        }
+        var expanded = true
+        fun applyHistoryVisibility() {
+            summaryViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            arrow.text = if (expanded) "⌃" else "⌄"
+            arrow.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
+        }
+        arrow.setOnClickListener { expanded = !expanded; applyHistoryVisibility() }
+        title.setOnClickListener { expanded = !expanded; applyHistoryVisibility() }
+        applyHistoryVisibility()
+        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
+    }'''
           s=s[:start]+new+s[end:]
           s=s.replace('private fun historyRow(item: OracleGrowthRecommendation?): LinearLayout {','private fun historyRow(item: OracleGrowthRecommendation?, placeholderDate: String? = null): LinearLayout {')
-          s=s.replace('text("—", 10f, Typeface.DEFAULT, muted, 0, 2)', 'text(placeholderDate ?: "—", 10f, Typeface.DEFAULT, muted, 0, 2)')
-          s=s.replace('BUILD B535 • GROWTH','BUILD B537 • GROWTH')
+          s=s.replace('addView(text("—", 10f, Typeface.DEFAULT, muted, 0, 2))','addView(text(placeholderDate ?: "—", 10f, Typeface.DEFAULT, muted, 0, 2))')
+          if '"RSG" -> "Republic Services, Inc."' not in s:
+              s=s.replace('            "CRM" -> "Salesforce, Inc."\n','            "CRM" -> "Salesforce, Inc."\n            "RSG" -> "Republic Services, Inc."\n')
+          if 'private fun displaySector(' not in s:
+              marker='    private fun horizonOrder(horizon: String)'
+              helper='''    private fun displaySector(ticker:String, stored:String):String {
+        val value=stored.trim()
+        if (value.isNotBlank() && value != "—") return value
+        return when(ticker.uppercase(Locale.US)) {
+            "RSG" -> "Industrials"
+            "CF" -> "Materials"
+            "LNG" -> "Energy"
+            "CRM", "NOW", "ORCL" -> "Technology"
+            else -> "—"
+        }
+    }
+
+'''
+              s=s.replace(marker,helper+marker)
+          s=s.replace('identity.addView(text(item.sector.ifBlank { "—" }, 9f, Typeface.DEFAULT_BOLD, Color.rgb(150, 170, 205), 0, 2))','identity.addView(text(displaySector(item.ticker, item.sector), 9f, Typeface.DEFAULT_BOLD, Color.rgb(150, 170, 205), 0, 2))')
+          s=s.replace('BUILD B536 • GROWTH','BUILD B538 • GROWTH')
+          p.write_text(s,encoding='utf-8')
+
+          # --- Launcher rollover: archive the previous Growth snapshot before
+          # replacing it with a new T0. This is the missing persistence bridge
+          # that caused the 31.08 snapshot to disappear from the journal.
+          p=Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
+          s=p.read_text(encoding='utf-8')
+          if 'import ro.alintudor.oracle.core.OracleGrowthJournalStore' not in s:
+              s=s.replace('import ro.alintudor.oracle.core.OracleBootstrap\n','import ro.alintudor.oracle.core.OracleBootstrap\nimport ro.alintudor.oracle.core.OracleGrowthJournalStore\n')
+          old='''            Thread {
+                runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) }
+            }.start()'''
+          newwarm='''            Thread {
+                runCatching {
+                    val growthJournal = OracleGrowthJournalStore(applicationContext)
+                    val previous = repository.cachedGrowth()
+                    val refreshed = OracleLocalProcessor.refreshGrowthOnly(repository)
+                    if (previous.isNotEmpty() && refreshed.isNotEmpty() &&
+                        previous.first().referenceTimestamp != refreshed.first().referenceTimestamp) {
+                        growthJournal.record(previous)
+                    }
+                    growthJournal.record(refreshed)
+                }
+            }.start()'''
+          if old not in s: raise SystemExit('Launcher warm-up block not found')
+          s=s.replace(old,newwarm)
+          p.write_text(s,encoding='utf-8')
+
+          # --- PDF: make the export explicitly cover the requested historical
+          # window and preserve the journal's append-only rows in chronological order.
+          p=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthJournalStore.kt')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('''        val entries = load()
+        if (entries.isEmpty()) return null''','''        val entries = load()
+            .filter { it.referenceTimestamp > 0L && it.referenceTimestamp >= startHistoryTimestamp() }
+            .sortedWith(compareBy<OracleGrowthRecommendation> { it.referenceTimestamp }
+                .thenBy { horizonOrder(it.horizon) }.thenBy { it.ticker })
+        if (entries.isEmpty()) return null''')
+          if 'private fun startHistoryTimestamp()' not in s:
+              marker='    private fun key(item: OracleGrowthRecommendation)'
+              helper='''    private fun startHistoryTimestamp(): Long {
+        val f = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro", "RO"))
+        f.timeZone = zone
+        return f.parse("31.08.2026 00:00")?.time ?: 0L
+    }
+
+'''
+              s=s.replace(marker,helper+marker)
           p.write_text(s,encoding='utf-8')
           PY
           git diff --check
-          grep -q 'val expandedViews = all.drop(6).map' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q '31.08.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'BUILD B537 • GROWTH' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-      - name: Set B537 identity
+          grep -q 'summaryViews' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'OracleGrowthJournalStore(applicationContext)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          grep -q 'startHistoryTimestamp' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthJournalStore.kt
+      - name: Set B538 identity
         shell: bash
         run: |
           set -euo pipefail
@@ -130,8 +207,8 @@ jobs:
           import re
           p=Path('app/build.gradle')
           s=p.read_text(encoding='utf-8')
-          s=re.sub(r'versionCode\s+\d+', 'versionCode 32', s, count=1)
-          s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B537'", s, count=1)
+          s=re.sub(r'versionCode\s+\d+', 'versionCode 33', s, count=1)
+          s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B538'", s, count=1)
           p.write_text(s,encoding='utf-8')
           PY
       - uses: actions/setup-java@v4
@@ -155,10 +232,12 @@ jobs:
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-GROWTH-B538'"
           for f in app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
       - uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B537-GROWTH-CLEAN-FINAL
+          name: Oracle-APK-B538-GROWTH-HISTORY-PDF-FINAL
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 7
