@@ -4,7 +4,6 @@ import re
 # B540: copy the approved Claude GROWTH loader/engine behavior at build time.
 M = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 s = M.read_text(encoding='utf-8')
-
 loader = '''    /**
      * B540 loading state (Requirement #6/#7/#11).
      *
@@ -95,110 +94,10 @@ s, n = re.subn(pattern, loader + '    /** Requirement #6/#11: explicit, non-infi
 if n != 1:
     raise SystemExit(f'loader replacement failed: {n}')
 
-history = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
-        val card = card(12)
-        val header = LinearLayout(host.root.context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        var expanded = false
-        val toggle = LinearLayout(host.root.context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Extinde ultimele recomandări"
-        }
-        val title = text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0)
-        val arrow = TextView(host.root.context).apply {
-            text = "⌄"
-            textSize = 23f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(cyan)
-            setPadding(host.dp(4), 0, host.dp(8), host.dp(2))
-        }
-        toggle.addView(title, LinearLayout.LayoutParams(-2, -2))
-        toggle.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
-        header.addView(toggle, LinearLayout.LayoutParams(0, host.dp(40), 1f))
-
-        val download = TextView(host.root.context).apply {
-            text = "⇩  PDF"
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = rounded(Color.rgb(8, 15, 28), cyan, 1, 10)
-            setPadding(host.dp(13), host.dp(8), host.dp(13), host.dp(8))
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Descarcă jurnalul Growth în PDF"
-            setOnClickListener {
-                val path = journalStore.exportPdf()
-                if (path != null) Toast.makeText(host.root.context, "Jurnalul Growth a fost salvat în Downloads.", Toast.LENGTH_LONG).show()
-                else Toast.makeText(host.root.context, "Nu există recomandări pentru export.", Toast.LENGTH_SHORT).show()
-            }
-        }
-        header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
-        card.addView(header)
-
-        val all = entries
-            .filter { it.referenceTimestamp > 0L && it.referenceTimestamp >= startHistoryTimestamp() }
-            .sortedWith(compareByDescending<OracleGrowthRecommendation> { it.referenceTimestamp }
-                .thenBy { horizonOrder(it.horizon) }.thenBy { it.ticker })
-        val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
-        card.addView(rows)
-        val allRows = mutableListOf<View>()
-
-        fun addPlaceholder() {
-            val row = historyRow(null)
-            allRows += row
-            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
-        }
-        fun addEntry(item: OracleGrowthRecommendation) {
-            val row = historyRow(item)
-            allRows += row
-            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
-        }
-
-        val visible = all.take(6)
-        visible.forEach { addEntry(it) }
-        repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
-        all.drop(6).forEach { addEntry(it) }
-
-        fun applyHistoryVisibility() {
-            // First six rows stay visible in the collapsed state; only older rows toggle.
-            allRows.drop(6).forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
-            arrow.text = if (expanded) "⌃" else "⌄"
-            toggle.contentDescription = if (expanded) "Restrânge ultimele recomandări" else "Extinde ultimele recomandări"
-        }
-        toggle.setOnClickListener {
-            expanded = !expanded
-            applyHistoryVisibility()
-        }
-        applyHistoryVisibility()
-
-        host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
-    }'''
-
-start = s.index('    private fun addHistory(')
-brace = s.index('{', start)
-depth = 0
-end = None
-for i in range(brace, len(s)):
-    if s[i] == '{':
-        depth += 1
-    elif s[i] == '}':
-        depth -= 1
-        if depth == 0:
-            end = i + 1
-            break
-if end is None:
-    raise SystemExit('Could not locate addHistory end')
-s = s[:start] + history + s[end:]
-
-# The placeholder date is intentionally fixed for the requested B540 snapshot UI.
+# The existing main-branch history UI already has the arrow beside the title and a
+# single title+arrow toggle. Fix the collapsed state so the newest six rows remain
+# visible while only older rows are hidden. Default remains collapsed.
+s = s.replace('allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }', 'allRows.drop(6).forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }')
 s = s.replace('addView(text("02.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))', 'addView(text("01.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))')
 
 E = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
