@@ -42,9 +42,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
-          grep -Fq 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          # Exact Claude snapshot uses expandedViews for the collapsed history rows.
+          grep -Fq 'val expandedViews = expandedRows.map' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -Fq 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -Fq 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -Fq 'expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -Fq 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -Fq 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -Fq '45_000_000_000L' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
