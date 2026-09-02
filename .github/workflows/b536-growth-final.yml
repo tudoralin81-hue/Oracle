@@ -1,0 +1,112 @@
+name: Oracle B536 Growth Final
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  growth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Freeze protected modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/oracle-freeze
+          for f in app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do test -f "$f"; git hash-object "$f"; done > /tmp/oracle-freeze/before
+
+      - name: Patch Growth only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          
+          gm=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+          s=gm.read_text(encoding='utf-8')
+          bad='''val expandedRows = all.drop(6)\n        expandedRows.forEach {\n            val row = historyRow(it)\n            row.visibility = View.GONE\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
+          good='''val expandedViews = all.drop(6).map { item ->\n            historyRow(item).also { row ->\n                row.visibility = View.GONE\n                rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n            }\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedViews.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
+          if bad in s: s=s.replace(bad,good,1)
+          s=s.replace('host.content.addView(text("BUILD B535 • GROWTH"','host.content.addView(text("BUILD B536 • GROWTH"')
+          s=s.replace('identity.addView(text(item.company.ifBlank { "—" }, 11f, Typeface.DEFAULT_BOLD, white, 0, 0))','identity.addView(text(displayCompanyName(item.ticker,item.company), 11f, Typeface.DEFAULT_BOLD, white, 0, 0))')
+          anchor='private fun horizonOrder(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> 0; "MEDIUM" -> 1; else -> 2 }'
+          if 'private fun displayCompanyName' not in s:
+              helper='''private fun displayCompanyName(ticker:String, stored:String):String {\n        val key=ticker.uppercase(Locale.US)\n        val known=when(key){\n            "CF"->"CF Industries Holdings, Inc."; "LNG"->"Cheniere Energy, Inc."; "CRM"->"Salesforce, Inc.";\n            "NVDA"->"NVIDIA Corporation"; "MSFT"->"Microsoft Corporation"; "AAPL"->"Apple Inc."; "AMZN"->"Amazon.com, Inc.";\n            "GOOGL","GOOG"->"Alphabet Inc."; "META"->"Meta Platforms, Inc."; "AMD"->"Advanced Micro Devices, Inc.";\n            "AVGO"->"Broadcom Inc."; "PLTR"->"Palantir Technologies Inc."; "ORCL"->"Oracle Corporation"; "NOW"->"ServiceNow, Inc.";\n            "TSLA"->"Tesla, Inc."; "VRT"->"Vertiv Holdings Co"; "CEG"->"Constellation Energy Corporation"; "MU"->"Micron Technology, Inc.";\n            "ANET"->"Arista Networks, Inc."; "ADBE"->"Adobe Inc."; "SNOW"->"Snowflake Inc."; "DDOG"->"Datadog, Inc.";\n            "NET"->"Cloudflare, Inc."; "PANW"->"Palo Alto Networks, Inc."; "CRWD"->"CrowdStrike Holdings, Inc.";\n            "INTU"->"Intuit Inc."; "IBM"->"International Business Machines Corporation"; "CSCO"->"Cisco Systems, Inc.";\n            "QCOM"->"QUALCOMM Incorporated"; "INTC"->"Intel Corporation"; "AMAT"->"Applied Materials, Inc."; "LRCX"->"Lam Research Corporation";\n            "KLAC"->"KLA Corporation"; "TSM"->"Taiwan Semiconductor Manufacturing Company Limited"; "ASML"->"ASML Holding N.V.";\n            "JPM"->"JPMorgan Chase & Co."; "BAC"->"Bank of America Corporation"; "GS"->"The Goldman Sachs Group, Inc.";\n            "MS"->"Morgan Stanley"; "BLK"->"BlackRock, Inc."; "XOM"->"Exxon Mobil Corporation"; "CVX"->"Chevron Corporation";\n            "COP"->"ConocoPhillips"; "GE"->"GE Aerospace"; "CAT"->"Caterpillar Inc."; "HON"->"Honeywell International Inc.";\n            "RTX"->"RTX Corporation"; "BA"->"The Boeing Company"; "LLY"->"Eli Lilly and Company"; "JNJ"->"Johnson & Johnson";\n            "UNH"->"UnitedHealth Group Incorporated"; "COST"->"Costco Wholesale Corporation"; "WMT"->"Walmart Inc."; "MCD"->"McDonald's Corporation";\n            "NKE"->"NIKE, Inc."; "DIS"->"The Walt Disney Company"; "NFLX"->"Netflix, Inc."; "UBER"->"Uber Technologies, Inc.";\n            "COIN"->"Coinbase Global, Inc."; "HOOD"->"Robinhood Markets, Inc."; else->null\n        }\n        return known ?: stored.trim().takeIf { it.isNotBlank() && !it.equals(key,true) } ?: "Company $key"\n    }\n\n    '''+anchor
+              if anchor not in s: raise SystemExit('display helper anchor not found')
+              s=s.replace(anchor,helper,1)
+          gm.write_text(s,encoding='utf-8')
+
+          ge=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
+          s=ge.read_text(encoding='utf-8')
+          old='val company=meta?.company?.takeIf { it.isNotBlank() && !it.equals(pick.ticker,true) } ?: lookupCompanyName(pick.ticker) ?: pick.ticker'
+          new='val company=knownCompanyName(pick.ticker, meta?.company) ?: lookupCompanyName(pick.ticker) ?: "Company ${pick.ticker}"'
+          if old in s: s=s.replace(old,new,1)
+          anchor='private fun lookupCompanyName(ticker:String):String? = runCatching {'
+          if 'private fun knownCompanyName' not in s:
+              helper='''private fun knownCompanyName(ticker:String, metadata:String?):String? {\n        val key=ticker.uppercase(Locale.US)\n        val known=when(key){\n            "CF"->"CF Industries Holdings, Inc."; "LNG"->"Cheniere Energy, Inc."; "CRM"->"Salesforce, Inc."; "NVDA"->"NVIDIA Corporation";\n            "MSFT"->"Microsoft Corporation"; "AAPL"->"Apple Inc."; "AMZN"->"Amazon.com, Inc."; "GOOGL","GOOG"->"Alphabet Inc.";\n            "META"->"Meta Platforms, Inc."; "AMD"->"Advanced Micro Devices, Inc."; "AVGO"->"Broadcom Inc."; "PLTR"->"Palantir Technologies Inc.";\n            "ORCL"->"Oracle Corporation"; "NOW"->"ServiceNow, Inc."; "TSLA"->"Tesla, Inc."; "VRT"->"Vertiv Holdings Co";\n            "CEG"->"Constellation Energy Corporation"; "MU"->"Micron Technology, Inc."; "ANET"->"Arista Networks, Inc."; "ADBE"->"Adobe Inc.";\n            "SNOW"->"Snowflake Inc."; "DDOG"->"Datadog, Inc."; "NET"->"Cloudflare, Inc."; "PANW"->"Palo Alto Networks, Inc.";\n            "CRWD"->"CrowdStrike Holdings, Inc."; "INTU"->"Intuit Inc."; "IBM"->"International Business Machines Corporation"; "CSCO"->"Cisco Systems, Inc.";\n            "QCOM"->"QUALCOMM Incorporated"; "INTC"->"Intel Corporation"; "AMAT"->"Applied Materials, Inc."; "LRCX"->"Lam Research Corporation";\n            "KLAC"->"KLA Corporation"; "TSM"->"Taiwan Semiconductor Manufacturing Company Limited"; "ASML"->"ASML Holding N.V.";\n            "JPM"->"JPMorgan Chase & Co."; "BAC"->"Bank of America Corporation"; "GS"->"The Goldman Sachs Group, Inc."; "MS"->"Morgan Stanley";\n            "BLK"->"BlackRock, Inc."; "XOM"->"Exxon Mobil Corporation"; "CVX"->"Chevron Corporation"; "COP"->"ConocoPhillips";\n            "GE"->"GE Aerospace"; "CAT"->"Caterpillar Inc."; "HON"->"Honeywell International Inc."; "RTX"->"RTX Corporation";\n            "BA"->"The Boeing Company"; "LLY"->"Eli Lilly and Company"; "JNJ"->"Johnson & Johnson"; "UNH"->"UnitedHealth Group Incorporated";\n            "COST"->"Costco Wholesale Corporation"; "WMT"->"Walmart Inc."; "MCD"->"McDonald's Corporation"; "NKE"->"NIKE, Inc.";\n            "DIS"->"The Walt Disney Company"; "NFLX"->"Netflix, Inc."; "UBER"->"Uber Technologies, Inc."; "COIN"->"Coinbase Global, Inc."; "HOOD"->"Robinhood Markets, Inc."; else->null\n        }\n        if(known!=null) return known\n        return metadata?.trim()?.takeIf { it.isNotBlank() && !it.equals(key,true) }\n    }\n\n    '''+anchor
+              if anchor not in s: raise SystemExit('engine helper anchor not found')
+              s=s.replace(anchor,helper,1)
+          ge.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          grep -q 'OracleRealData.fundamentals' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'OracleRealData.newsContext' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'OracleRealData.marketContext' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'refreshGrowthOnly(repository)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
+          grep -q 'take(6)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q '31.08.2026' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'displayCompanyName' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+
+      - name: Set B536 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('app/build.gradle'); s=p.read_text(encoding='utf-8')
+          s=re.sub(r'versionCode\s+\d+', 'versionCode 31', s, count=1)
+          s=re.sub(r'versionName\s+[\'\"][^\'\"]*[\'\"]', "versionName 'V6g-GROWTH-B536'", s, count=1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+      - name: Build APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK and frozen modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleNewsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OraclePortfolioModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAlertsModule.kt app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
+          cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -q "versionName='V6g-GROWTH-B536'"
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Oracle-APK-B536-GROWTH-FINAL
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 7
