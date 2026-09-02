@@ -92,7 +92,7 @@ jobs:
           grep -q 'TARGET_UNIVERSE_SIZE=500' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'UNIVERSE_URL="https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv"' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'seenCompanies' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'fetchDailySingle' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'chunked(25)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'Mozilla/5.0' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
@@ -108,4 +108,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 # B540: frozen B539 non-Growth modules + Growth-only S&P 500 runtime, progress and quote loader.
-# Parser fix retrigger.
+# Rebuild from the latest Yahoo chart-per-symbol runtime fix.
