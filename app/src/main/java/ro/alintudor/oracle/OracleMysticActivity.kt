@@ -34,6 +34,8 @@ class OracleMysticActivity : Activity() {
         }
         runCatching { OracleBootstrap.ensure(repository); showHub() }
             .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
+        // GROWTH warm-up starts at Android app launch, not when the user opens GROWTH.
+        Thread { runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) } }.start()
     }
 
     private fun showHub() {
