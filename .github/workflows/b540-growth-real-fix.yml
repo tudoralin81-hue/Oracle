@@ -43,9 +43,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
-          grep -q 'The toggle belongs immediately beside the section title.' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'val allRows = visibleRows + olderRows' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q 'arrow.setOnClickListener' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
 
       - name: Set B540 identity
