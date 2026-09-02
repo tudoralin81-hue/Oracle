@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.x'}
-      - run: sed -i 's/^a\.write_text(s\[:i\]+h+s\[j:\])$/p.write_text(s[:i]+h+s[j:])/g' scripts/build_b535_growth.py
+      - run: sed -i 's/^a\.write_text(s\[:i\]+h+s\[j:\])$/p.write_text(s[:i]+h+s[j:])/g; /^PY$/d' scripts/build_b535_growth.py
       - run: python3 scripts/build_b535_growth.py
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
