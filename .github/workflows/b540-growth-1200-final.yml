@@ -1,4 +1,4 @@
-name: Oracle B540 Growth 1200 Final
+name: Oracle B540 Growth S&P500 Final
 on:
   push:
     branches: [main]
@@ -40,7 +40,7 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/before
           git diff --check
-      - name: Apply Growth 1200 performance patch only
+      - name: Apply Growth S&P 500 performance patch only
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_1200_build.py
@@ -89,16 +89,18 @@ jobs:
             app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt \
             app/src/main/java/ro/alintudor/oracle/core/OracleKnowledgeSync.kt; do git hash-object "$f"; done > /tmp/oracle-freeze/after
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
-          grep -q 'TARGET_UNIVERSE_SIZE=1200' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'TARGET_UNIVERSE_SIZE=500' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'sp500.csv' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'fetchDailyBatch' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'newFixedThreadPool(12)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'DATE ÎNCĂRCATE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'DATE ÎNCĂRCATE: 0 / 500' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'Maxim țintă: 20 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B540-GROWTH-1200-FAST-FINAL
+          name: Oracle-APK-B540-GROWTH-SP500-FINAL
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
-# B540: frozen B539 non-Growth modules + Growth-only 1200 performance, progress and quote loader.
+# B540: frozen B539 non-Growth modules + Growth-only S&P 500 performance, progress and quote loader.
