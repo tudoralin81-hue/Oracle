@@ -36,7 +36,7 @@ jobs:
           s=gm.read_text(encoding='utf-8')
           start=s.index('    private fun addHistory(')
           end=s.index('    private fun horizonLabel', start)
-          block='''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
+          block="""    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
               val card = card(12)
               val header = LinearLayout(host.root.context).apply {
                   orientation = LinearLayout.HORIZONTAL
@@ -120,7 +120,6 @@ jobs:
           s=s.replace('BUILD B535 • GROWTH','BUILD B537 • GROWTH')
           gm.write_text(s,encoding='utf-8')
 
-          # Preserve any existing Growth snapshot in the journal before a bootstrap reset.
           rp=Path('app/src/main/java/ro/alintudor/oracle/core/OracleRepository.kt')
           rs=rp.read_text(encoding='utf-8')
           marker='    fun cachedGrowth(): List<OracleGrowthRecommendation> = parseGrowth(prefs.getString("growth", "[]") ?: "[]")\n'
