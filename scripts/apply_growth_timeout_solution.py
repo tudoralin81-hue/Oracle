@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ENGINE = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 MYSTIC = Path('app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt')
@@ -12,18 +13,17 @@ def replace_once(path: Path, old: str, new: str):
         raise SystemExit(f'Expected pattern not found in {path}: {old[:120]}')
     path.write_text(s.replace(old, new, 1))
 
-# The generated B535 engine must not scan the universe serially. Bound both
-# network-heavy phases exactly as documented: 16 workers / 25s scan and
-# 15 workers / 12s news.
-replace_once(
-    ENGINE,
-    'import java.net.URLEncoder\nimport java.util.Locale',
-    'import java.net.URLEncoder\nimport java.util.Locale\nimport java.util.concurrent.Callable\nimport java.util.concurrent.Executors\nimport java.util.concurrent.TimeUnit'
-)
-replace_once(
-    ENGINE,
-    '        val candidates=mutableListOf<C>()\n        for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}',
-    '''        val candidates=java.util.Collections.synchronizedList(mutableListOf<C>())
+# The B535 generator is followed by fix_b535_growth_runtime.py. That earlier
+# patch may already have converted the serial scan to a 20-worker invokeAll
+# block, so this patch deliberately normalizes either form to the authoritative
+# documented 16-worker / 25-second implementation.
+p = ENGINE
+s = p.read_text()
+if 'java.util.concurrent.Callable' not in s:
+    s = s.replace('import kotlin.math.sqrt\n', 'import kotlin.math.sqrt\nimport java.util.concurrent.Callable\nimport java.util.concurrent.Executors\nimport java.util.concurrent.TimeUnit\n')
+
+canonical_scan = '''        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
+        val candidates=java.util.Collections.synchronizedList(mutableListOf<C>())
         val tickers=universe.distinct()
         val scanExecutor=Executors.newFixedThreadPool(16)
         try {
@@ -36,21 +36,41 @@ replace_once(
             }
             futures.forEach { f -> runCatching { f.get(25,TimeUnit.SECONDS) }.getOrNull()?.let { candidates+=it } }
         } finally { scanExecutor.shutdownNow() }'''
-)
-replace_once(
-    ENGINE,
-    '        val newsMap=top15.associateWith{newsScore(it)}',
-    '''        val newsMap=mutableMapOf<String,Int>()
+
+serial_scan = '''        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
+        val candidates=mutableListOf<C>()
+        for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}'''
+
+# Handle the intermediate 20-worker patch as well as the original serial code.
+if canonical_scan not in s:
+    if serial_scan in s:
+        s = s.replace(serial_scan, canonical_scan, 1)
+    else:
+        start = s.find('        val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}')
+        end = s.find('\n        val top15=', start)
+        if start >= 0 and end > start and ('newFixedThreadPool(20)' in s[start:end] or 'invokeAll(tasks, 18, TimeUnit.SECONDS)' in s[start:end]):
+            s = s[:start] + canonical_scan + s[end:]
+        else:
+            raise SystemExit('Growth scan block is neither serial nor the known intermediate bounded form')
+
+# News enrichment: 15 workers, 12-second per-request ceiling.
+news_canonical = '''        val newsMap=mutableMapOf<String,Int>()
         val newsExecutor=Executors.newFixedThreadPool(15)
         try {
             val newsFutures=top15.map { ticker -> ticker to newsExecutor.submit(Callable { runCatching { newsScore(ticker) }.getOrDefault(0) }) }
             newsFutures.forEach { (ticker,f) -> newsMap[ticker]=runCatching { f.get(12,TimeUnit.SECONDS) }.getOrDefault(0) }
         } finally { newsExecutor.shutdownNow() }'''
-)
+if news_canonical not in s:
+    old_news = '        val newsMap=top15.associateWith{newsScore(it)}'
+    if old_news in s:
+        s = s.replace(old_news, news_canonical, 1)
+    else:
+        raise SystemExit('Expected Growth news block not found')
+
+p.write_text(s)
 
 # Real launcher: Growth gets a hard outer 45s wall-clock cap independent of
-# the internals. A timeout is surfaced immediately; the worker is left alive
-# so a late successful calculation can still populate the cache.
+# the internals. A timeout is surfaced immediately.
 replace_once(
     MYSTIC,
     'import android.widget.*\nimport ro.alintudor.oracle.core.OracleBootstrap',
@@ -76,7 +96,7 @@ new = '''        if (key == "growth") {
                 val executor = Executors.newSingleThreadExecutor()
                 val future = executor.submit(Callable { OracleLocalProcessor.refreshGrowthOnly(repository) })
                 try {
-                    val result = future.get(45, TimeUnit.SECONDS)
+                    future.get(45, TimeUnit.SECONDS)
                     mainHandler.post {
                         if (currentModule != "growth" || isFinishing) return@post
                         runCatching { renderModule("growth") }
@@ -99,15 +119,5 @@ new = '''        if (key == "growth") {
             return
         }'''
 replace_once(MYSTIC, old, new)
-
-# Make the existing Growth error screen explicitly describe the timeout.
-p = MYSTIC
-s = p.read_text()
-s = s.replace(
-    'text = "Calculul Growth nu s-a finalizat.\\n\\n${error.message ?: error.javaClass.simpleName}"',
-    'text = "Calculul Growth nu s-a finalizat.\\n\\n${error.message ?: error.javaClass.simpleName}"',
-    1
-)
-p.write_text(s)
 
 print('Growth timeout solution applied successfully')
