@@ -25,20 +25,80 @@ jobs:
           p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
           s=p.read_text(encoding='utf-8')
           s=s.replace('header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))', 'header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(-2, -2))')
-          s=s.replace('expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }', 'expandedRows.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }')
-          s=s.replace('expandedRows.forEach {\n            val row = historyRow(it)', 'expandedRows.forEach { item ->\n            val row = historyRow(item)')
           s=s.replace('historyRow(null)', 'historyRow(null, "31.08.2026 16:00")')
           s=s.replace('private fun historyRow(item: OracleGrowthRecommendation?): LinearLayout {','private fun historyRow(item: OracleGrowthRecommendation?, placeholderDate: String? = null): LinearLayout {')
           s=s.replace('text("—", 10f, Typeface.DEFAULT, muted, 0, 2)', 'text(placeholderDate ?: "—", 10f, Typeface.DEFAULT, muted, 0, 2)')
           s=s.replace('BUILD B535 • GROWTH','BUILD B537 • GROWTH')
-          # The history list itself is the collapsible body; the arrow is beside the title.
-          marker='            expandedRows.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }'
-          if marker in s:
-              s=s.replace(marker, '            rows.visibility = if (expanded) View.VISIBLE else View.GONE\n            expandedRows.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }')
+          old='''        val expandedRows = all.drop(6)
+        expandedRows.forEach {
+            val row = historyRow(it)
+            row.visibility = View.GONE
+            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+        }
+        var expanded = false
+        arrow.setOnClickListener {
+            expanded = !expanded
+            arrow.text = if (expanded) "⌃" else "⌄"
+            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+        }'''
+          new='''        val expandedViews = all.drop(6).map { item ->
+            val row = historyRow(item)
+            row.visibility = View.GONE
+            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+            row
+        }
+        var expanded = false
+        arrow.setOnClickListener {
+            expanded = !expanded
+            arrow.text = if (expanded) "⌃" else "⌄"
+            rows.visibility = if (expanded) View.VISIBLE else View.GONE
+            expandedViews.forEach { view -> view.visibility = if (expanded) View.VISIBLE else View.GONE }
+        }'''
+          if old not in s:
+              raise SystemExit('history toggle block not found')
+          s=s.replace(old,new)
+          # Put arrow immediately beside the title, with PDF on the right.
+          old_header='''        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+
+        val download = TextView'''
+          new_header='''        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(-2, -2))
+
+        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(host.dp(4), 0, host.dp(8), host.dp(2))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Extinde sau restrânge ultimele recomandări"
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+
+        val download = TextView'''
+          if old_header not in s:
+              raise SystemExit('history header block not found')
+          s=s.replace(old_header,new_header)
+          old_arrow='''        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(0, 0, 0, host.dp(2))
+            isClickable = true
+            isFocusable = true
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+        card.addView(header)'''
+          # The arrow was moved above the PDF button; remove the old duplicate if still present.
+          s=s.replace(old_arrow, '        card.addView(header)')
           p.write_text(s,encoding='utf-8')
           PY
           git diff --check
           grep -q '31.08.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'val expandedViews = all.drop(6).map' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'rows.visibility = if (expanded) View.VISIBLE else View.GONE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'BUILD B537 • GROWTH' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
       - name: Set B537 identity
