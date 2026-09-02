@@ -97,3 +97,4 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
+# B540 retry trigger: build only from the verified B539 base and Growth-only changes.
