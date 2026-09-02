@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          M=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthModule.kt
+          M=app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           MD=app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt
           U=app/src/main/java/ro/alintudor/oracle/core/OracleSP500Universe.kt
           grep -q 'TARGET_SIZE = 500' "$U"
