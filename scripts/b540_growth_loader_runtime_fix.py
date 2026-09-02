@@ -18,7 +18,7 @@ if M.exists():
         val syms = tickers.map { it.trim().uppercase() }.filter { it.isNotBlank() }.distinct()
         if (syms.isEmpty()) return emptyMap()
         val encoded = java.net.URLEncoder.encode(syms.joinToString(","), "UTF-8")
-        val u = URL("https://query1.finance.yahoo.com/v7/finance/spark?symbols=$encoded&range=$range&interval=1d")
+        val u = URL("https://query1.finance.yahoo.com/v7/finance/spark?symbols=$encoded&range=$range&interval=1d&indicators=open,high,low,close,volume&includeTimestamps=true&includePrePost=false&corsDomain=finance.yahoo.com")
         val c = (u.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 2500
@@ -29,15 +29,19 @@ if M.exists():
         return try {
             if (c.responseCode !in 200..299) return emptyMap()
             val root = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+            val result = root.optJSONObject("spark")?.optJSONArray("result") ?: return emptyMap()
             val out = linkedMapOf<String, List<OracleOhlcvPoint>>()
-            for (symbol in syms) {
-                val a = root.optJSONObject(symbol) ?: continue
-                val ts = a.optJSONArray("timestamp") ?: continue
-                val o = a.optJSONArray("open") ?: continue
-                val h = a.optJSONArray("high") ?: continue
-                val l = a.optJSONArray("low") ?: continue
-                val cl = a.optJSONArray("close") ?: continue
-                val v = a.optJSONArray("volume")
+            for (i in 0 until result.length()) {
+                val item = result.optJSONObject(i) ?: continue
+                val symbol = item.optString("symbol").uppercase()
+                val response = item.optJSONArray("response")?.optJSONObject(0) ?: continue
+                val ts = response.optJSONArray("timestamp") ?: continue
+                val q = response.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0) ?: continue
+                val o = q.optJSONArray("open") ?: continue
+                val h = q.optJSONArray("high") ?: continue
+                val l = q.optJSONArray("low") ?: continue
+                val cl = q.optJSONArray("close") ?: continue
+                val v = q.optJSONArray("volume")
                 val rows = ArrayList<OracleOhlcvPoint>(ts.length())
                 for (j in 0 until ts.length()) {
                     val oo = o.optDouble(j, Double.NaN)
@@ -48,7 +52,7 @@ if M.exists():
                         rows += OracleOhlcvPoint(ts.optLong(j) * 1000L, oo, hh, ll, cc, v?.optDouble(j, 0.0) ?: 0.0)
                     }
                 }
-                if (rows.size >= 60) out[symbol] = rows.sortedBy { it.timestamp }
+                if (symbol.isNotBlank() && rows.size >= 60) out[symbol] = rows.sortedBy { it.timestamp }
             }
             out
         } catch (_: Exception) {
@@ -74,7 +78,7 @@ P = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
 if P.exists():
     s = P.read_text(encoding='utf-8')
     if 'import android.widget.ProgressBar' not in s:
-        s = s.replace('import android.widget.TextView\n', 'import android.widget.TextView\nimport android.widget.ProgressBar\n', 1)
+        s = s.replace('import android.widget.TextView\\n', 'import android.widget.TextView\\nimport android.widget.ProgressBar\\n', 1)
     s = s.replace('host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(255))',
                   'host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(400))')
     P.write_text(s, encoding='utf-8')
