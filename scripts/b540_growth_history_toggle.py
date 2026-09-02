@@ -106,4 +106,4 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
 '''
 s = s[:start] + new + s[end:]
 p.write_text(s, encoding='utf-8')
-print('B540 GROWTH history toggle: collapsed by default and whole list controlled by arrow/title')
+print('B540 GROWTH final toggle build: collapsed by default; arrow/title reveal the complete history')
