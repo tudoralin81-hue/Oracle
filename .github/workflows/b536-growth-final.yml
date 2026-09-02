@@ -38,6 +38,8 @@ jobs:
           grep -q 'remote?.let { companyNameCache\[symbol\]=it }' app/src/main/java/ro/alintudor/oracle/core/OracleRealData.kt
           grep -q 'newFixedThreadPool(16)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q '25, TimeUnit.SECONDS' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q 'newFixedThreadPool(15)' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q '12,TimeUnit.SECONDS' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
           grep -q 'future.get(45, TimeUnit.SECONDS)' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'Calculul Growth a depășit limita de 45 de secunde' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           git diff --check
@@ -71,5 +73,3 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
-
-# Triggered after enforcing the final Growth timing gates.
