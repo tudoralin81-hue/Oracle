@@ -1,6 +1,6 @@
 name: Oracle B540 Growth Real Fix
 # This workflow builds the Claude B540 source snapshot.
-# Only the requested GROWTH history-toggle UI patch is applied at build time.
+# Only the requested GROWTH loader/history patch is applied at build time.
 # START and all non-GROWTH modules remain protected by the frozen manifest.
 #
 on:
@@ -39,13 +39,17 @@ jobs:
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
 
-      - name: Apply B540 GROWTH history toggle UI fix
+      - name: Apply B540 GROWTH final loader/history patch
         run: |
           set -euo pipefail
           python3 scripts/b540_growth_history_toggle.py
           grep -q 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'PROGRES: $shownPct%' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'Maxim țintă: 45 secunde' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q '45_000_000_000L' app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
+          grep -q '01.09.2026 16:00' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
 
       - name: Set B540 identity
