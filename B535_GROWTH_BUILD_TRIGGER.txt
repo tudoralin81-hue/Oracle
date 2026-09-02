@@ -1,1 +1,1 @@
-B535 Growth launcher + timeout patch 2026-09-02 08:45
+B535 Growth NPE fix + timeout verified 2026-09-02 09:24
