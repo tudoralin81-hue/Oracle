@@ -25,6 +25,17 @@ jobs:
           grep -q 'olderViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           git diff --check
+      - name: Apply B540 toggle runtime fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/b540_growth_toggle_runtime_fix.py
+          grep -q 'header.setOnClickListener { applyToggle() }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'arrow.setOnClickListener { applyToggle() }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'text = "▼"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'text = if (expanded) "▲" else "▼"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'val visible = all.take(6)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          git diff --check
       - name: Set B539 identity
         shell: bash
         run: |
@@ -63,6 +74,6 @@ jobs:
           cmp /tmp/oracle-freeze/before /tmp/oracle-freeze/after
       - uses: actions/upload-artifact@v4
         with:
-          name: Oracle-APK-B539-GROWTH-TOGGLE-FINAL
+          name: Oracle-APK-B540-GROWTH-TOGGLE-FIX
           path: app/build/outputs/apk/release/*.apk
           retention-days: 7
