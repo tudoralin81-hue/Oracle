@@ -1,11 +1,10 @@
 name: Oracle B540 Growth Real Fix
-# This workflow builds the Claude B540 source snapshot. A single minimal
-# compile-only fix is applied to OracleGrowthModule.kt for the history rows;
-# no other app files are modified.
+# This workflow builds the Claude B540 source snapshot.
+# No app source files are modified by the workflow.
 #
 # Temporary branch trigger: GitHub requires workflow_dispatch workflows to
 # exist on the default branch. The push trigger lets us build the isolated
-# B540 branch without touching main. It can be removed after verification.
+# B540 branch without touching main.
 on:
   push:
     branches:
@@ -47,20 +46,6 @@ jobs:
           set -euo pipefail
           grep -q "versionCode 30" app/build.gradle
           grep -q "versionName 'B540'" app/build.gradle
-
-      - name: Apply minimal GROWTH history compile fix
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
-          s = p.read_text(encoding='utf-8')
-          old = '''        val expandedRows = all.drop(6)\n        expandedRows.forEach {\n            val row = historyRow(it)\n            row.visibility = View.GONE\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
-          new = '''        val expandedRows = all.drop(6)\n        val expandedViews = expandedRows.map { item ->\n            val row = historyRow(item)\n            row.visibility = View.GONE\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n            row\n        }\n        var expanded = false\n        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }'''
-          if old not in s:
-              raise SystemExit('Expected B540 history block not found; refusing to patch')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
-          PY
 
       - uses: actions/setup-java@v4
         with:
