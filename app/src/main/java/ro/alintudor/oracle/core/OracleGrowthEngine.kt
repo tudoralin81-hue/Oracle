@@ -1,17 +1,49 @@
 package ro.alintudor.oracle.core
 
+import android.content.Context
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 
+/** GROWTH progress phase, polled by the loader UI (Requirement #6 — B540). */
+enum class OracleGrowthPhase { RUNNING, DONE, NO_DATA }
+
+/** GROWTH progress snapshot, polled by the loader UI (Requirement #6 — B540). */
+data class OracleGrowthProgress(
+    val loaded: Int,
+    val total: Int,
+    val startedAtNanos: Long,
+    val phase: OracleGrowthPhase
+)
+
 /** Canonical Android port of the PHP Growth V5.9.7 technical/ranking engine. */
 object OracleGrowthEngine {
-    private val universe = "NVDA,VRT,CEG,AMD,AVGO,PLTR,ANET,MU,AMZN,META,MSFT,GOOGL,GOOG,AAPL,TSLA,NFLX,CRWD,PANW,NOW,ORCL,CRM,ADBE,SNOW,DDOG,NET,ARM,TSM,ASML,QCOM,INTC,MRVL,SMCI,DELL,CLS,APH,GEV,ETN,FSLR,ENPH,LRCX,AMAT,KLAC,MELI,SHOP,COIN,HOOD,UBER,RKLB,LUNR,ACN,IBM,CSCO,INTU,ADP,ADSK,CDNS,SNPS,FTNT,FICO,MSI,HPE,HPQ,NTAP,WDC,STX,KEYS,ZS,OKTA,MDB,TEAM,HUBS,VEEV,PAYC,DOCU,TWLO,APP,ROKU,SPOT,U,LIN,WM,RSG,FAST,DECK,URI,CAT,CMI,PCAR,PH,ROK,EMR,HON,GE,LHX,RTX,NOC,GD,TDG,HEI,TT,CARR,JCI,IR,PWR,FIX,MTZ,EME,XOM,CVX,COP,EOG,OXY,SLB,HAL,MPC,PSX,VLO,WMB,KMI,OKE,LNG,DVN,FANG,APA,JPM,BAC,WFC,C,GS,MS,BLK,SCHW,COF,AXP,USB,PNC,TFC,BK,STT,NTRS,CBOE,CME,ICE,SPGI,MCO,MSCI,NDAQ,AMP,ALLY,DFS,UNH,LLY,JNJ,ABBV,MRK,PFE,BMY,AMGN,GILD,REGN,ISRG,ABT,TMO,DHR,SYK,BSX,MDT,BDX,EW,ZBH,RMD,DXCM,ALGN,IDXX,IQV,HCA,CI,ELV,HUM,CVS,MCK,CAH,COR,COST,WMT,TGT,HD,LOW,TJX,ROST,DG,DLTR,ORLY,AZO,ODP,BBY,NKE,LULU,CMG,MCD,SBUX,YUM,DRI,MAR,HLT,BKNG,EXPE,ABNB,PG,KO,PEP,PM,MO,CL,KMB,GIS,KHC,MDLZ,HSY,MNST,STZ,KDP,KR,CHD,CLX,EL,DIS,CMCSA,WBD,PARA,FOX,FOXA,T,VZ,TMUS,CHTR,EA,TTWO,RBLX,LYV,NEM,GOLD,FCX,NUE,STLD,DOW,DD,ECL,APD,SHW,MLM,VMC,ALB,MOS,CF,PLD,AMT,EQIX,CCI,O,OHI,WELL,VICI,PSA,SPG,AVB,EQR,ESS,INVH,ARE,NEE,DUK,SO,AEP,EXC,XEL,SRE,ED,PEG,WEC,DTE,FE,ETR,PPL,AES,CNP,CMS,NI,BA,LMT,UPS,FDX,DAL,UAL,LUV,AAL,GEHC,SWK,MMM".split(',')
+    // ---- B540: single global deadline for the whole calculation (Requirement #5). ----
+    // Both budgets are measured from the same start instant, so a slow technical
+    // scan can never push the enrichment phase past the overall target — there is
+    // no cumulative/additive stacking of timeouts.
+    private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target
+    private const val SCAN_BUDGET_NANOS = 13_000_000_000L
+    private const val BATCH_SIZE = 40
+    private const val SCAN_THREADS = 10
+    private const val ENRICH_THREADS = 10
+    private const val SECTOR_THREADS = 6
+    private const val SECTOR_TASK_CAP_NANOS = 2_000_000_000L
+
+    @Volatile private var progressState = OracleGrowthProgress(0, OracleSP500Universe.TARGET_SIZE, 0L, OracleGrowthPhase.RUNNING)
+
+    /** Read-only progress used by the Growth loader UI. Never blocks. */
+    fun growthProgress(): OracleGrowthProgress = progressState
+
     private data class C(val ticker:String,val price:Double,val score:Int,val rsi:Double?,val mom5:Double,val mom20:Double,val vr:Double,val macdHist:Double?,val ichi:Boolean,val sma200:Double?,val sma50:Double?,val adx:Double?,val atrPct:Double,val components:Map<String,Double>,val forecast:Map<String,Double>,val risk:String,val allocation:Double,val news:Int)
 
     // V5.9.7 authoritative raw profiles. They are normalized at score time.
@@ -20,11 +52,74 @@ object OracleGrowthEngine {
     private val weights=mapOf("SHORT" to intArrayOf(21,18,18,12,16,12,3,4,4,2,2,1),"MEDIUM" to intArrayOf(12,12,12,16,12,9,9,5,5,6,5,4),"LONG" to intArrayOf(6,6,6,19,7,9,18,4,4,9,7,2))
     private val keys=listOf("news","breakout","trend","momentum","volume","support_resistance","fundamentals","bollinger","ichimoku","market_sector","risk_reward","adx")
 
-    fun run(seed:List<OracleGrowthRecommendation> = emptyList()):List<OracleGrowthRecommendation>{
+    fun run(context: Context, seed:List<OracleGrowthRecommendation> = emptyList()):List<OracleGrowthRecommendation> = try {
+        runInternal(context, seed)
+    } catch (_: Exception) {
+        // Defensive: the universe/OHLCV/enrichment paths already catch their own
+        // errors internally, but a genuinely unexpected failure must still leave
+        // the loader in an explicit, non-infinite state (Requirement #6/#11)
+        // rather than propagating past the single-flight snapshot lock.
+        progressState = progressState.copy(phase = OracleGrowthPhase.NO_DATA)
+        emptyList()
+    }
+
+    private fun runInternal(context: Context, seed:List<OracleGrowthRecommendation>):List<OracleGrowthRecommendation>{
         val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
-        val candidates=mutableListOf<C>()
-        for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}
-        if(candidates.isEmpty())return emptyList()
+        val t0=System.nanoTime()
+
+        // B540: universe (Requirement #2) — exactly 500 unique S&P 500 companies,
+        // resolved from memory/disk/bundled cache; never a blocking network call.
+        val universeCompanies=runCatching { OracleSP500Universe.companies(context) }.getOrDefault(emptyList())
+        val universe=universeCompanies.map{it.ticker}.distinct()
+        progressState=OracleGrowthProgress(0, universe.size.coerceAtLeast(1), t0, OracleGrowthPhase.RUNNING)
+        if(universe.isEmpty()){
+            progressState=progressState.copy(phase=OracleGrowthPhase.NO_DATA)
+            return emptyList()
+        }
+
+        // B540: single global deadline for the whole run (Requirement #5). The
+        // enrichment phase always targets the same absolute `totalDeadline`, so
+        // a slow scan phase shrinks — never extends — the total wall time.
+        val totalDeadline=t0+TOTAL_BUDGET_NANOS
+        val scanDeadline=minOf(t0+SCAN_BUDGET_NANOS, totalDeadline)
+
+        // B540: controlled parallel batch scan (Requirement #5/#6/#11). Batches of
+        // BATCH_SIZE (25-50) symbols run on a bounded thread pool; the visible
+        // "DATE ÎNCĂRCATE" counter reflects OHLCV actually received, updated as
+        // each batch completes (never an artificial/simulated counter).
+        val loadedCounter=AtomicInteger(0)
+        val candidateQueue=ConcurrentLinkedQueue<C>()
+        val scanPool=Executors.newFixedThreadPool(SCAN_THREADS)
+        try{
+            val futures=universe.chunked(BATCH_SIZE).map{batch->
+                scanPool.submit{
+                    val data=runCatching { OracleMarketData.fetchDailyBatch(batch,"1y") }.getOrDefault(emptyMap())
+                    loadedCounter.addAndGet(data.size)
+                    progressState=progressState.copy(loaded=loadedCounter.get().coerceAtMost(universe.size))
+                    for((ticker,candles) in data){
+                        if(System.nanoTime()<scanDeadline && candles.size>=60){
+                            runCatching { evaluate(ticker,candles) }.getOrNull()?.let{candidateQueue.add(it)}
+                        }
+                    }
+                }
+            }
+            futures.forEach{f->
+                val remaining=scanDeadline-System.nanoTime()
+                if(remaining>0) runCatching { f.get(remaining, TimeUnit.NANOSECONDS) }
+            }
+        } finally {
+            scanPool.shutdownNow()
+        }
+        progressState=progressState.copy(loaded=loadedCounter.get().coerceAtMost(universe.size))
+
+        if(candidateQueue.isEmpty()){
+            // Requirement #6/#11: a run that genuinely receives zero OHLCV must
+            // report an explicit NO_DATA state, not stay in RUNNING forever.
+            progressState=progressState.copy(phase=OracleGrowthPhase.NO_DATA)
+            return emptyList()
+        }
+        val candidates=candidateQueue.toList()
+
         // Enrich the technical shortlist with real non-OHLC data before ranking.
         // The previous implementation silently used 50/100 for News, Fundamentals
         // and Market/Sector, which made those displayed values look calculated while
@@ -32,25 +127,44 @@ object OracleGrowthEngine {
         // OracleRealData and only falls back to neutral 50 when the source genuinely
         // has no value.
         val technicalShortlist=candidates.sortedByDescending{it.score}.take(30)
-        val fundamentals=technicalShortlist.associate { c ->
-            c.ticker to runCatching { OracleRealData.fundamentals(c.ticker) }.getOrNull()
+
+        // B540: enrichment runs in parallel with its own deadline, bounded by the
+        // same absolute totalDeadline used for the scan phase (Requirement #5).
+        val enrichDeadline=totalDeadline
+        val enrichPool=Executors.newFixedThreadPool(ENRICH_THREADS)
+        val fundamentalFutures=technicalShortlist.associate { c ->
+            c.ticker to enrichPool.submit<OracleFundamentals?> { runCatching { OracleRealData.fundamentals(c.ticker) }.getOrNull() }
         }
-        val sectorContexts=mutableMapOf<String,Double>()
-        val newsContexts=mutableMapOf<String,OracleNewsContext>()
-        for(c in technicalShortlist){
-            val f=fundamentals[c.ticker]
-            val sector=OracleRealData.resolvedSector(c.ticker,f?.sector)
-            if(sector != null && sector !in sectorContexts){
-                sectorContexts[sector]=runCatching { OracleRealData.sectorScore(OracleRealData.marketContext(sector)) }.getOrNull() ?: 50.0
-            }
+        val fundamentals=mutableMapOf<String,OracleFundamentals?>()
+        fundamentalFutures.forEach{(ticker,f)->
+            val remaining=enrichDeadline-System.nanoTime()
+            if(remaining>0) runCatching { f.get(remaining, TimeUnit.NANOSECONDS) }.getOrNull()?.let{fundamentals[ticker]=it}
         }
         val newsCandidates=technicalShortlist.take(15)
-        for(c in newsCandidates){
-            newsContexts[c.ticker]=runCatching { OracleRealData.newsContext(c.ticker) }.getOrDefault(OracleNewsContext(50,0,0,0,null))
+        val newsFutures=newsCandidates.associate { c ->
+            c.ticker to enrichPool.submit<OracleNewsContext> { runCatching { OracleRealData.newsContext(c.ticker) }.getOrDefault(OracleNewsContext(50,0,0,0,null)) }
         }
+        val newsContexts=mutableMapOf<String,OracleNewsContext>()
+        newsFutures.forEach{(ticker,f)->
+            val remaining=enrichDeadline-System.nanoTime()
+            if(remaining>0) runCatching { f.get(remaining, TimeUnit.NANOSECONDS) }.getOrNull()?.let{newsContexts[ticker]=it}
+        }
+        enrichPool.shutdownNow()
+
+        val sectorsNeeded=technicalShortlist.mapNotNull{resolveSector(context,it.ticker,fundamentals[it.ticker]?.sector)}.distinct()
+        val sectorContexts=mutableMapOf<String,Double>()
+        val sectorPool=Executors.newFixedThreadPool(SECTOR_THREADS)
+        val sectorFutures=sectorsNeeded.associateWith{sector-> sectorPool.submit<Double> { runCatching { OracleRealData.sectorScore(OracleRealData.marketContext(sector)) }.getOrNull() ?: 50.0 } }
+        sectorFutures.forEach{(sector,f)->
+            val remaining=enrichDeadline-System.nanoTime()
+            val bounded=if(remaining>0) minOf(remaining,SECTOR_TASK_CAP_NANOS) else 0L
+            if(bounded>0) runCatching { f.get(bounded, TimeUnit.NANOSECONDS) }.getOrNull()?.let{sectorContexts[sector]=it}
+        }
+        sectorPool.shutdownNow()
+
         val enriched=candidates.map{c->
             val f=fundamentals[c.ticker]
-            val sector=OracleRealData.resolvedSector(c.ticker,f?.sector)
+            val sector=resolveSector(context,c.ticker,f?.sector)
             val comp=c.components.toMutableMap()
             comp["fundamentals"]=(OracleRealData.fundamentalScore(f) ?: 50.0).coerceIn(0.0,100.0)
             comp["market_sector"]=(sector?.let { sectorContexts[it] } ?: 50.0).coerceIn(0.0,100.0)
@@ -60,21 +174,29 @@ object OracleGrowthEngine {
         }
         val out=mutableListOf<OracleGrowthRecommendation>();val used=mutableSetOf<String>()
         for(h in listOf("SHORT","MEDIUM","LONG")){
-            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h,OracleRealData.resolvedSector(it.ticker,fundamentals[it.ticker]?.sector))}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
+            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h,resolveSector(context,it.ticker,fundamentals[it.ticker]?.sector))}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
             val pick=ranked.firstOrNull{it.ticker !in used}?:continue
             used+=pick.ticker
-            val score=horizonScore(pick.components,h,OracleRealData.resolvedSector(pick.ticker,fundamentals[pick.ticker]?.sector))
+            val score=horizonScore(pick.components,h,resolveSector(context,pick.ticker,fundamentals[pick.ticker]?.sector))
             val meta=byTicker[pick.ticker]
             val f=fundamentals[pick.ticker]
-            val sector=OracleRealData.resolvedSector(pick.ticker,f?.sector ?: meta?.sector) ?: "—"
+            val sector=resolveSector(context,pick.ticker,f?.sector ?: meta?.sector) ?: "—"
             val correctedAllocation=OracleSectorAllocation.apply(pick.allocation,sector)
             val correctedWeights=weights[h]!!.copyOf()
             val news=newsContexts[pick.ticker]
-            val company=meta?.company?.takeIf { it.isNotBlank() && !it.equals(pick.ticker,true) } ?: lookupCompanyName(pick.ticker) ?: pick.ticker
+            val company=meta?.company?.takeIf { it.isNotBlank() && !it.equals(pick.ticker,true) }
+                ?: OracleSP500Universe.nameFor(context,pick.ticker)
+                ?: lookupCompanyName(pick.ticker)
+                ?: pick.ticker
             out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=company,sector=sector,score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=correctedWeights.toList(),newsTitle=meta?.newsTitle?.takeIf { it.isNotBlank() } ?: news?.topHeadline.orEmpty(),newsSource=meta?.newsSource.orEmpty(),referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7_REALDATA_SECTOR_WEIGHTED")
         }
+        progressState=progressState.copy(phase=if(out.isEmpty()) OracleGrowthPhase.NO_DATA else OracleGrowthPhase.DONE)
         return out
     }
+
+    /** Sector resolution used by Growth only: live/known sector, then the S&P 500 universe (Requirement #8). */
+    private fun resolveSector(context: Context, ticker:String, remoteSector:String?):String? =
+        OracleRealData.resolvedSector(ticker,remoteSector) ?: OracleSP500Universe.sectorFor(context,ticker)
 
     private fun lookupCompanyName(ticker:String):String? = runCatching {
         val ua="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36"

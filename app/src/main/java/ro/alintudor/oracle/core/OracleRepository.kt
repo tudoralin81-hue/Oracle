@@ -5,7 +5,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Fully local native data layer. No WordPress/API dependency. */
-class OracleRepository(private val context: Context) {
+// B540: `context` is exposed (was private) so the Growth-only single-flight
+// snapshot orchestration in OracleLocalProcessor can thread it into
+// OracleGrowthEngine.run() for the S&P 500 universe cache (Requirement #2).
+// No existing method, field, or behavior below this line is changed.
+class OracleRepository(val context: Context) {
     private val prefs = context.getSharedPreferences("oracle_data", Context.MODE_PRIVATE)
 
     fun cachedPositions(): List<OraclePosition> = parsePositions(prefs.getString("positions", "[]") ?: "[]")

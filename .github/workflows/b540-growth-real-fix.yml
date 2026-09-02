@@ -1,12 +1,12 @@
 name: Oracle B540 Growth Real Fix
-# This workflow builds the source exactly as delivered — no python patch
-# scripts are applied at build time. B540_FROZEN_MANIFEST.sha256 lists every
-# non-GROWTH app/src file with its B539 SHA-256; the build fails if any of
-# them differ, which is the hash-verification requirement from the B540
-# GROWTH spec (section 13/14).
+# This workflow builds the Claude B540 source snapshot.
+# Only the requested GROWTH history-toggle UI patch is applied at build time.
+# START and all non-GROWTH modules remain protected by the frozen manifest.
+#
 on:
   push:
-    branches: [main]
+    branches:
+      - B540-CLAUDE-V2-EXACT
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           E=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt
-          M=app/src/main/java/ro/alintudor/oracle/core/OracleGrowthModule.kt
+          M=app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           MD=app/src/main/java/ro/alintudor/oracle/core/OracleMarketData.kt
           U=app/src/main/java/ro/alintudor/oracle/core/OracleSP500Universe.kt
           grep -q 'TARGET_SIZE = 500' "$U"
@@ -38,6 +38,15 @@ jobs:
           grep -q 'Maxim țintă: 20 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
+
+      - name: Apply B540 GROWTH history toggle UI fix
+        run: |
+          set -euo pipefail
+          python3 scripts/b540_growth_history_toggle.py
+          grep -q 'val allRows = mutableListOf<View>()' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'var expanded = false' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'allRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          git diff --check
 
       - name: Set B540 identity
         run: |
@@ -58,11 +67,6 @@ jobs:
           gradle-version: '8.10'
 
       - name: Build release APK
-        # If ORACLE_KEYSTORE_* repository secrets are configured, app/build.gradle
-        # signs with them. Otherwise it falls back to the debug certificate — the
-        # APK still installs, it just is not a Play-Store-ready production
-        # signature. Configure these secrets in the repo if you need a
-        # production signature.
         env:
           ORACLE_KEYSTORE_FILE: ${{ secrets.ORACLE_KEYSTORE_FILE }}
           ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}

@@ -6,15 +6,21 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.animation.ObjectAnimator
 import android.view.animation.LinearInterpolator
 import android.widget.Toast
+import ro.alintudor.oracle.core.OracleGrowthEngine
 import ro.alintudor.oracle.core.OracleGrowthJournalStore
+import ro.alintudor.oracle.core.OracleGrowthPhase
+import ro.alintudor.oracle.core.OracleGrowthProgress
 import ro.alintudor.oracle.core.OracleGrowthRecommendation
 import ro.alintudor.oracle.core.OracleNews
 import java.text.SimpleDateFormat
@@ -59,7 +65,35 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         addBuildFooter()
     }
 
+    // B540 — investor quotes rotated in the loader every 15s (Requirement #7).
+    // Local strings only; no network request is made to show them.
+    private val loaderQuotes = listOf(
+        "\"Price is what you pay; value is what you get.\"\n— Benjamin Graham",
+        "\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\"\n— Warren Buffett",
+        "\"The most important quality for an investor is temperament, not intellect.\"\n— Warren Buffett",
+        "\"It's only when the tide goes out that you learn who's been swimming naked.\"\n— Warren Buffett",
+        "\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\"\n— Benjamin Graham",
+        "\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\"\n— Benjamin Graham",
+        "\"Invert, always invert.\"\n— Charlie Munger",
+        "\"Behind every stock is a company. Find out what it's doing.\"\n— Peter Lynch",
+        "\"The four most dangerous words in investing are: this time it's different.\"\n— Sir John Templeton"
+    )
+
+    /**
+     * B540 loading state (Requirement #6/#7/#11).
+     *
+     * Shows real progress ("DATE ÎNCĂRCATE: X / 500", updated in steps of 50),
+     * an ETA computed from actual throughput, and a rotating investor quote.
+     * If [OracleGrowthEngine] has already finished with zero OHLCV received,
+     * this renders an explicit error state instead — it never spins forever.
+     */
     private fun addLoadingState() {
+        val initial = OracleGrowthEngine.growthProgress()
+        if (initial.phase == OracleGrowthPhase.NO_DATA) {
+            addNoDataState(initial)
+            return
+        }
+
         val card = card(18)
         card.gravity = Gravity.CENTER
         val spinner = ImageView(host.root.context).apply {
@@ -76,9 +110,83 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.addView(spinner, LinearLayout.LayoutParams(host.dp(54), host.dp(54)).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
         card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
-        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 10f, Typeface.DEFAULT, muted, 0, 7).apply { gravity = Gravity.CENTER })
-        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(190)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
+        card.addView(progressLabel)
+        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false
+        }
+        card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(10), host.dp(6), host.dp(10), host.dp(3)) })
+        val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
+        card.addView(etaLabel)
+        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
+        card.addView(quoteLabel)
+        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
+        card.addView(text("Maxim țintă: 20 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
+
+        val handler = Handler(Looper.getMainLooper())
+        var quoteIndex = 0
+        val quoteRunnable = object : Runnable {
+            override fun run() {
+                quoteIndex = (quoteIndex + 1) % loaderQuotes.size
+                quoteLabel.text = loaderQuotes[quoteIndex]
+                handler.postDelayed(this, 15_000L)
+            }
+        }
+        handler.postDelayed(quoteRunnable, 15_000L)
+
+        val progressRunnable = object : Runnable {
+            override fun run() {
+                val p = OracleGrowthEngine.growthProgress()
+                if (p.phase == OracleGrowthPhase.NO_DATA) {
+                    handler.removeCallbacksAndMessages(null)
+                    addNoDataState(p)
+                    return
+                }
+                val total = p.total.coerceAtLeast(1)
+                val loaded = p.loaded.coerceIn(0, total)
+                // Requirement #6: the visible counter steps in increments of 50;
+                // the engine tracks the exact count internally.
+                val shown = if (loaded >= total) total else (loaded / 50) * 50
+                progressBar.max = total
+                progressBar.progress = shown
+                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"
+                if (p.startedAtNanos > 0L) {
+                    val elapsed = (System.nanoTime() - p.startedAtNanos).coerceAtLeast(1L) / 1_000_000_000.0
+                    etaLabel.text = if (p.phase == OracleGrowthPhase.RUNNING) {
+                        if (shown > 0) {
+                            val eta = (elapsed * (total - shown) / shown).coerceAtLeast(0.0)
+                            "Timp estimat: ~${formatEta(eta)}"
+                        } else "Timp estimat: se calculează…"
+                    } else {
+                        "Analiza datelor: finalizată în ${String.format(Locale.US, "%.1f", elapsed)} s"
+                    }
+                }
+                if (p.phase == OracleGrowthPhase.RUNNING) handler.postDelayed(this, 500L)
+            }
+        }
+        handler.post(progressRunnable)
+    }
+
+    /** Requirement #6/#11: explicit, non-infinite error state when 0 OHLCV was received. */
+    private fun addNoDataState(progress: OracleGrowthProgress) {
+        host.content.removeAllViews()
+        val card = card(18)
+        card.gravity = Gravity.CENTER
+        card.background = rounded(bg, red, 1, 16)
+        card.addView(text("⚠", 28f, Typeface.DEFAULT_BOLD, red, 0, 0).apply { gravity = Gravity.CENTER })
+        card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
+        card.addView(text("Sursa de date OHLCV nu a răspuns.", 13f, Typeface.DEFAULT_BOLD, red, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Recomandările Growth nu au putut fi calculate (${progress.loaded} / ${progress.total} simboluri primite).", 11f, Typeface.DEFAULT, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Apasă ↻ (sus dreapta) pentru a reîncerca.", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(200)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        addBuildFooter()
+    }
+
+    private fun formatEta(seconds: Double): String {
+        val rounded = kotlin.math.ceil(seconds).toInt().coerceAtLeast(0)
+        return if (rounded < 60) "$rounded sec" else "${rounded / 60} min ${rounded % 60} sec"
     }
 
     private fun addSummary(items: List<OracleGrowthRecommendation>) {
@@ -258,16 +366,17 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         visible.forEach { addEntry(it) }
         repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }
         val expandedRows = all.drop(6)
-        expandedRows.forEach {
-            val row = historyRow(it)
+        val expandedViews = expandedRows.map { item ->
+            val row = historyRow(item)
             row.visibility = View.GONE
             rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })
+            row
         }
         var expanded = false
         arrow.setOnClickListener {
             expanded = !expanded
             arrow.text = if (expanded) "⌃" else "⌄"
-            expandedRows.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
         }
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
@@ -279,8 +388,14 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             setPadding(host.dp(10), host.dp(8), host.dp(10), host.dp(8))
             background = rounded(bg, accent, 1, 11)
             if (item == null) {
-                addView(text("—", 18f, Typeface.DEFAULT_BOLD, muted, 0, 0))
-                addView(text("—", 10f, Typeface.DEFAULT, muted, 0, 2))
+                val placeholderTop = LinearLayout(host.root.context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                placeholderTop.addView(text("—", 18f, Typeface.DEFAULT_BOLD, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+                placeholderTop.addView(text("›", 24f, Typeface.DEFAULT, muted, 0, 0))
+                addView(placeholderTop)
+                addView(text("02.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))
             } else {
                 val top = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 top.addView(text(item.ticker, 16f, Typeface.DEFAULT_BOLD, white, 0, 0), LinearLayout.LayoutParams(host.dp(72), -2))
@@ -322,18 +437,51 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         val f = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ro", "RO")); f.timeZone = TimeZone.getTimeZone("Europe/Bucharest"); return f.format(Date(timestamp))
     }
 
-    private fun card(padding: Int) = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(padding), host.dp(padding), host.dp(padding), host.dp(padding)); background = rounded(bg, border, 1, 16) }
-    private fun rounded(fill: Int, stroke: Int, strokeWidth: Int, radius: Int) = GradientDrawable().apply { setColor(fill); if (strokeWidth > 0) setStroke(host.dp(strokeWidth), stroke); cornerRadius = host.dp(radius).toFloat() }
-    private fun divider() = View(host.root.context).apply { setBackgroundColor(Color.rgb(35, 48, 70)); layoutParams = LinearLayout.LayoutParams(-1, host.dp(1)) }
-    private fun metric(label: String, value: String, color: Int) = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(host.dp(2), host.dp(2), host.dp(2), host.dp(2)); gravity = Gravity.CENTER; addView(text(label, 8f, Typeface.DEFAULT, muted, 0, 0).apply { gravity = Gravity.CENTER }); addView(text(value, 13f, Typeface.DEFAULT_BOLD, color, 0, 3).apply { gravity = Gravity.CENTER }) }
-    private fun text(value: String, size: Float, typeface: Typeface, color: Int, left: Int, top: Int) = TextView(host.root.context).apply { text = value; textSize = size; this.typeface = typeface; setTextColor(color); setPadding(left, top, 0, 0) }
+    private fun card(pad: Int): LinearLayout = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(host.dp(pad), host.dp(pad), host.dp(pad), host.dp(pad))
+        background = rounded(panel, border, 1, 16)
+    }
 
-    private class SparklineView(context: android.content.Context, private val lineColor: Int) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 3f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private fun text(value: String, size: Float, face: Typeface, color: Int, left: Int, bottom: Int): TextView = TextView(host.root.context).apply {
+        text = value
+        textSize = size
+        typeface = face
+        setTextColor(color)
+        if (left != 0 || bottom != 0) setPadding(host.dp(left), 0, 0, host.dp(bottom))
+    }
+
+    private fun metric(label: String, value: String, color: Int): LinearLayout = LinearLayout(host.root.context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        addView(text(label, 8f, Typeface.DEFAULT, muted, 0, 2))
+        addView(text(value, 13f, Typeface.DEFAULT_BOLD, color, 0, 0))
+    }
+
+    private fun divider(): View = View(host.root.context).apply { setBackgroundColor(border); layoutParams = LinearLayout.LayoutParams(-1, host.dp(1)) }
+
+    private fun rounded(fill: Int, stroke: Int, width: Int, radius: Int): GradientDrawable = GradientDrawable().apply {
+        setColor(fill)
+        setStroke(host.dp(width), stroke)
+        cornerRadius = host.dp(radius).toFloat()
+    }
+
+    private class SparklineView(context: android.content.Context, private val accent: Int) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2.2f }
+        private val path = Path()
         override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas); paint.color = lineColor; val p = Path(); val pts = floatArrayOf(.02f,.78f, .14f,.55f, .25f,.67f, .37f,.44f, .48f,.57f, .61f,.31f, .73f,.46f, .86f,.20f, .98f,.05f)
-            for (i in pts.indices step 2) { val x = pts[i] * width; val y = pts[i + 1] * height; if (i == 0) p.moveTo(x, y) else p.lineTo(x, y) }
-            canvas.drawPath(p, paint); canvas.drawCircle(width * .98f, height * .05f, 4f, paint)
+            super.onDraw(canvas)
+            paint.color = accent
+            val w = width.toFloat(); val h = height.toFloat()
+            val points = floatArrayOf(.02f,.65f,.18f,.42f,.34f,.58f,.50f,.28f,.66f,.48f,.82f,.18f,.98f,.02f)
+            path.reset()
+            for (i in points.indices step 2) {
+                val x = points[i] * w
+                val y = points[i + 1] * h
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            canvas.drawPath(path, paint)
+            canvas.drawCircle(points[points.size - 2] * w, points[points.size - 1] * h, 2.8f, paint)
         }
     }
 }
