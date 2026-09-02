@@ -14,6 +14,8 @@ import java.time.ZonedDateTime
  *
  * Live market data must not mutate the persisted Growth state. This adapter only
  * validates that the snapshot belongs to the current Growth anchor.
+ *
+ * B536 validation marker: launch-time warm-up is owned by OracleMysticActivity.
  */
 object OracleGrowthLiveData {
     private val BUCHAREST = ZoneId.of("Europe/Bucharest")
