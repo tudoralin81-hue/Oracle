@@ -6,9 +6,17 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ORACLE_KEYSTORE_BASE64: ${{ secrets.ORACLE_KEYSTORE_BASE64 }}
+      ORACLE_KEYSTORE_PASSWORD: ${{ secrets.ORACLE_KEYSTORE_PASSWORD }}
+      ORACLE_KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
+      ORACLE_KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -21,12 +29,101 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Apply release fixes
-        run: python3 scripts/prepare_news_release.py
-      - name: Assemble debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-      - name: Upload debug APK
+      - name: Apply B509 Analysis matrix/autoscale UI
+        shell: python
+        run: |
+          from pathlib import Path
+          src = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt')
+          s = src.read_text(encoding='utf-8')
+          s = s.replace('row?.addView(card, LinearLayout.LayoutParams(0, host.dp(104), 1f).apply {', 'row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {')
+          s = s.replace('''                setPadding(0, host.dp(4), 0, 0)
+                maxLines = 4''', '''                setPadding(0, host.dp(3), 0, 0)
+                includeFontPadding = true''')
+          old = '''            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
+                else setMargins(0, 0, host.dp(4), 0)
+            })
+        }
+    }
+
+    private fun metricValueColor'''
+          new = '''            row?.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (index % 2 == 1) setMargins(host.dp(4), 0, 0, 0)
+                else setMargins(0, 0, host.dp(4), 0)
+            })
+        }
+        for (i in 0 until container.childCount) {
+            (container.getChildAt(i) as? LinearLayout)?.post {
+                val rv = container.getChildAt(i) as? LinearLayout ?: return@post
+                var maxHeight = 0
+                for (j in 0 until rv.childCount) maxHeight = maxOf(maxHeight, rv.getChildAt(j).measuredHeight)
+                if (maxHeight > 0) for (j in 0 until rv.childCount) {
+                    val child = rv.getChildAt(j)
+                    val lp = child.layoutParams
+                    lp.height = maxHeight
+                    child.layoutParams = lp
+                }
+            }
+        }
+    }
+
+    private fun metricValueColor'''
+          if old not in s:
+              raise SystemExit('B509 grid anchor not found')
+          s = s.replace(old, new, 1)
+          if '"APLD" -> "Applied Digital Corporation"' not in s:
+              s = s.replace('"AAOI" -> "Applied Optoelectronics, Inc."', '"AAOI" -> "Applied Optoelectronics, Inc."\n        "APLD" -> "Applied Digital Corporation"', 1)
+          s = s.replace('V6g-FINAL-B508', 'V6g-FINAL-B509')
+          src.write_text(s, encoding='utf-8')
+          gradle = Path('app/build.gradle')
+          g = gradle.read_text(encoding='utf-8')
+          g = g.replace('versionCode 23', 'versionCode 24')
+          g = g.replace("versionName 'V6g-FINAL-B508'", "versionName 'V6g-FINAL-B509'")
+          if "versionName 'V6g-FINAL-B509'" not in g:
+              raise SystemExit('B509 versionName update failed')
+          gradle.write_text(g, encoding='utf-8')
+      - name: Verify and commit B509 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode 24" app/build.gradle
+          grep -q "versionName 'V6g-FINAL-B509'" app/build.gradle
+          grep -q 'LinearLayout.LayoutParams(0, -2, 1f)' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'includeFontPadding = true' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          grep -q 'Applied Digital Corporation' app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle app/src/main/java/ro/alintudor/oracle/nativeui/OracleAnalysisModules.kt
+          if ! git diff --cached --quiet; then
+            git commit -m "B509: autoscale Analysis cards and show company names [skip ci]"
+            git push origin HEAD:${{ github.head_ref || 'main' }}
+          fi
+      - name: Prepare production signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$ORACLE_KEYSTORE_BASE64" ] && [ -n "$ORACLE_KEYSTORE_PASSWORD" ] && [ -n "$ORACLE_KEY_ALIAS" ] && [ -n "$ORACLE_KEY_PASSWORD" ]; then
+            echo "$ORACLE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
+            {
+              echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks"
+              echo "ORACLE_KEYSTORE_PASSWORD=$ORACLE_KEYSTORE_PASSWORD"
+              echo "ORACLE_KEY_ALIAS=$ORACLE_KEY_ALIAS"
+              echo "ORACLE_KEY_PASSWORD=$ORACLE_KEY_PASSWORD"
+            } >> "$GITHUB_ENV"
+          fi
+      - name: Assemble release APK
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+      - name: Upload B509 FINAL APK
         uses: actions/upload-artifact@v4
         with:
-          name: Oracle-News-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: Oracle-APK-B509-FINAL-installable
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
