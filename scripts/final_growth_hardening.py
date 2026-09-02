@@ -8,10 +8,12 @@ s=s.replace('ConcurrentHashMap<String, String?>()', 'ConcurrentHashMap<String, S
 s=s.replace('companyNameCache[symbol]=remote; return remote', 'remote?.let { companyNameCache[symbol]=it }; return remote')
 p.write_text(s)
 
-# 2) Replace the intermediate B535 20-worker scan with the final 16/25s bounded scan.
+# 2) Replace either known intermediate B535 scan with final 16-worker/25s bounded scan.
 p=Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
 s=p.read_text()
-pat=re.compile(r'(?s)val byTicker=seed\.associateBy\{it\.ticker\.uppercase\(Locale\.US\)\}.*?executor\.shutdownNow\(\)')
+patterns=[
+re.compile(r'(?s)val byTicker=seed\.associateBy\{it\.ticker\.uppercase\(Locale\.US\)\}.*?executor\.invokeAll\(tasks, 18, TimeUnit\.SECONDS\).*?executor\.shutdownNow\(\)'),
+re.compile(r'(?s)val byTicker=seed\.associateBy\{it\.ticker\.uppercase\(Locale\.US\)\}.*?scanExecutor\.shutdownNow\(\)')]
 block='''val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
         val candidates=java.util.Collections.synchronizedList(mutableListOf<C>())
         val tickers=universe.distinct()
@@ -26,16 +28,17 @@ block='''val byTicker=seed.associateBy{it.ticker.uppercase(Locale.US)}
             }
             futures.forEach { f -> runCatching { f.get(25,TimeUnit.SECONDS) }.getOrNull()?.let { candidates+=it } }
         } finally { scanExecutor.shutdownNow() }'''
-if pat.search(s):
-    s=pat.sub(block,s,count=1)
+for pat in patterns:
+    if pat.search(s):
+        s=pat.sub(block,s,count=1)
+        break
 else:
     raise SystemExit('Growth scan anchor missing')
 
-# 3) Bound news enrichment to 15 workers / 12s. Handle both known forms.
+# 3) Bound news enrichment to 15 workers / 12s whenever the generated news map exists.
 news_pat=re.compile(r'(?m)^\s*val newsMap=.*$')
 m=news_pat.search(s)
 if m:
-    indent=re.match(r'\s*',m.group(0)).group(0)
     news='''        val newsMap=mutableMapOf<String,Int>()
         val newsExecutor=Executors.newFixedThreadPool(15)
         try {
@@ -51,6 +54,8 @@ s=p.read_text()
 if 'future.get(45, TimeUnit.SECONDS)' not in s:
     if 'import java.util.concurrent.TimeUnit' not in s:
         s=s.replace('import java.util.concurrent.Executors','import java.util.concurrent.Executors\nimport java.util.concurrent.TimeUnit\nimport java.util.concurrent.TimeoutException')
+    if 'import java.util.concurrent.Callable' not in s:
+        s=s.replace('import java.util.concurrent.Executors','import java.util.concurrent.Executors\nimport java.util.concurrent.Callable')
     anchor='        if (key == "analysis") return\n'
     if anchor not in s:
         raise SystemExit('Mystic growth anchor missing')
