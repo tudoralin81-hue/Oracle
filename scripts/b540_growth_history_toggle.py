@@ -1,45 +1,46 @@
 from pathlib import Path
+import hashlib
 
-# B540 final patch is intentionally idempotent: the Claude snapshot may already
-# contain the history implementation. Only enforce the requested loader/budget
-# changes here, without rewriting GROWTH UI that is already correct.
-p = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
-s = p.read_text(encoding='utf-8')
+# B540: the Claude ZIP is the source of truth. This script only reproduces
+# the exact two files that differ from the checked-in B539-derived snapshot.
+# It does not rewrite START or any frozen non-GROWTH file.
 
-s = s.replace('text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10)',
-              'text("PROGRES: 0%", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10)')
-s = s.replace('max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false',
-              'max = 100; progress = 0; isIndeterminate = false')
+M = Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
+s = M.read_text(encoding='utf-8')
 
+# Claude snapshot: exact percentage-only loader block.
 old_progress = '''// Requirement #6: the visible counter steps in increments of 50;
                 // the engine tracks the exact count internally.
                 val shown = if (loaded >= total) total else (loaded / 50) * 50
                 progressBar.max = total
                 progressBar.progress = shown
                 progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"'''
-new_progress = '''// B540 final: expose only a percentage; the monitored universe size remains private.
-                val shownPct = ((loaded.toDouble() / total.toDouble()) * 100.0).toInt().coerceIn(0, 100)
-                progressBar.max = 100
-                progressBar.progress = shownPct
-                progressLabel.text = "PROGRES: $shownPct%"'''
+new_progress = '''// B540 update: only a percentage is ever shown — the raw counts
+                // (and so the size of the monitored universe) stay internal to
+                // the engine and are never rendered in the UI.
+                val pct = ((loaded * 100.0) / total).toInt().coerceIn(0, 100)
+                progressBar.progress = pct
+                progressLabel.text = "DATE ÎNCĂRCATE: $pct%"'''
 s = s.replace(old_progress, new_progress)
-s = s.replace('"Maxim țintă: 20 secunde"', '"Maxim țintă: 45 secunde"')
-s = s.replace('(${progress.loaded} / ${progress.total} simboluri primite).', 'Datele OHLCV necesare nu au fost primite.')
-s = s.replace('02.09.2026 16:00', '01.09.2026 16:00')
-p.write_text(s, encoding='utf-8')
+M.write_text(s, encoding='utf-8')
 
-e = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
-es = e.read_text(encoding='utf-8')
-es = es.replace('private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target',
-               'private const val TOTAL_BUDGET_NANOS = 45_000_000_000L // hard 45s overall target')
-es = es.replace('private const val TOTAL_BUDGET_NANOS = 44_000_000_000L',
-                'private const val TOTAL_BUDGET_NANOS = 45_000_000_000L')
-e.write_text(es, encoding='utf-8')
+E = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
+es = E.read_text(encoding='utf-8')
+es = es.replace(
+    'private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target',
+    'private const val TOTAL_BUDGET_NANOS = 44_000_000_000L // 1s buffer under the 45s target'
+)
+E.write_text(es, encoding='utf-8')
 
-# Fail loudly if the requested final state was not produced.
-ms = p.read_text(encoding='utf-8')
-if 'PROGRES: $shownPct%' not in ms or 'Maxim țintă: 45 secunde' not in ms:
-    raise SystemExit('B540 loader patch was not applied')
-if '45_000_000_000L' not in es:
-    raise SystemExit('B540 45s budget was not applied')
-print('B540 final loader patch: 45s hard budget + percentage-only progress + private universe size')
+# Exact Git blob SHA-1 values calculated from Oracle-main-20-growth-loader-update.zip.
+expected = {
+    str(E): '683eea654306692a0d207cae5109dc4c51897b83',
+    str(M): 'd087f7e508daff3f54b3e29eb7cb96892dc08e82',
+}
+for path, want in expected.items():
+    data = Path(path).read_bytes()
+    got = hashlib.sha1(f'blob {len(data)}\0'.encode() + data).hexdigest()
+    if got != want:
+        raise SystemExit(f'Claude snapshot mismatch: {path}: {got} != {want}')
+
+print('B540: Claude GROWTH files reproduced byte-for-byte')
