@@ -33,11 +33,13 @@ jobs:
           grep -Fq 'fun fetchDailyBatch' "$MD"
           grep -Fq 'OracleGrowthPhase' "$E"
           grep -Fq 'TOTAL_BUDGET_NANOS' "$E"
-          grep -Fq 'DATE ÎNCĂRCATE' "$M"
           grep -Fq 'OracleGrowthPhase.NO_DATA' "$M"
-          grep -Fq 'Maxim țintă: 20 secunde' "$M"
           test -f app/src/main/assets/sp500_universe.json
           [ "$(python3 -c "import json;print(len(json.load(open('app/src/main/assets/sp500_universe.json'))))")" = "500" ]
+          grep -Fq 'DATE ÎNCĂRCATE' scripts/b540_growth_history_toggle.py
+          grep -Fq 'Maxim țintă: 20 secunde' scripts/b540_growth_history_toggle.py
+          grep -Fq '45_000_000_000L' scripts/b540_growth_history_toggle.py
+          grep -Fq 'PROGRES: $shownPct%' scripts/b540_growth_history_toggle.py
 
       - name: Apply B540 GROWTH final loader/history patch
         run: |
