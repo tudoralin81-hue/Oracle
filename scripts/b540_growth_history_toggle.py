@@ -107,5 +107,19 @@ new = '''    private fun addHistory(entries: List<OracleGrowthRecommendation>) {
 '''
 s = s[:start] + new + s[end:]
 s = s.replace('addView(text("02.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))', 'addView(text("01.09.2026 16:00", 10f, Typeface.DEFAULT, muted, 0, 2))')
+
+# B540 final loader privacy/performance: show percentage only; never expose universe size.
+s = s.replace('text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10)', 'text("PROGRES: 0%", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10)')
+s = s.replace('max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false', 'max = 100; progress = 0; isIndeterminate = false')
+s = s.replace('// Requirement #6: the visible counter steps in increments of 50;\n                // the engine tracks the exact count internally.\n                val shown = if (loaded >= total) total else (loaded / 50) * 50\n                progressBar.max = total\n                progressBar.progress = shown\n                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"', '// B540 final: expose only a percentage; the monitored universe size remains private.\n                val shownPct = ((loaded.toDouble() / total.toDouble()) * 100.0).toInt().coerceIn(0, 100)\n                progressBar.max = 100\n                progressBar.progress = shownPct\n                progressLabel.text = "PROGRES: $shownPct%"')
+s = s.replace('"Maxim țintă: 20 secunde"', '"Maxim țintă: 45 secunde"')
+s = s.replace('(${progress.loaded} / ${progress.total} simboluri primite).', 'Datele OHLCV necesare nu au fost primite.')
 p.write_text(s, encoding='utf-8')
-print('B540 GROWTH final history toggle: title+arrow is one clickable control; collapsed by default; placeholders use 01.09.2026 16:00')
+
+# B540 final: hard overall budget is 45 seconds.
+e = Path('app/src/main/java/ro/alintudor/oracle/core/OracleGrowthEngine.kt')
+es = e.read_text(encoding='utf-8')
+es = es.replace('private const val TOTAL_BUDGET_NANOS = 19_000_000_000L // 1s buffer under the 20s target', 'private const val TOTAL_BUDGET_NANOS = 45_000_000_000L // hard 45s overall target')
+e.write_text(es, encoding='utf-8')
+
+print('B540 final loader: hard 45s budget; progress shown only as percentage; universe size hidden')
