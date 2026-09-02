@@ -25,29 +25,66 @@ object OracleGrowthEngine {
         val candidates=mutableListOf<C>()
         for(ticker in universe.distinct()){val candles=OracleMarketData.fetchDaily(ticker,"1y");if(candles.size<60)continue;evaluate(ticker,candles)?.let{candidates+=it}}
         if(candidates.isEmpty())return emptyList()
-        val top15=candidates.sortedByDescending{it.score}.take(15).map{it.ticker}
-        val newsMap=top15.associateWith{newsScore(it)}
+        // Enrich the technical shortlist with real non-OHLC data before ranking.
+        // The previous implementation silently used 50/100 for News, Fundamentals
+        // and Market/Sector, which made those displayed values look calculated while
+        // they were actually placeholders. Growth now derives those factors from
+        // OracleRealData and only falls back to neutral 50 when the source genuinely
+        // has no value.
+        val technicalShortlist=candidates.sortedByDescending{it.score}.take(30)
+        val fundamentals=technicalShortlist.associate { c ->
+            c.ticker to runCatching { OracleRealData.fundamentals(c.ticker) }.getOrNull()
+        }
+        val sectorContexts=mutableMapOf<String,Double>()
+        val newsContexts=mutableMapOf<String,OracleNewsContext>()
+        for(c in technicalShortlist){
+            val f=fundamentals[c.ticker]
+            val sector=OracleRealData.resolvedSector(c.ticker,f?.sector)
+            if(sector != null && sector !in sectorContexts){
+                sectorContexts[sector]=runCatching { OracleRealData.sectorScore(OracleRealData.marketContext(sector)) }.getOrNull() ?: 50.0
+            }
+        }
+        val newsCandidates=technicalShortlist.take(15)
+        for(c in newsCandidates){
+            newsContexts[c.ticker]=runCatching { OracleRealData.newsContext(c.ticker) }.getOrDefault(OracleNewsContext(50,0,0,0,null))
+        }
         val enriched=candidates.map{c->
-            val n=newsMap[c.ticker]?:0
+            val f=fundamentals[c.ticker]
+            val sector=OracleRealData.resolvedSector(c.ticker,f?.sector)
             val comp=c.components.toMutableMap()
-            comp["news"]=(50.0+n*5.0).coerceIn(0.0,100.0)
-            val sector=byTicker[c.ticker]?.sector
-            c.copy(score=horizonScore(comp,"SHORT",sector),components=comp,news=n)
+            comp["fundamentals"]=(OracleRealData.fundamentalScore(f) ?: 50.0).coerceIn(0.0,100.0)
+            comp["market_sector"]=(sector?.let { sectorContexts[it] } ?: 50.0).coerceIn(0.0,100.0)
+            val n=newsContexts[c.ticker]
+            comp["news"]=(n?.score?.toDouble() ?: 50.0).coerceIn(0.0,100.0)
+            c.copy(score=horizonScore(comp,"SHORT",sector),components=comp,news=n?.headlineCount ?: 0)
         }
         val out=mutableListOf<OracleGrowthRecommendation>();val used=mutableSetOf<String>()
         for(h in listOf("SHORT","MEDIUM","LONG")){
-            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h,byTicker[it.ticker]?.sector)}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
+            val ranked=enriched.sortedWith(compareByDescending<C>{horizonScore(it.components,h,OracleRealData.resolvedSector(it.ticker,fundamentals[it.ticker]?.sector))}.thenByDescending{tie(it,h)}.thenByDescending{it.score})
             val pick=ranked.firstOrNull{it.ticker !in used}?:continue
             used+=pick.ticker
-            val score=horizonScore(pick.components,h,byTicker[pick.ticker]?.sector)
+            val score=horizonScore(pick.components,h,OracleRealData.resolvedSector(pick.ticker,fundamentals[pick.ticker]?.sector))
             val meta=byTicker[pick.ticker]
-            val sector=meta?.sector
+            val f=fundamentals[pick.ticker]
+            val sector=OracleRealData.resolvedSector(pick.ticker,f?.sector ?: meta?.sector) ?: "—"
             val correctedAllocation=OracleSectorAllocation.apply(pick.allocation,sector)
             val correctedWeights=weights[h]!!.copyOf()
-            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=meta?.company?:pick.ticker,sector=sector?:"US",score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=correctedWeights.toList(),newsTitle=meta?.newsTitle?:"",newsSource=meta?.newsSource?:"",referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7_SECTOR_WEIGHTED")
+            val news=newsContexts[pick.ticker]
+            val company=meta?.company?.takeIf { it.isNotBlank() && !it.equals(pick.ticker,true) } ?: lookupCompanyName(pick.ticker) ?: pick.ticker
+            out+=OracleGrowthRecommendation(horizon=h,ticker=pick.ticker,company=company,sector=sector,score=score,signal=rating(score),risk=pick.risk,allocationMax=correctedAllocation,forecastPct=pick.forecast[h.lowercase(Locale.US)]?:0.0,momentum5D=pick.mom5,momentum20D=pick.mom20,weights=correctedWeights.toList(),newsTitle=meta?.newsTitle?.takeIf { it.isNotBlank() } ?: news?.topHeadline.orEmpty(),newsSource=meta?.newsSource.orEmpty(),referenceTimestamp=meta?.referenceTimestamp?:0L,currentPrice=pick.price,adx=pick.adx,factorValues=keys.map{pick.components[it]?:50.0},factorScore=score.toDouble(),generatedAt=System.currentTimeMillis(),source="ORACLE_ENGINE_V5.9.7_REALDATA_SECTOR_WEIGHTED")
         }
         return out
     }
+
+    private fun lookupCompanyName(ticker:String):String? = runCatching {
+        val ua="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36"
+        val url=URL("https://query1.finance.yahoo.com/v7/finance/quote?symbols=${URLEncoder.encode(ticker,"UTF-8")}&formatted=false&lang=en-US&region=US")
+        val c=url.openConnection() as HttpURLConnection
+        c.connectTimeout=5000; c.readTimeout=7000; c.requestMethod="GET"; c.setRequestProperty("User-Agent",ua); c.setRequestProperty("Accept","application/json")
+        val body=c.inputStream.bufferedReader().use{it.readText()}; c.disconnect()
+        val root=org.json.JSONObject(body); val q=root.optJSONObject("quoteResponse")?.optJSONArray("result")?.optJSONObject(0) ?: return@runCatching null
+        q.optString("longName").takeIf{it.isNotBlank()} ?: q.optString("shortName").takeIf{it.isNotBlank()}
+    }.getOrNull()
 
     private fun evaluate(t:String,d:List<OracleOhlcvPoint>):C?{
         val r=d.sortedByDescending{it.timestamp}
