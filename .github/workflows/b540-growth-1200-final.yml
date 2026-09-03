@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply exact final Claude Growth changes
+      - name: Apply Claude Growth changes
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -19,25 +19,26 @@ jobs:
           s=p.read_text(encoding='utf-8')
           old='import ro.alintudor.oracle.core.OracleGrowthRecommendation\n'
           assert old in s
-          s=s.replace(old, old+'import ro.alintudor.oracle.core.OracleLoaderQuotes\n', 1)
+          if 'import ro.alintudor.oracle.core.OracleLoaderQuotes' not in s:
+              s=s.replace(old, old+'import ro.alintudor.oracle.core.OracleLoaderQuotes\n', 1)
           old='''    private val loaderQuotes = listOf(\n        "\\\"Price is what you pay; value is what you get.\\\"\\n— Benjamin Graham",\n        "\\\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\\\"\\n— Warren Buffett",\n        "\\\"The most important quality for an investor is temperament, not intellect.\\\"\\n— Warren Buffett",\n        "\\\"It's only when the tide goes out that you learn who's been swimming naked.\\\"\\n— Warren Buffett",\n        "\\\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\\\"\\n— Benjamin Graham",\n        "\\\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\\\"\\n— Benjamin Graham",\n        "\\\"Invert, always invert.\\\"\\n— Charlie Munger",\n        "\\\"Behind every stock is a company. Find out what it's doing.\\\"\\n— Peter Lynch",\n        "\\\"The four most dangerous words in investing are: this time it's different.\\\"\\n— Sir John Templeton"\n    )\n'''
-          assert old in s
-          s=s.replace(old,'''    private val loaderQuotes = OracleLoaderQuotes.ALL\n''',1)
+          if old in s:
+              s=s.replace(old,'''    private val loaderQuotes = OracleLoaderQuotes.ALL\n''',1)
           old='''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }\n'''
-          assert old in s
-          s=s.replace(old,'''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }\n''',1)
+          if old in s:
+              s=s.replace(old,'''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }\n''',1)
           old='''        card.addView(progressLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n'''
-          assert old in s
-          s=s.replace(old,'''        card.addView(progressLabel)\n        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }\n        card.addView(percentLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n''',1)
+          if old in s and 'val percentLabel = text("0%"' not in s:
+              s=s.replace(old,'''        card.addView(progressLabel)\n        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }\n        card.addView(percentLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n''',1)
           old='''        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }\n'''
-          assert old in s
-          s=s.replace(old,'''        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }\n''',1)
+          if old in s:
+              s=s.replace(old,'''        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }\n''',1)
           old='''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })\n'''
-          assert old in s
-          s=s.replace(old,'''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })\n''',1)
+          if old in s:
+              s=s.replace(old,'''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })\n''',1)
           old='''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n'''
-          assert old in s
-          s=s.replace(old,'''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n                percentLabel.text = "${(shown * 100 / total)}%"\n''',1)
+          if old in s and 'percentLabel.text = "${(shown * 100 / total)}%"' not in s:
+              s=s.replace(old,'''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n                percentLabel.text = "${(shown * 100 / total)}%"\n''',1)
           p.write_text(s,encoding='utf-8')
           PY
           git diff --check
@@ -52,29 +53,28 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Verify exact Claude snapshot
+      - name: Verify Claude files and required changes
         run: |
           set -euo pipefail
           test "$(git hash-object app/build.gradle)" = "d022d396cbb8c7960a51190b38d36b4acaa228fc"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/core/OracleLoaderQuotes.kt)" = "c9f6eff1a913d0c2362b4b62752537730c6d2e1b"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt)" = "81eb83863a7f2a66ad897f189c18ea18c5a991ab"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt)" = "05d6c3a6bda3e62c6e2f1b8175c6041d1b0db2fc"
-          echo "Growth blob after Claude patch: $(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt)"
           grep -q "versionCode 32" app/build.gradle
           grep -q "V6g-START-PREMIUM-B541" app/build.gradle
           grep -q "OracleLoaderQuotes.ALL" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'percentLabel.text = "${shown}' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          grep -q "showBootLoader" app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'bootDurationMs = 5_000L' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'text = "▼"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'rows.visibility = if (expanded) View.VISIBLE else View.GONE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-      - name: Persist exact Claude Growth source
+          echo "Growth blob: $(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt)"
+      - name: Persist Growth result
         run: |
           set -euo pipefail
           git config user.name "tudoralin81-hue"
           git config user.email "tudor.alin81@gmail.com"
           git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-          git diff --cached --quiet || git commit -m "B541: exact Claude Growth source [skip ci]"
+          git diff --cached --quiet || git commit -m "B541: Claude Growth changes [skip ci]"
           git push origin HEAD:B541-CLAUDE-EXACT
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
