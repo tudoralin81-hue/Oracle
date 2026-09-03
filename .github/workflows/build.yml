@@ -33,10 +33,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.ORACLE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ORACLE_KEY_PASSWORD }}
         run: |
-          if [ -n "${KEYSTORE_B64:-}" ] \
-          && [ -n "${KEYSTORE_PASSWORD:-}" ] \
-          && [ -n "${KEY_ALIAS:-}" ] \
-          && [ -n "${KEY_PASSWORD:-}" ]; then
+          if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_ALIAS:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
             echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/oracle-release.jks"
             echo "ORACLE_KEYSTORE_FILE=$RUNNER_TEMP/oracle-release.jks" >> "$GITHUB_ENV"
             echo "ORACLE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
@@ -45,15 +42,7 @@ jobs:
           fi
       - name: Repair Kotlin escape sequence
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt")
-          s = p.read_text()
-          fixed = s.replace(r'\-', '-')
-          if fixed != s:
-              p.write_text(fixed)
-              print("Fixed unsupported Kotlin escape sequence: \\- -> -")
-              PY
+          sed -i 's/\\\\-/\\-/g' app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet -- app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt; then
