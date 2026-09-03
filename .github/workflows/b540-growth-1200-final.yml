@@ -10,28 +10,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Claude B541 diff exactly
+      - name: Apply exact final Claude Growth changes
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           p=Path('app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt')
           s=p.read_text(encoding='utf-8')
-          old='''        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))\n'''
-          new='''        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0))\n\n        // Arrow sits right next to the title, not pushed to the far edge of the row.\n        val arrow = TextView(host.root.context).apply {\n            text = "▼"\n            textSize = 17f\n            typeface = Typeface.DEFAULT_BOLD\n            gravity = Gravity.CENTER\n            setTextColor(cyan)\n            isClickable = true\n            isFocusable = true\n            contentDescription = "Extinde/restrânge ultimele recomandări"\n        }\n        header.addView(arrow, LinearLayout.LayoutParams(host.dp(34), host.dp(34)).apply { setMargins(host.dp(6), 0, 0, 0) })\n\n        // Spacer pushes the PDF download control to the right edge.\n        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, -2, 1f))\n'''
+          old='import ro.alintudor.oracle.core.OracleGrowthRecommendation\n'
+          assert old in s
+          s=s.replace(old, old+'import ro.alintudor.oracle.core.OracleLoaderQuotes\n', 1)
+          old='''    private val loaderQuotes = listOf(\n        "\\\"Price is what you pay; value is what you get.\\\"\\n— Benjamin Graham",\n        "\\\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\\\"\\n— Warren Buffett",\n        "\\\"The most important quality for an investor is temperament, not intellect.\\\"\\n— Warren Buffett",\n        "\\\"It's only when the tide goes out that you learn who's been swimming naked.\\\"\\n— Warren Buffett",\n        "\\\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\\\"\\n— Benjamin Graham",\n        "\\\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\\\"\\n— Benjamin Graham",\n        "\\\"Invert, always invert.\\\"\\n— Charlie Munger",\n        "\\\"Behind every stock is a company. Find out what it's doing.\\\"\\n— Peter Lynch",\n        "\\\"The four most dangerous words in investing are: this time it's different.\\\"\\n— Sir John Templeton"\n    )\n'''
+          new='''    private val loaderQuotes = OracleLoaderQuotes.ALL\n'''
           assert old in s
           s=s.replace(old,new,1)
-          old2='''        val arrow = TextView(host.root.context).apply {\n            text = "⌄"\n            textSize = 23f\n            typeface = Typeface.DEFAULT_BOLD\n            gravity = Gravity.CENTER\n            setTextColor(cyan)\n            setPadding(0, 0, 0, host.dp(2))\n            isClickable = true\n            isFocusable = true\n        }\n        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))\n'''
-          assert old2 in s
-          s=s.replace(old2,'',1)
-          old3='''        val rows = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }\n        card.addView(rows)\n\n        fun addPlaceholder() {\n            val row = historyRow(null)\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        fun addEntry(item: OracleGrowthRecommendation) {\n            val row = historyRow(item)\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n\n        val visible = all.take(6)\n        visible.forEach { addEntry(it) }\n        repeat(maxOf(0, 6 - visible.size)) { addPlaceholder() }\n        val expandedRows = all.drop(6)\n        val expandedViews = expandedRows.map { item ->\n            val row = historyRow(item)\n            row.visibility = View.GONE\n            rows.addView(row, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n            row\n        }\n'''
-          new3='''        // Only the last 6 recommendations are ever shown here; the whole block\n        // starts collapsed and the arrow toggles the entire rows container.\n        val rows = LinearLayout(host.root.context).apply {\n            orientation = LinearLayout.VERTICAL\n            visibility = View.GONE\n        }\n        val visible = all.take(6)\n        visible.forEach { item ->\n            rows.addView(historyRow(item), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        repeat(maxOf(0, 6 - visible.size)) {\n            rows.addView(historyRow(null), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(6), 0, 0) })\n        }\n        card.addView(rows, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, host.dp(2), 0, 0) })\n\n'''
-          assert old3 in s
-          s=s.replace(old3,new3,1)
-          old4='''        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "⌃" else "⌄"\n            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }\n        }\n'''
-          new4='''        arrow.setOnClickListener {\n            expanded = !expanded\n            arrow.text = if (expanded) "▲" else "▼"\n            rows.visibility = if (expanded) View.VISIBLE else View.GONE\n        }\n'''
-          assert old4 in s
-          s=s.replace(old4,new4,1)
+          old='''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }\n'''
+          new='''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''        card.addView(progressLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n'''
+          new='''        card.addView(progressLabel)\n        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }\n        card.addView(percentLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }\n'''
+          new='''        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })\n'''
+          new='''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })\n'''
+          assert old in s
+          s=s.replace(old,new,1)
+          old='''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n'''
+          new='''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n                percentLabel.text = "${(shown * 100 / total)}%"\n'''
+          assert old in s
+          s=s.replace(old,new,1)
           p.write_text(s,encoding='utf-8')
           PY
           git diff --check
@@ -46,16 +58,23 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - name: Verify B541 sources
+      - name: Verify exact Claude snapshot
         run: |
           set -euo pipefail
-          grep -q "versionCode 31" app/build.gradle
-          grep -q "V6g-GROWTH-BOOT-B541" app/build.gradle
+          test "$(git hash-object app/build.gradle)" = "d022d396cbb8c7960a51190b38d36b4acaa228fc"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/core/OracleLoaderQuotes.kt)" = "c9f6eff1a913d0c2362b4b62752537730c6d2e1b"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt)" = "81eb83863a7f2a66ad897f189c18ea18c5a991ab"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt)" = "05d6c3a6bda3e62c6e2f1b8175c6041d1b0db2fc"
+          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt)" = "d491836175053321b01d45e4ecf2bdbaa2700750"
+          grep -q "versionCode 32" app/build.gradle
+          grep -q "V6g-START-PREMIUM-B541" app/build.gradle
+          grep -q "OracleLoaderQuotes.ALL" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          grep -q 'percentLabel.text = "${shown}' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q "showBootLoader" app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'bootDurationMs = 5_000L' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'text = "▼"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'rows.visibility = if (expanded) View.VISIBLE else View.GONE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
-      - name: Build B541 release APK
+      - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
       - name: Verify APK
         run: |
@@ -64,8 +83,8 @@ jobs:
           test -n "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           BADGING="$($ANDROID_HOME/build-tools/36.0.0/aapt dump badging "$APK")"
-          echo "$BADGING" | grep -q "versionCode='31'"
-          echo "$BADGING" | grep -q "versionName='V6g-GROWTH-BOOT-B541'"
+          echo "$BADGING" | grep -q "versionCode='32'"
+          echo "$BADGING" | grep -q "versionName='V6g-START-PREMIUM-B541'"
           sha256sum "$APK"
       - uses: actions/upload-artifact@v4
         with:
