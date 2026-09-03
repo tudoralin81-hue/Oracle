@@ -85,7 +85,7 @@ object OracleGrowthEngine {
 
         // B540: controlled parallel batch scan (Requirement #5/#6/#11). Batches of
         // BATCH_SIZE (25-50) symbols run on a bounded thread pool; the visible
-        // "DATE ÎNCĂRCATE" counter reflects OHLCV actually received, updated as
+        // "DATA LOADED" counter reflects OHLCV actually received, updated as
         // each batch completes (never an artificial/simulated counter).
         val loadedCounter=AtomicInteger(0)
         val candidateQueue=ConcurrentLinkedQueue<C>()
@@ -221,11 +221,11 @@ object OracleGrowthEngine {
         val ema12=ema(close,12);val ema26=ema(close,26);val macd=if(ema12!=null&&ema26!=null)ema12-ema26 else null;val atr=atr(high,low,close,14)?:p*.01;val atrPct=100*atr/p;val adx=adx(high,low,close,14)
         val ichi=if(close.size>=52){val t9=(high.take(9).max()+low.take(9).min())/2;val k26=(high.take(26).max()+low.take(26).min())/2;val a=(t9+k26)/2;val b=(high.take(52).max()+low.take(52).min())/2;p>max(a,b)&&t9>k26}else false
         val trend=(50.0+(if(s20!=null&&p>s20)16 else -16)+(if(s50!=null&&p>s50)17 else -17)+(if(s200!=null&&p>s200)17 else -17)).coerceIn(0.0,100.0);val momentum=(50+m5*2+m20*.65).coerceIn(0.0,100.0);val volume=(50+(vr-1)*45).coerceIn(0.0,100.0);val boll=(50+(bbPos-.5)*80+(if(bbWidth>0&&bbWidth<8)10 else 0)).coerceIn(0.0,100.0);val ichScore=if(ichi)90.0 else 30.0;val adxc=(35+(adx?:0.0)*1.15).coerceIn(0.0,100.0);val rr=(70-atrPct*5+(if(breakout>=100)15 else 0)).coerceIn(0.0,100.0)
-        val overextension=((rsi-65.0)/15.0).coerceIn(0.0,1.0);val volatility=(atrPct/8.0).coerceIn(0.0,1.0);val volumeShock=((vr-1.0)/2.0).coerceIn(0.0,1.0);val acceleration=(abs(m5)/20.0).coerceIn(0.0,1.0);val riskScore=(100.0*(overextension*.30+volatility*.35+volumeShock*.15+acceleration*.20)).coerceIn(0.0,100.0);val risk=when{riskScore>=65.0->"RIDICAT";riskScore>=35.0->"MEDIU";else->"SCĂZUT"}
+        val overextension=((rsi-65.0)/15.0).coerceIn(0.0,1.0);val volatility=(atrPct/8.0).coerceIn(0.0,1.0);val volumeShock=((vr-1.0)/2.0).coerceIn(0.0,1.0);val acceleration=(abs(m5)/20.0).coerceIn(0.0,1.0);val riskScore=(100.0*(overextension*.30+volatility*.35+volumeShock*.15+acceleration*.20)).coerceIn(0.0,100.0);val risk=when{riskScore>=65.0->"HIGH";riskScore>=35.0->"MEDIUM";else->"LOW"}
         val comps=mapOf("news" to 50.0,"breakout" to breakout,"trend" to trend,"momentum" to momentum,"volume" to volume,"support_resistance" to sr,"fundamentals" to 50.0,"bollinger" to boll,"ichimoku" to ichScore,"market_sector" to 50.0,"risk_reward" to rr,"adx" to adxc)
         val base=horizonScore(comps,"SHORT",null)
         val f=mapOf("short" to min(30.0,max(0.0,((p+2*atr)/p-1)*100)),"medium" to min(45.0,max(0.0,((p+4.5*atr)/p-1)*100)),"long" to min(70.0,max(0.0,((p+8*atr)/p-1)*100)))
-        val alloc=when{risk=="RIDICAT"->max(1.0,base*.04);risk=="MEDIU"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).let{ kotlin.math.round(it*10.0)/10.0 }
+        val alloc=when{risk=="HIGH"->max(1.0,base*.04);risk=="MEDIUM"->max(1.0,base*.06);else->max(1.0,base*.08)}.coerceAtMost(8.0).let{ kotlin.math.round(it*10.0)/10.0 }
         return C(t,p,base,rsi,m5,m20,vr,macd,ichi,s200,s50,adx,atrPct,comps,f,risk,alloc,0)
     }
 
