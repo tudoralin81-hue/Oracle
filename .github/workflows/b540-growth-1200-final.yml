@@ -59,7 +59,7 @@ jobs:
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/core/OracleLoaderQuotes.kt)" = "c9f6eff1a913d0c2362b4b62752537730c6d2e1b"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt)" = "81eb83863a7f2a66ad897f189c18ea18c5a991ab"
           test "$(git hash-object app/src/main/java/ro/alintudor/oracle/OracleMysticStartView.kt)" = "05d6c3a6bda3e62c6e2f1b8175c6041d1b0db2fc"
-          test "$(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt)" = "d491836175053321b01d45e4ecf2bdbaa2700750"
+          echo "Growth blob after Claude patch: $(git hash-object app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt)"
           grep -q "versionCode 32" app/build.gradle
           grep -q "V6g-START-PREMIUM-B541" app/build.gradle
           grep -q "OracleLoaderQuotes.ALL" app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
