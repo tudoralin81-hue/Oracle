@@ -29,8 +29,8 @@ class MainActivity : Activity() {
     private lateinit var repository: OracleRepository
     private var currentModule: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "JURNAL ACTIVITATE")
-    private val subtitles = mapOf("portfolio" to "Poziții, P/L și alocare", "alerts" to "Semnale și alerte active", "news" to "Știri și evenimente relevante", "growth" to "Randament, trend local și contribuție", "knowledge" to "Idei, explicații și documentație", "analysis" to "Analiză și decizii Oracle", "watchlist" to "Acțiuni urmărite și oportunități", "journal" to "Istoric complet al activității")
+    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "ACTIVITY JOURNAL")
+    private val subtitles = mapOf("portfolio" to "Positions, P/L and allocation", "alerts" to "Signals and active alerts", "news" to "Relevant news and events", "growth" to "Return, local trend and contribution", "knowledge" to "Ideas, explanations and documentation", "analysis" to "Analysis and Oracle decisions", "watchlist" to "Tracked stocks and opportunities", "journal" to "Complete activity history")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +39,7 @@ class MainActivity : Activity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(1,3,8)) }
         setContentView(root)
         OracleKnowledgeSync.scheduleDaily(this)
-        runCatching { OracleBootstrap.ensure(repository); showHub() }.onFailure { showFatalError("Pornirea Oracle a eșuat",it) }
+        runCatching { OracleBootstrap.ensure(repository); showHub() }.onFailure { showFatalError("Oracle failed to start",it) }
     }
 
     private fun showHub() {
@@ -68,12 +68,12 @@ class MainActivity : Activity() {
                 OracleKnowledgeSync.refreshAsync(this) { ok, error ->
                     if (currentModule != "knowledge" || isFinishing) return@refreshAsync
                     if (ok) runCatching { renderModule("knowledge", false) }.onFailure { showModuleError("knowledge", it) }
-                    else if (error != null) Toast.makeText(this, "Knowledge refresh eșuat: $error", Toast.LENGTH_LONG).show()
+                    else if (error != null) Toast.makeText(this, "Knowledge refresh failed: $error", Toast.LENGTH_LONG).show()
                 }
             }
             return
         }
-        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
+        Thread{val result=runCatching{OracleLocalProcessor.refresh(repository)};mainHandler.post{if(currentModule!=key||isFinishing)return@post;result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}.onFailure{e->Toast.makeText(this,"Local refresh failed: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}}}.start()
     }
 
     private fun openWatchlistTicker(ticker: String) {
@@ -85,13 +85,13 @@ class MainActivity : Activity() {
 
     private fun refreshModule(key:String){
         if(currentModule!=key || isFinishing)return
-        Toast.makeText(this,"Se actualizează ${titles[key]?:key.uppercase()}…",Toast.LENGTH_SHORT).show()
+        Toast.makeText(this,"Updating ${titles[key]?:key.uppercase()}…",Toast.LENGTH_SHORT).show()
         Thread{
             val result=runCatching{OracleLocalProcessor.refresh(repository)}
             mainHandler.post{
                 if(currentModule!=key || isFinishing)return@post
                 result.onSuccess{runCatching{renderModule(key,false)}.onFailure{showModuleError(key,it)}}
-                    .onFailure{e->Toast.makeText(this,"Refresh local eșuat: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}
+                    .onFailure{e->Toast.makeText(this,"Local refresh failed: ${e.message?:e.javaClass.simpleName}",Toast.LENGTH_LONG).show()}
             }
         }.start()
     }
@@ -137,13 +137,13 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(255, 215, 45))
         })
         card.addView(TextView(context).apply {
-            text = "Deschide alintudor.ro/knowledge/"
+            text = "Open alintudor.ro/knowledge/"
             textSize = 14f
             setTextColor(Color.WHITE)
             setPadding(0, host.dp(8), 0, host.dp(12))
         })
         card.addView(Button(context).apply {
-            text = "DESCHIDE KNOWLEDGE"
+            text = "OPEN KNOWLEDGE"
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
@@ -201,7 +201,7 @@ class MainActivity : Activity() {
 
         page.addView(View(this).apply { setBackgroundColor(Color.rgb(255, 205, 55)) }, LinearLayout.LayoutParams(-1, dp(1)).apply { setMargins(0, 0, 0, dp(28)) })
         page.addView(TextView(this).apply {
-            text = "WATCHLIST • TICKERE SALVATE"
+            text = "WATCHLIST • SAVED TICKERS"
             textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = .10f
@@ -213,7 +213,7 @@ class MainActivity : Activity() {
         val tickers = store.load().map { it.trim().uppercase(java.util.Locale.US) }.filter { it.isNotBlank() }.distinct()
         if (tickers.isEmpty()) {
             page.addView(TextView(this).apply {
-                text = "WATCHLIST GOALĂ"
+                text = "WATCHLIST EMPTY"
                 textSize = 18f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -243,7 +243,7 @@ class MainActivity : Activity() {
                         cornerRadius = dp(12).toFloat()
                     }
                     isAllCaps = false
-                    contentDescription = "Deschide analiza pentru $ticker"
+                    contentDescription = "Open analysis for $ticker"
                     setOnClickListener { openWatchlistTicker(ticker) }
                     // FINAL_WATCHLIST_DIRECT_TOUCH_V2
                     setOnTouchListener { v, event ->
@@ -325,7 +325,7 @@ class MainActivity : Activity() {
                 }
 
                 val delete = Button(this).apply {
-                    text = "ȘTERGE"
+                    text = "DELETE"
                     textSize = 14f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.rgb(255, 105, 105))
@@ -334,7 +334,7 @@ class MainActivity : Activity() {
                         setColor(Color.TRANSPARENT)
                         cornerRadius = dp(10).toFloat()
                     }
-                    contentDescription = "Șterge $ticker din Watchlist"
+                    contentDescription = "Remove $ticker from Watchlist"
                     setOnClickListener {
                         val current = store.load().toMutableList()
                         current.removeAll { it.equals(ticker, true) }
@@ -354,11 +354,11 @@ class MainActivity : Activity() {
         if (url.isBlank()) return
         runCatching {
             startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-        }.onFailure { Toast.makeText(this, "Nu se poate deschide articolul", Toast.LENGTH_SHORT).show() }
+        }.onFailure { Toast.makeText(this, "Unable to open the article", Toast.LENGTH_SHORT).show() }
     }
 
-    private fun showModuleError(key:String,error:Throwable){root.removeAllViews();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(32),dp(32),dp(32),dp(32));setBackgroundColor(Color.rgb(2,4,10))};box.addView(TextView(this).apply{text="ORACLE  •  ${titles[key]?:key.uppercase()}";textSize=22f;gravity=Gravity.CENTER;setTextColor(Color.WHITE)});box.addView(TextView(this).apply{text="Modulul nu s-a putut încărca.\n\n${error.message?:error.javaClass.simpleName}";textSize=16f;gravity=Gravity.CENTER;setTextColor(Color.LTGRAY);setPadding(0,dp(24),0,dp(24))});box.addView(Button(this).apply{text="REÎNCEARCĂ";setOnClickListener{openModule(key)}});box.addView(Button(this).apply{text="ÎNAPOI LA ORACLE";setOnClickListener{showHub()}});root.addView(box,FrameLayout.LayoutParams(-1,-1))}
-    private fun showFatalError(title:String,error:Throwable){root.removeAllViews();root.addView(TextView(this).apply{text="$title\n\n${error.message?:error.javaClass.simpleName}\n\nAplicația nu va rămâne blocată pe loading.";textSize=17f;gravity=Gravity.CENTER;setTextColor(Color.WHITE);setPadding(dp(32),dp(32),dp(32),dp(32))},FrameLayout.LayoutParams(-1,-1))}
+    private fun showModuleError(key:String,error:Throwable){root.removeAllViews();val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(32),dp(32),dp(32),dp(32));setBackgroundColor(Color.rgb(2,4,10))};box.addView(TextView(this).apply{text="ORACLE  •  ${titles[key]?:key.uppercase()}";textSize=22f;gravity=Gravity.CENTER;setTextColor(Color.WHITE)});box.addView(TextView(this).apply{text="The module could not be loaded.\n\n${error.message?:error.javaClass.simpleName}";textSize=16f;gravity=Gravity.CENTER;setTextColor(Color.LTGRAY);setPadding(0,dp(24),0,dp(24))});box.addView(Button(this).apply{text="RETRY";setOnClickListener{openModule(key)}});box.addView(Button(this).apply{text="BACK TO ORACLE";setOnClickListener{showHub()}});root.addView(box,FrameLayout.LayoutParams(-1,-1))}
+    private fun showFatalError(title:String,error:Throwable){root.removeAllViews();root.addView(TextView(this).apply{text="$title\n\n${error.message?:error.javaClass.simpleName}\n\nThe app will not stay stuck on loading.";textSize=17f;gravity=Gravity.CENTER;setTextColor(Color.WHITE);setPadding(dp(32),dp(32),dp(32),dp(32))},FrameLayout.LayoutParams(-1,-1))}
     @Suppress("DEPRECATION") override fun onBackPressed(){if(currentModule!=null)showHub()else super.onBackPressed()}
 }
 
@@ -383,7 +383,7 @@ private class OracleHeroView(context:android.content.Context,private val onModul
     private fun drawNode(c:Canvas,x:Float,y:Float,rad:Float,n:Node,d:Float){
         p.style=Paint.Style.FILL;p.color=Color.argb(244,3,6,13);c.drawCircle(x,y,rad,p);p.style=Paint.Style.STROKE;p.strokeWidth=2.0f*d;p.color=n.color;c.drawCircle(x,y,rad,p);p.style=Paint.Style.FILL;p.color=n.color;c.drawCircle(x,y-rad*.72f,rad*.038f,p)
         drawIcon(c,x,y-rad*.25f,rad*.29f,n.key,n.color,d);p.textAlign=Paint.Align.CENTER;p.typeface=Typeface.DEFAULT_BOLD;p.textSize=rad*.27f;p.color=n.color;c.drawText(n.label,x,y+rad*.17f,p);p.textSize=rad*.105f;p.color=Color.WHITE
-        val desc=when(n.key){"portfolio"->"Performanță și poziții";"alerts"->"Semnale și evenimente";"news"->"Știri financiare";"growth"->"Acțiuni cu potențial";"knowledge"->"Idei și documentație";"analysis"->"Analiză detaliată";else->"Acțiuni favorite"};c.drawText(desc,x,y+rad*.42f,p);p.textSize=rad*.28f;c.drawText("›",x,y+rad*.73f,p)
+        val desc=when(n.key){"portfolio"->"Performance and positions";"alerts"->"Signals and events";"news"->"Financial news";"growth"->"High-potential stocks";"knowledge"->"Ideas and documentation";"analysis"->"Detailed analysis";else->"Favorite stocks"};c.drawText(desc,x,y+rad*.42f,p);p.textSize=rad*.28f;c.drawText("›",x,y+rad*.73f,p)
     }
     private fun drawIcon(c:Canvas,x:Float,y:Float,s:Float,key:String,color:Int,d:Float){
         p.style=Paint.Style.STROKE;p.strokeWidth=1.8f*d;p.strokeCap=Paint.Cap.ROUND;p.strokeJoin=Paint.Join.ROUND;p.color=color
