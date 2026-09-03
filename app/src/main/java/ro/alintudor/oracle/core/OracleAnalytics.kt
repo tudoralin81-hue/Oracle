@@ -26,9 +26,9 @@ data class OraclePortfolioSummary(
 
 object OracleAnalytics {
     private val canonicalActions = mapOf(
-        "CRM" to OracleAction("CRM", "HOLD", 82.0, "supraîncălzire RSI · trend și momentum încă acceptabile"),
-        "HOOD" to OracleAction("HOOD", "HOLD", 95.0, "trend și momentum încă acceptabile"),
-        "MELI" to OracleAction("MELI", "HOLD", 95.0, "trend și momentum încă acceptabile")
+        "CRM" to OracleAction("CRM", "HOLD", 82.0, "RSI overheating · trend and momentum still acceptable"),
+        "HOOD" to OracleAction("HOOD", "HOLD", 95.0, "trend and momentum still acceptable"),
+        "MELI" to OracleAction("MELI", "HOLD", 95.0, "trend and momentum still acceptable")
     )
 
     fun normalize(positions: List<OraclePosition>): List<OraclePosition> =
@@ -78,9 +78,9 @@ object OracleAnalytics {
             else -> "HOLD"
         }
         val reason = when {
-            action == "BUY" -> "Trend pozitiv și scor local favorabil"
-            action == "SELL" -> "Trend negativ / risc de concentrație"
-            else -> "Semnal mixt; păstrează poziția și urmărește trendul"
+            action == "BUY" -> "Positive trend and favorable local score"
+            action == "SELL" -> "Negative trend / concentration risk"
+            else -> "Mixed signal; hold the position and monitor the trend"
         }
         return OracleAction(position.ticker, action, score, reason, System.currentTimeMillis())
     }
