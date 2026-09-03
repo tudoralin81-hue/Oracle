@@ -20,7 +20,7 @@ class OracleMysticActivity : Activity() {
     private lateinit var repository: OracleRepository
     private var currentModule: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "JURNAL ACTIVITATE")
+    private val titles = linkedMapOf("portfolio" to "PORTFOLIO", "alerts" to "ALERTS", "news" to "NEWS", "growth" to "GROWTH", "knowledge" to "KNOWLEDGE", "analysis" to "ANALYSIS", "watchlist" to "WATCHLIST", "journal" to "ACTIVITY JOURNAL")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,7 +33,7 @@ class OracleMysticActivity : Activity() {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
         }
         runCatching { OracleBootstrap.ensure(repository); showHub() }
-            .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
+            .onFailure { showFatalError("Oracle failed to start", it) }
         // GROWTH warm-up starts at Android app launch, not when the user opens GROWTH.
         Thread { runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) } }.start()
     }
@@ -44,12 +44,12 @@ class OracleMysticActivity : Activity() {
         val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(Color.rgb(3, 4, 12)) }
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(2), dp(8), dp(22))
+            setPadding(dp(8), dp(26), dp(8), dp(22))
         }
         val hero = OracleMysticStartView(this) { openModule(it) }
         val heroHeight = (resources.displayMetrics.heightPixels * 0.70f).toInt().coerceAtLeast(dp(610))
         page.addView(hero, LinearLayout.LayoutParams(-1, heroHeight))
-        page.addView(makeStatus(), LinearLayout.LayoutParams(-1, dp(58)).apply { setMargins(0, dp(8), 0, dp(8)) })
+        page.addView(makeStatus(), LinearLayout.LayoutParams(-1, dp(42)).apply { setMargins(0, dp(8), 0, dp(8)) })
         scroll.addView(page)
         root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
     }
@@ -57,11 +57,11 @@ class OracleMysticActivity : Activity() {
     private fun makeStatus() = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(16), 0, dp(16), 0)
+        setPadding(dp(14), 0, dp(14), 0)
         setBackgroundColor(Color.rgb(8, 12, 25))
-        addView(View(this@OracleMysticActivity).apply { setBackgroundColor(Color.rgb(63, 235, 137)) }, LinearLayout.LayoutParams(dp(8), dp(8)))
-        addView(TextView(this@OracleMysticActivity).apply { text = "  ORACLE READY"; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
-        addView(TextView(this@OracleMysticActivity).apply { text = "LOCAL INTELLIGENCE"; textSize = 11f; setTextColor(Color.rgb(145, 154, 178)) })
+        addView(View(this@OracleMysticActivity).apply { setBackgroundColor(Color.rgb(63, 235, 137)) }, LinearLayout.LayoutParams(dp(7), dp(7)))
+        addView(TextView(this@OracleMysticActivity).apply { text = "  ORACLE READY"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE) }, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(TextView(this@OracleMysticActivity).apply { text = "LOCAL INTELLIGENCE"; textSize = 10f; setTextColor(Color.rgb(145, 154, 178)) })
     }
 
     private fun openModule(key: String) {
@@ -93,7 +93,7 @@ class OracleMysticActivity : Activity() {
             mainHandler.post {
                 if (currentModule != key || isFinishing) return@post
                 result.onSuccess { runCatching { renderModule(key) }.onFailure { showModuleError(key, it) } }
-                    .onFailure { Toast.makeText(this, "Refresh local eșuat: ${it.message ?: it.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
+                    .onFailure { Toast.makeText(this, "Local refresh failed: ${it.message ?: it.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
@@ -143,18 +143,18 @@ class OracleMysticActivity : Activity() {
             setTextColor(Color.WHITE)
         })
         box.addView(TextView(this).apply {
-            text = "Calculul Growth nu s-a finalizat.\n\n${error.message ?: error.javaClass.simpleName}"
+            text = "Growth calculation did not finish.\n\n${error.message ?: error.javaClass.simpleName}"
             textSize = 15f
             gravity = Gravity.CENTER
             setTextColor(Color.LTGRAY)
             setPadding(0, dp(18), 0, dp(18))
         })
         box.addView(Button(this).apply {
-            text = "REÎNCEARCĂ"
+            text = "RETRY"
             setOnClickListener { openModule("growth") }
         })
         box.addView(Button(this).apply {
-            text = "ÎNAPOI LA ORACLE"
+            text = "BACK TO ORACLE"
             setOnClickListener { showHub() }
         })
         root.addView(box, FrameLayout.LayoutParams(-1, -1))
@@ -164,9 +164,9 @@ class OracleMysticActivity : Activity() {
         root.removeAllViews()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(32), dp(32), dp(32), dp(32)); setBackgroundColor(Color.rgb(3, 5, 12)) }
         box.addView(TextView(this).apply { text = "ORACLE  •  ${titles[key] ?: key.uppercase()}"; textSize = 22f; gravity = Gravity.CENTER; setTextColor(Color.WHITE) })
-        box.addView(TextView(this).apply { text = "Modulul nu s-a putut încărca.\n\n${error.message ?: error.javaClass.simpleName}"; textSize = 16f; gravity = Gravity.CENTER; setTextColor(Color.LTGRAY); setPadding(0, dp(24), 0, dp(24)) })
-        box.addView(Button(this).apply { text = "REÎNCEARCĂ"; setOnClickListener { openModule(key) } })
-        box.addView(Button(this).apply { text = "ÎNAPOI LA ORACLE"; setOnClickListener { showHub() } })
+        box.addView(TextView(this).apply { text = "The module could not be loaded.\n\n${error.message ?: error.javaClass.simpleName}"; textSize = 16f; gravity = Gravity.CENTER; setTextColor(Color.LTGRAY); setPadding(0, dp(24), 0, dp(24)) })
+        box.addView(Button(this).apply { text = "RETRY"; setOnClickListener { openModule(key) } })
+        box.addView(Button(this).apply { text = "BACK TO ORACLE"; setOnClickListener { showHub() } })
         root.addView(box, FrameLayout.LayoutParams(-1, -1))
     }
 
