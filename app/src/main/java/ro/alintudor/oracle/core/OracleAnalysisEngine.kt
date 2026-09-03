@@ -23,7 +23,7 @@ object OracleAnalysisEngine {
 
     fun analyze(raw:String):Result? {
         val ticker=raw.trim().uppercase(Locale.US)
-        if(!ticker.matches(Regex("[A-Z][A-Z0-9.\-]{0,9}"))) return null
+        if(!ticker.matches(Regex("[A-Z][A-Z0-9.-]{0,9}"))) return null
         val d=OracleMarketData.fetchDaily(ticker,"1y").sortedByDescending{it.timestamp}; if(d.size<60)return null
         val close=d.map{it.close};val high=d.map{it.high};val low=d.map{it.low};val vol=d.map{it.volume};val p=close.first()
         fun avg(n:Int)=if(close.size>=n)close.take(n).average()else null
