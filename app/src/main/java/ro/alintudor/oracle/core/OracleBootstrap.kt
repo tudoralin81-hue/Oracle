@@ -24,15 +24,15 @@ object OracleBootstrap {
         val convictionRisk = ((item.score.coerceIn(0, 100) - 70).coerceAtLeast(0) * 0.20)
         val riskScore = (momentum + forecast + convictionRisk).coerceIn(0.0, 100.0)
         val risk = when {
-            riskScore >= 35.0 -> "RIDICAT"
-            riskScore >= 20.0 -> "MEDIU"
-            else -> "SCĂZUT"
+            riskScore >= 35.0 -> "HIGH"
+            riskScore >= 20.0 -> "MEDIUM"
+            else -> "LOW"
         }
         val conviction = item.score.coerceIn(0, 100) / 100.0
         val base = 2.0 + conviction * 6.0
         val riskFactor = when (risk) {
-            "RIDICAT" -> 0.55
-            "MEDIU" -> 0.78
+            "HIGH" -> 0.55
+            "MEDIUM" -> 0.78
             else -> 1.0
         }
         val momentumPenalty = when {
