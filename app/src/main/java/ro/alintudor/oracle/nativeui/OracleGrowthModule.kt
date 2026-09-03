@@ -22,6 +22,7 @@ import ro.alintudor.oracle.core.OracleGrowthJournalStore
 import ro.alintudor.oracle.core.OracleGrowthPhase
 import ro.alintudor.oracle.core.OracleGrowthProgress
 import ro.alintudor.oracle.core.OracleGrowthRecommendation
+import ro.alintudor.oracle.core.OracleLoaderQuotes
 import ro.alintudor.oracle.core.OracleNews
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -67,17 +68,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
     // B540 — investor quotes rotated in the loader every 15s (Requirement #7).
     // Local strings only; no network request is made to show them.
-    private val loaderQuotes = listOf(
-        "\"Price is what you pay; value is what you get.\"\n— Benjamin Graham",
-        "\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\"\n— Warren Buffett",
-        "\"The most important quality for an investor is temperament, not intellect.\"\n— Warren Buffett",
-        "\"It's only when the tide goes out that you learn who's been swimming naked.\"\n— Warren Buffett",
-        "\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\"\n— Benjamin Graham",
-        "\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\"\n— Benjamin Graham",
-        "\"Invert, always invert.\"\n— Charlie Munger",
-        "\"Behind every stock is a company. Find out what it's doing.\"\n— Peter Lynch",
-        "\"The four most dangerous words in investing are: this time it's different.\"\n— Sir John Templeton"
-    )
+    private val loaderQuotes = OracleLoaderQuotes.ALL
 
     /**
      * B540 loading state (Requirement #6/#7/#11).
@@ -110,19 +101,21 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.addView(spinner, LinearLayout.LayoutParams(host.dp(54), host.dp(54)).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
         card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
-        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
+        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }
         card.addView(progressLabel)
+        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }
+        card.addView(percentLabel)
         val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false
         }
         card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(10), host.dp(6), host.dp(10), host.dp(3)) })
         val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
         card.addView(etaLabel)
-        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
+        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
         card.addView(quoteLabel)
         card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
         card.addView(text("Maxim țintă: 20 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
-        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })
+        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
 
         val handler = Handler(Looper.getMainLooper())
@@ -152,6 +145,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
                 progressBar.max = total
                 progressBar.progress = shown
                 progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"
+                percentLabel.text = "${(shown * 100 / total)}%"
                 if (p.startedAtNanos > 0L) {
                     val elapsed = (System.nanoTime() - p.startedAtNanos).coerceAtLeast(1L) / 1_000_000_000.0
                     etaLabel.text = if (p.phase == OracleGrowthPhase.RUNNING) {
@@ -334,7 +328,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
 
         val arrow = TextView(host.root.context).apply {
-            text = "⌄"
+            text = "▼"
             textSize = 23f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
@@ -375,8 +369,8 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         var expanded = false
         arrow.setOnClickListener {
             expanded = !expanded
-            arrow.text = if (expanded) "⌃" else "⌄"
-            expandedViews.forEach { it.visibility = if (expanded) View.VISIBLE else View.GONE }
+            arrow.text = if (expanded) "▲" else "▼"
+            rows.visibility = if (expanded) View.VISIBLE else View.GONE
         }
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
     }
@@ -422,7 +416,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
     private fun horizonOrder(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> 0; "MEDIUM" -> 1; else -> 2 }
     private fun addBuildFooter() {
-        host.content.addView(text("BUILD B535 • GROWTH", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
+        host.content.addView(text("BUILD B541 • GROWTH", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
     }
 
     private fun horizonLabel(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> "●  TERMEN SCURT"; "MEDIUM" -> "●  TERMEN MEDIU"; else -> "●  TERMEN LUNG" }
