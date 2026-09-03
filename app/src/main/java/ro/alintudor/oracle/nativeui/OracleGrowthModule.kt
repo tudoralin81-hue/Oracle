@@ -82,7 +82,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
     /**
      * B540 loading state (Requirement #6/#7/#11).
      *
-     * Shows real progress ("DATE ÎNCĂRCATE: X / 500", updated in steps of 50),
+     * Shows real progress ("DATA LOADED: X%", updated in steps of 50),
      * an ETA computed from actual throughput, and a rotating investor quote.
      * If [OracleGrowthEngine] has already finished with zero OHLCV received,
      * this renders an explicit error state instead — it never spins forever.
@@ -98,7 +98,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.gravity = Gravity.CENTER
         val spinner = ImageView(host.root.context).apply {
             setImageResource(ro.alintudor.oracle.R.drawable.ic_oracle)
-            contentDescription = "Oracle se calculează"
+            contentDescription = "Oracle is calculating"
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             val rotation = ObjectAnimator.ofFloat(this, View.ROTATION, 0f, 360f).apply {
                 duration = 1100L
@@ -109,19 +109,19 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         }
         card.addView(spinner, LinearLayout.LayoutParams(host.dp(54), host.dp(54)).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
-        card.addView(text("Se calculează recomandările…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
-        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
+        card.addView(text("Calculating recommendations…", 13f, Typeface.DEFAULT, muted, 0, 5).apply { gravity = Gravity.CENTER })
+        val progressLabel = text("DATA LOADED: 0%", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }
         card.addView(progressLabel)
         val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = initial.total.coerceAtLeast(1); progress = 0; isIndeterminate = false
         }
         card.addView(progressBar, LinearLayout.LayoutParams(-1, host.dp(9)).apply { setMargins(host.dp(10), host.dp(6), host.dp(10), host.dp(3)) })
-        val etaLabel = text("Timp estimat: se calculează…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
+        val etaLabel = text("Estimated time: calculating…", 10f, Typeface.DEFAULT_BOLD, green, 0, 5).apply { gravity = Gravity.CENTER }
         card.addView(etaLabel)
         val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }
         card.addView(quoteLabel)
-        card.addView(text("Analiza se execută în fundal. Valorile apar numai după finalizarea calculului curent.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
-        card.addView(text("Maxim țintă: 20 secunde", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Analysis runs in the background. Values appear only once the current calculation finishes.", 9f, Typeface.DEFAULT, muted, 0, 9).apply { gravity = Gravity.CENTER })
+        card.addView(text("Target maximum: 20 seconds", 9f, Typeface.DEFAULT_BOLD, muted, 0, 6).apply { gravity = Gravity.CENTER })
         host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
 
@@ -151,16 +151,17 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
                 val shown = if (loaded >= total) total else (loaded / 50) * 50
                 progressBar.max = total
                 progressBar.progress = shown
-                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"
+                val pct = (shown * 100 / total).coerceIn(0, 100)
+                progressLabel.text = "DATA LOADED: $pct%"
                 if (p.startedAtNanos > 0L) {
                     val elapsed = (System.nanoTime() - p.startedAtNanos).coerceAtLeast(1L) / 1_000_000_000.0
                     etaLabel.text = if (p.phase == OracleGrowthPhase.RUNNING) {
                         if (shown > 0) {
                             val eta = (elapsed * (total - shown) / shown).coerceAtLeast(0.0)
-                            "Timp estimat: ~${formatEta(eta)}"
-                        } else "Timp estimat: se calculează…"
+                            "Estimated time: ~${formatEta(eta)}"
+                        } else "Estimated time: calculating…"
                     } else {
-                        "Analiza datelor: finalizată în ${String.format(Locale.US, "%.1f", elapsed)} s"
+                        "Data analysis: finished in ${String.format(Locale.US, "%.1f", elapsed)} s"
                     }
                 }
                 if (p.phase == OracleGrowthPhase.RUNNING) handler.postDelayed(this, 500L)
@@ -177,9 +178,9 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.background = rounded(bg, red, 1, 16)
         card.addView(text("⚠", 28f, Typeface.DEFAULT_BOLD, red, 0, 0).apply { gravity = Gravity.CENTER })
         card.addView(text("GROWTH", 17f, Typeface.DEFAULT_BOLD, green, 0, 10).apply { gravity = Gravity.CENTER })
-        card.addView(text("Sursa de date OHLCV nu a răspuns.", 13f, Typeface.DEFAULT_BOLD, red, 0, 6).apply { gravity = Gravity.CENTER })
-        card.addView(text("Recomandările Growth nu au putut fi calculate (${progress.loaded} / ${progress.total} simboluri primite).", 11f, Typeface.DEFAULT, muted, 0, 6).apply { gravity = Gravity.CENTER })
-        card.addView(text("Apasă ↻ (sus dreapta) pentru a reîncerca.", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("The OHLCV data source did not respond.", 13f, Typeface.DEFAULT_BOLD, red, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Growth recommendations could not be calculated (${progress.loaded} / ${progress.total} symbols received).", 11f, Typeface.DEFAULT, muted, 0, 6).apply { gravity = Gravity.CENTER })
+        card.addView(text("Tap ↻ (top right) to retry.", 11f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER })
         host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(200)).apply { setMargins(0, 0, 0, host.dp(10)) })
         addBuildFooter()
     }
@@ -191,15 +192,15 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
     private fun addSummary(items: List<OracleGrowthRecommendation>) {
         val card = card(14)
-        card.addView(text("RECOMANDĂRILE DE CREȘTERE", 18f, Typeface.DEFAULT_BOLD, green, 0, 0))
-        card.addView(text("Oracle Growth • snapshot zilnic 16:00", 13f, Typeface.DEFAULT, muted, 0, 5))
+        card.addView(text("GROWTH RECOMMENDATIONS", 18f, Typeface.DEFAULT_BOLD, green, 0, 0))
+        card.addView(text("Oracle Growth • daily snapshot 16:00", 13f, Typeface.DEFAULT, muted, 0, 5))
         val line = LinearLayout(host.root.context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, host.dp(12), 0, 0)
         }
-        line.addView(metric("ORIZONTURI", items.map { it.horizon }.distinct().size.toString(), cyan), LinearLayout.LayoutParams(0, -2, 1f))
-        line.addView(metric("RECOMANDĂRI", items.size.toString(), orange), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(metric("HORIZONS", items.map { it.horizon }.distinct().size.toString(), cyan), LinearLayout.LayoutParams(0, -2, 1f))
+        line.addView(metric("RECOMMENDATIONS", items.size.toString(), orange), LinearLayout.LayoutParams(0, -2, 1f))
         line.addView(metric("ANCHOR", formatT0(items.first().referenceTimestamp), white), LinearLayout.LayoutParams(0, -2, 1.55f))
         card.addView(line)
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(10)) })
@@ -207,7 +208,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
 
     private fun addRecommendations(items: List<OracleGrowthRecommendation>, news: List<OracleNews>) {
         val section = TextView(host.root.context).apply {
-            text = "SUMAR RECOMANDĂRI ACTIVE"
+            text = "ACTIVE RECOMMENDATIONS SUMMARY"
             textSize = 17f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(green)
@@ -240,15 +241,15 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         card.addView(divider())
 
         val metrics = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, host.dp(7), 0, host.dp(4)) }
-        metrics.addView(metric("SCOR", "${item.score}/100", cyan), LinearLayout.LayoutParams(0, -2, 1f))
-        metrics.addView(metric("SEMNAL", compactSignal(item.signal), orange), LinearLayout.LayoutParams(0, -2, 1.15f))
-        metrics.addView(metric("RISC", item.risk, riskColor(item.risk)), LinearLayout.LayoutParams(0, -2, 1f))
-        metrics.addView(metric("ALOCARE", "${format(item.allocationMax)}%", orange), LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(metric("SCORE", "${item.score}/100", cyan), LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(metric("SIGNAL", compactSignal(item.signal), orange), LinearLayout.LayoutParams(0, -2, 1.15f))
+        metrics.addView(metric("RISK", item.risk, riskColor(item.risk)), LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(metric("ALLOCATION", "${format(item.allocationMax)}%", orange), LinearLayout.LayoutParams(0, -2, 1f))
         card.addView(metrics)
 
         val lower = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, host.dp(5), 0, host.dp(4)) }
         val forecast = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL }
-        forecast.addView(text("Potențial estimat", 10f, Typeface.DEFAULT, muted, 0, 0))
+        forecast.addView(text("Estimated potential", 10f, Typeface.DEFAULT, muted, 0, 0))
         forecast.addView(text(signedPct(item.forecastPct), 22f, Typeface.DEFAULT_BOLD, green, 0, 2))
         lower.addView(forecast, LinearLayout.LayoutParams(0, -2, 1.15f))
         val momentum = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL }
@@ -267,13 +268,13 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             card.addView(text("▣  ${if (source.isBlank()) "NEWS" else source}", 10f, Typeface.DEFAULT_BOLD, cyan, 0, 5))
             card.addView(text(newsTitle, 11f, Typeface.DEFAULT, white, 0, 4))
         }
-        card.addView(text("Datele sunt informative și nu constituie recomandări de investiții.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), 0, 8))
+        card.addView(text("This data is informational and does not constitute investment advice.", 9f, Typeface.DEFAULT, Color.rgb(125, 135, 155), 0, 8))
         host.content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(9)) })
     }
 
     private fun addCompactWeights(parent: LinearLayout, weights: List<Int>) {
         if (weights.isEmpty()) return
-        parent.addView(text("Ponderi", 10f, Typeface.DEFAULT_BOLD, white, 0, 5))
+        parent.addView(text("Weights", 10f, Typeface.DEFAULT_BOLD, white, 0, 5))
         val names = listOf("News", "BO", "Trend", "Mom", "Vol", "S/R", "Fund", "BB", "Ichimoku", "Mkt", "R/R", "ADX")
         val grid = LinearLayout(host.root.context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, host.dp(2), 0, host.dp(1)) }
         val columns = 6
@@ -298,7 +299,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         }.distinctBy { it.ticker }
         if (recent.isEmpty()) return
         val card = card(12)
-        card.addView(text("ȘTIRI & CATALIZATORI RECENȚI", 15f, Typeface.DEFAULT_BOLD, green, 0, 0))
+        card.addView(text("RECENT NEWS & CATALYSTS", 15f, Typeface.DEFAULT_BOLD, green, 0, 0))
         recent.forEach { n ->
             card.addView(text("▣  ${n.title}", 11f, Typeface.DEFAULT, white, 0, 7))
             card.addView(text("${formatT0(n.publishedAt)} • ${n.source}", 9f, Typeface.DEFAULT, muted, host.dp(18), 2))
@@ -312,7 +313,23 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(text("ULTIMELE RECOMANDĂRI", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(text("LATEST RECOMMENDATIONS", 15f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(-2, -2))
+
+        // Arrow sits right next to the title.
+        val arrow = TextView(host.root.context).apply {
+            text = "⌄"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setPadding(host.dp(4), 0, 0, host.dp(2))
+            isClickable = true
+            isFocusable = true
+        }
+        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
+
+        // Flexible spacer pushes the PDF button to the far right.
+        header.addView(View(host.root.context), LinearLayout.LayoutParams(0, -2, 1f))
 
         val download = TextView(host.root.context).apply {
             text = "⇩  PDF"
@@ -324,26 +341,14 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
             setPadding(host.dp(13), host.dp(8), host.dp(13), host.dp(8))
             isClickable = true
             isFocusable = true
-            contentDescription = "Descarcă jurnalul Growth în PDF"
+            contentDescription = "Download Growth journal as PDF"
             setOnClickListener {
                 val path = journalStore.exportPdf()
-                if (path != null) Toast.makeText(host.root.context, "Jurnalul Growth a fost salvat în Downloads.", Toast.LENGTH_LONG).show()
-                else Toast.makeText(host.root.context, "Nu există recomandări pentru export.", Toast.LENGTH_SHORT).show()
+                if (path != null) Toast.makeText(host.root.context, "Growth journal saved to Downloads.", Toast.LENGTH_LONG).show()
+                else Toast.makeText(host.root.context, "There are no recommendations to export.", Toast.LENGTH_SHORT).show()
             }
         }
         header.addView(download, LinearLayout.LayoutParams(host.dp(94), host.dp(40)))
-
-        val arrow = TextView(host.root.context).apply {
-            text = "⌄"
-            textSize = 23f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(cyan)
-            setPadding(0, 0, 0, host.dp(2))
-            isClickable = true
-            isFocusable = true
-        }
-        header.addView(arrow, LinearLayout.LayoutParams(host.dp(38), host.dp(40)))
         card.addView(header)
 
         val all = entries
@@ -408,7 +413,7 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
                 val details = LinearLayout(host.root.context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, host.dp(5), 0, 0) }
                 details.addView(text(formatT0(item.referenceTimestamp), 9f, Typeface.DEFAULT, muted, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
                 details.addView(text("Forecast ${signedPct(item.forecastPct)}", 9f, Typeface.DEFAULT_BOLD, green, 0, 0), LinearLayout.LayoutParams(0, -2, 1f))
-                details.addView(text("Scor ${item.score}/100", 9f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, .8f))
+                details.addView(text("Score ${item.score}/100", 9f, Typeface.DEFAULT_BOLD, cyan, 0, 0), LinearLayout.LayoutParams(0, -2, .8f))
                 addView(details)
             }
         }
@@ -425,10 +430,10 @@ class OracleGrowthModule(private val host: OracleNativeModule) {
         host.content.addView(text("BUILD B535 • GROWTH", 9f, Typeface.DEFAULT_BOLD, Color.rgb(125, 135, 155), host.dp(4), 8), LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 0, 0, host.dp(18)) })
     }
 
-    private fun horizonLabel(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> "●  TERMEN SCURT"; "MEDIUM" -> "●  TERMEN MEDIU"; else -> "●  TERMEN LUNG" }
-    private fun horizonRange(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> "1–10 zile bursiere"; "MEDIUM" -> "2–12 săptămâni"; else -> "3–12 luni" }
+    private fun horizonLabel(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> "●  SHORT TERM"; "MEDIUM" -> "●  MEDIUM TERM"; else -> "●  LONG TERM" }
+    private fun horizonRange(horizon: String) = when (horizon.uppercase(Locale.US)) { "SHORT" -> "1–10 trading days"; "MEDIUM" -> "2–12 weeks"; else -> "3–12 months" }
     private fun compactSignal(signal: String) = signal.replace("STRONG ", "STRONG\n").trim()
-    private fun riskColor(risk: String): Int = if (risk.contains("RID", true)) red else orange
+    private fun riskColor(risk: String): Int = if (risk.contains("HIGH", true)) red else orange
     private fun signedPct(v: Double) = if (v >= 0) "+${format(v)}%" else "${format(v)}%"
     private fun format(v: Double) = "%.1f".format(Locale.US, v)
 
