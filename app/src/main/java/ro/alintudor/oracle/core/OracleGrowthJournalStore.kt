@@ -59,17 +59,17 @@ class OracleGrowthJournalStore(private val context: Context) {
             page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
             canvas = page.canvas
             y = margin
-            canvas.drawText("ORACLE GROWTH • JURNAL COMPLET", margin, y, titlePaint)
+            canvas.drawText("ORACLE GROWTH • FULL JOURNAL", margin, y, titlePaint)
             y += 28f
         }
 
-        canvas.drawText("ORACLE GROWTH • JURNAL COMPLET", margin, y, titlePaint)
+        canvas.drawText("ORACLE GROWTH • FULL JOURNAL", margin, y, titlePaint)
         y += 18f
         canvas.drawText("Export PDF • ${dateFormat.format(Date())}", margin, y, mutedPaint)
         y += 24f
 
         val colX = floatArrayOf(margin, 88f, 155f, 205f, 262f, 326f, 392f, 458f)
-        val headers = arrayOf("T0", "Ticker", "Orizont", "Scor", "Semnal", "Risc", "Alocare", "Forecast")
+        val headers = arrayOf("T0", "Ticker", "Horizon", "Score", "Signal", "Risk", "Allocation", "Forecast")
         headers.forEachIndexed { i, h -> canvas.drawText(h, colX[i], y, headerPaint) }
         y += 8f
         canvas.drawLine(margin, y, pageWidth - margin, y, mutedPaint)
@@ -90,7 +90,7 @@ class OracleGrowthJournalStore(private val context: Context) {
 
         document.finishPage(page)
         return runCatching {
-            val filename = "Oracle_Growth_Jurnal_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())}.pdf"
+            val filename = "Oracle_Growth_Journal_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())}.pdf"
             if (Build.VERSION.SDK_INT >= 29) {
                 val values = ContentValues().apply {
                     put(MediaStore.Downloads.DISPLAY_NAME, filename)
