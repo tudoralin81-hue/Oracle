@@ -42,7 +42,7 @@ jobs:
           fi
       - name: Repair Kotlin escape sequence
         run: |
-          sed -i 's/\\\\-/\\-/g' app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt
+          python3 -c 'from pathlib import Path; p=Path("app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt"); b=p.read_bytes(); f=b.replace(bytes([92,45]), bytes([45])); p.write_bytes(f); print("Kotlin regex escape repaired" if f != b else "No repair needed")'
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet -- app/src/main/java/ro/alintudor/oracle/core/OracleAnalysisEngine.kt; then
