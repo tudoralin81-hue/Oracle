@@ -3,9 +3,11 @@ package ro.alintudor.oracle
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
@@ -21,21 +23,40 @@ class OracleMysticStartView(context: Context, private val onModule: (String) -> 
     private var sx = 1f; private var sy = 1f; private var ox = 0f; private var oy = 0f
     private val gold = Color.rgb(255, 205, 55); private val white = Color.rgb(245, 241, 231); private val green = Color.rgb(60, 255, 85)
     private val modules = listOf(
+        M("growth", "GROWTH", "FUTURE SCAN", Color.rgb(120, 255, 45)),
+        M("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(20, 220, 255)),
         M("portfolio", "PORTFOLIO", "OVERVIEW", Color.rgb(220, 55, 255)),
         M("watchlist", "WATCHLIST", "TRACK & FOCUS", Color.rgb(255, 205, 35)),
-        M("analysis", "ANALYSIS", "CHARTS & TOOLS", Color.rgb(20, 220, 255)),
-        M("growth", "GROWTH", "FUTURE SCAN", Color.rgb(120, 255, 45)),
-        M("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 65, 45)),
         M("news", "NEWS", "MARKET PULSE", Color.rgb(25, 205, 255)),
-        M("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", Color.rgb(255, 210, 45))
+        M("knowledge", "KNOWLEDGE", "LEARN & EVOLVE", Color.rgb(255, 210, 45)),
+        M("alerts", "ALERTS", "STAY AHEAD", Color.rgb(255, 65, 45))
     )
     private data class M(val key:String,val title:String,val sub:String,val color:Int)
+    private data class ConstellationStar(val nx: Float, val ny: Float, val phase: Double)
+    private val constellations: List<List<ConstellationStar>> by lazy { buildConstellations() }
+    private fun buildConstellations(): List<List<ConstellationStar>> {
+        val rnd = java.util.Random(357202601L) // fixed seed: pattern stays stable across frames
+        val clusters = mutableListOf<List<ConstellationStar>>()
+        repeat(7) {
+            var cx = 0.06f + rnd.nextFloat() * 0.88f
+            var cy = 0.05f + rnd.nextFloat() * 0.85f
+            val count = 4 + rnd.nextInt(4)
+            val stars = mutableListOf<ConstellationStar>()
+            repeat(count) {
+                stars += ConstellationStar(cx.coerceIn(0.02f, 0.98f), cy.coerceIn(0.02f, 0.98f), rnd.nextDouble() * 6.28)
+                cx += (rnd.nextFloat() - 0.5f) * 0.16f
+                cy += (rnd.nextFloat() - 0.5f) * 0.11f
+            }
+            clusters += stars
+        }
+        return clusters
+    }
     private fun X(v:Float)=ox+v*sx; private fun Y(v:Float)=oy+v*sy; private fun S(v:Float)=v*min(sx,sy)
 
     override fun onDraw(c:Canvas){
         super.onDraw(c); val w=width.toFloat(); val h=height.toFloat(); if(w<=0f||h<=0f)return
         val wide=w/h>1.18f; val dw=if(wide)1280f else 720f; val dh=if(wide)800f else 1120f; sx=w/dw; sy=h/dh; ox=0f; oy=0f
-        p.style=Paint.Style.FILL;p.alpha=255;p.color=Color.rgb(1,2,5);c.drawRect(0f,0f,w,h,p)
+        p.style=Paint.Style.FILL;p.alpha=255;p.shader=LinearGradient(0f,0f,0f,h,Color.rgb(4,9,32),Color.rgb(2,4,14),Shader.TileMode.CLAMP);c.drawRect(0f,0f,w,h,p);p.shader=null
         val time=System.nanoTime()/1_000_000_000.0; val cx=X(dw*.5f); val eyeY=Y(if(wide)185f else 255f); val eyeR=S(if(wide)135f else 126f)
         stars(c,w,h,time); grid(c,cx,eyeY,S(if(wide)118f else 112f),S(18f)); sigil(c,cx,Y(if(wide)31f else 54f),S(20f),gold)
         text(c,"ORACLE",cx,Y(if(wide)72f else 100f),S(if(wide)34f else 31f),gold,Typeface.SERIF,.18f,true)
@@ -45,7 +66,20 @@ class OracleMysticStartView(context: Context, private val onModule: (String) -> 
         hit.clear(); if(wide)drawCards(c,145f,385f,225f,110f,18f,time,true) else drawCards(c,18f,475f,162f,118f,10f,time,false)
         text(c,"357AT2026",cx,Y(if(wide)775f else 1090f),S(10f),gold,Typeface.DEFAULT_BOLD,.18f,true); postInvalidateDelayed(32L)
     }
-    private fun stars(c:Canvas,w:Float,h:Float,time:Double){p.style=Paint.Style.FILL;for(i in 0 until 70){val x=((i*83+41)%1000)/1000f*w;val y=((i*149+17)%1000)/1000f*h;val q=(.5+.5*sin(time*.7+i)).toFloat();p.color=Color.argb((35+75*q).toInt(),210,190,80);c.drawCircle(x,y,S(.65f+(i%3)*.35f),p)}}
+    private fun stars(c:Canvas,w:Float,h:Float,time:Double){
+        p.style=Paint.Style.FILL
+        for(i in 0 until 110){val x=((i*83+41)%1000)/1000f*w;val y=((i*149+17)%1000)/1000f*h;val q=(.5+.5*sin(time*.7+i)).toFloat();p.color=Color.argb((70+140*q).toInt(),225,235,255);c.drawCircle(x,y,S(.6f+(i%3)*.4f),p)}
+        for(cluster in constellations){
+            p.style=Paint.Style.STROKE;p.strokeWidth=S(.75f);p.color=Color.argb(100,150,190,255)
+            for(i in 0 until cluster.size-1){val a=cluster[i];val b=cluster[i+1];c.drawLine(a.nx*w,a.ny*h,b.nx*w,b.ny*h,p)}
+            p.style=Paint.Style.FILL
+            for(star in cluster){
+                val q=(.5+.5*sin(time*1.15+star.phase)).toFloat()
+                p.color=Color.argb((40+55*q).toInt(),175,205,255);c.drawCircle(star.nx*w,star.ny*h,S(3.6f+1.3f*q),p)
+                p.color=Color.argb((175+80*q).toInt(),240,245,255);c.drawCircle(star.nx*w,star.ny*h,S(1.7f+0.7f*q),p)
+            }
+        }
+    }
     private fun grid(c:Canvas,cx:Float,cy:Float,first:Float,step:Float){p.style=Paint.Style.STROKE;p.strokeWidth=S(.55f);p.color=Color.argb(48,205,175,65);for(i in 0 until 14)c.drawCircle(cx,cy,first+i*step,p);for(i in 0 until 32){val a=i*Math.PI/16.0;val dx=cos(a).toFloat();val dy=sin(a).toFloat();c.drawLine(cx+dx*(first-S(16f)),cy+dy*(first-S(16f)),cx+dx*(first+S(255f)),cy+dy*(first+S(255f)),p)}}
     private fun eye(c:Canvas,x:Float,y:Float,r:Float,time:Double){val q=(.5+.5*sin(time*1.25)).toFloat();p.style=Paint.Style.STROKE;path.reset();path.moveTo(x-r,y);path.cubicTo(x-r*.58f,y-r*.55f,x+r*.58f,y-r*.55f,x+r,y);path.cubicTo(x+r*.58f,y+r*.55f,x-r*.58f,y+r*.55f,x-r,y);p.color=gold;p.alpha=(180+70*q).toInt();p.strokeWidth=S(2f);c.drawPath(path,p);p.color=green;p.alpha=(55+90*q).toInt();p.strokeWidth=S(1.2f);c.drawCircle(x,y,r*(.48f+.035f*q),p);p.alpha=(160+90*q).toInt();p.strokeWidth=S(2f);c.drawCircle(x,y,r*.29f,p);p.style=Paint.Style.FILL;p.color=Color.rgb(2,10,4);p.alpha=255;c.drawCircle(x,y,r*.275f,p);p.color=green;p.alpha=(165+90*q).toInt();c.drawCircle(x,y,r*(.09f+.035f*q),p);p.color=Color.argb((30+80*q).toInt(),60,255,85);c.drawCircle(x,y,r*(.15f+.05f*q),p);p.style=Paint.Style.STROKE;p.color=Color.rgb(255,105,35);p.alpha=(70+90*q).toInt();p.strokeWidth=S(.8f);for(i in 0 until 28){val a=i*Math.PI/14.0;val inn=r*.40f;val out=r*(.56f+.05f*q);c.drawLine(x+cos(a).toFloat()*inn,y+sin(a).toFloat()*inn,x+cos(a).toFloat()*out,y+sin(a).toFloat()*out,p)}}
     private fun drawCards(c:Canvas,left:Float,top:Float,cw:Float,ch:Float,gap:Float,time:Double,wide:Boolean){for(i in modules.indices){val col:Int;val row:Int;if(i<4){col=i;row=0}else{col=i-4;row=1};val count=if(row==0)4 else 3;val rowW=count*cw+(count-1)*gap;val rowLeft=if(row==0)left else left+(4*cw+3*gap-rowW)/2f;val l=rowLeft+col*(cw+gap);val t=top+row*(ch+gap);val r=RectF(X(l),Y(t),X(l+cw),Y(t+ch));hit+=r to modules[i].key;card(c,r,modules[i],time,i,wide)}}
