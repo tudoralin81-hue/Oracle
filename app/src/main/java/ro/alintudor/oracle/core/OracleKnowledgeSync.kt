@@ -69,7 +69,7 @@ object OracleKnowledgeSync {
         val now = System.currentTimeMillis()
         val json = get(REST_URL)
         val apiItems = parseRestArticles(json, now)
-        if (apiItems.isEmpty()) throw IllegalStateException("Nu am găsit articole publicate în /knowledge/ în WordPress REST API.")
+        if (apiItems.isEmpty()) throw IllegalStateException("No published articles found in /knowledge/ via the WordPress REST API.")
         val payload = JSONArray().apply {
             apiItems.forEach { a ->
                 put(JSONObject().apply {
