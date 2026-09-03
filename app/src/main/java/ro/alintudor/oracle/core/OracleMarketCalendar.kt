@@ -64,13 +64,13 @@ object OracleMarketCalendar {
         val close = ZonedDateTime.of(date, sessionCloseTime(date), NEW_YORK)
         return when {
             now.isBefore(open) -> closedStatus(now, open)
-            now.isBefore(close) -> Status(true, "BURSA ESTE DESCHISĂ", "Mai sunt ${formatRemaining(now, close)} până la închidere.")
+            now.isBefore(close) -> Status(true, "MARKET IS OPEN", "${formatRemaining(now, close)} until close.")
             else -> closedStatus(now, nextTradingOpen(now))
         }
     }
 
     private fun closedStatus(now: ZonedDateTime, target: ZonedDateTime): Status =
-        Status(false, "BURSA ESTE ÎNCHISĂ", "Mai sunt ${formatRemaining(now, target)} până la deschidere.")
+        Status(false, "MARKET IS CLOSED", "${formatRemaining(now, target)} until open.")
 
     private fun nextTradingOpen(now: ZonedDateTime): ZonedDateTime {
         var date = now.toLocalDate().plusDays(1)
@@ -83,7 +83,7 @@ object OracleMarketCalendar {
         val totalMinutes = (seconds + 59L) / 60L
         val hours = totalMinutes / 60L
         val minutes = totalMinutes % 60L
-        return "$hours ore și $minutes minute"
+        return "$hours hours and $minutes minutes"
     }
 
     private fun observedFixedHolidays(year: Int): Map<LocalDate, String> {
