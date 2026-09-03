@@ -32,10 +32,87 @@ class OracleMysticActivity : Activity() {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { handleBack() }
         }
-        runCatching { OracleBootstrap.ensure(repository); showHub() }
-            .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
-        // GROWTH warm-up starts at Android app launch, not when the user opens GROWTH.
+        // GROWTH warm-up starts immediately at app launch, in parallel with the
+        // boot loader below, so data is already loading by the time START appears.
         Thread { runCatching { OracleLocalProcessor.refreshGrowthOnly(repository) } }.start()
+        runCatching { OracleBootstrap.ensure(repository); showBootLoader() }
+            .onFailure { showFatalError("Pornirea Oracle a eșuat", it) }
+    }
+
+    /**
+     * Boot loader shown for ~5s between app open and the START hub, visually
+     * matching the GROWTH loading card (spinning Oracle icon + percentage bar).
+     * GROWTH data is already loading in the background during this time.
+     */
+    private fun showBootLoader() {
+        root.removeAllViews()
+        val bg = Color.rgb(6, 10, 20)
+        val panel = Color.rgb(7, 14, 28)
+        val border = Color.rgb(49, 82, 125)
+        val muted = Color.rgb(165, 174, 195)
+        val cyan = Color.rgb(75, 225, 255)
+        val green = Color.rgb(105, 245, 35)
+
+        val container = FrameLayout(this).apply { setBackgroundColor(bg) }
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(28), dp(28), dp(28), dp(28))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(panel)
+                setStroke(dp(1), border)
+                cornerRadius = dp(16).toFloat()
+            }
+        }
+
+        val spinner = ImageView(this).apply {
+            setImageResource(R.drawable.ic_oracle)
+            contentDescription = "Oracle se pregătește"
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            android.animation.ObjectAnimator.ofFloat(this, View.ROTATION, 0f, 360f).apply {
+                duration = 1100L
+                repeatCount = android.animation.ObjectAnimator.INFINITE
+                interpolator = android.view.animation.LinearInterpolator()
+            }.start()
+        }
+        card.addView(spinner, LinearLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER })
+        card.addView(TextView(this).apply {
+            text = "ORACLE"; textSize = 19f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+            setTextColor(green); setPadding(0, dp(12), 0, dp(4))
+        })
+        card.addView(TextView(this).apply {
+            text = "Se pregătește aplicația…"; textSize = 13f; gravity = Gravity.CENTER
+            setTextColor(muted); setPadding(0, 0, 0, dp(16))
+        })
+
+        val percentLabel = TextView(this).apply {
+            text = "0%"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+            setTextColor(cyan); setPadding(0, 0, 0, dp(8))
+        }
+        card.addView(percentLabel)
+        val progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100; progress = 0; isIndeterminate = false
+        }
+        card.addView(progressBar, LinearLayout.LayoutParams(dp(220), dp(9)))
+        card.addView(TextView(this).apply {
+            text = "Datele GROWTH se încarcă în fundal."; textSize = 10f; gravity = Gravity.CENTER
+            setTextColor(muted); setPadding(0, dp(14), 0, 0)
+        })
+
+        container.addView(card, FrameLayout.LayoutParams(dp(260), -2, Gravity.CENTER))
+        root.addView(container, FrameLayout.LayoutParams(-1, -1))
+
+        val bootDurationMs = 5_000L
+        android.animation.ValueAnimator.ofInt(0, 100).apply {
+            duration = bootDurationMs
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { anim ->
+                val v = anim.animatedValue as Int
+                progressBar.progress = v
+                percentLabel.text = "$v%"
+            }
+        }.start()
+        mainHandler.postDelayed({ if (!isFinishing) showHub() }, bootDurationMs)
     }
 
     private fun showHub() {
