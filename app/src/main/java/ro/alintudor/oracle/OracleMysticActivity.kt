@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.*
 import android.widget.*
 import ro.alintudor.oracle.core.OracleBootstrap
+import ro.alintudor.oracle.core.OracleLoaderQuotes
 import ro.alintudor.oracle.core.OracleLocalProcessor
 import ro.alintudor.oracle.core.OracleRepository
 import ro.alintudor.oracle.core.snapshot
@@ -52,6 +53,7 @@ class OracleMysticActivity : Activity() {
         val muted = Color.rgb(165, 174, 195)
         val cyan = Color.rgb(75, 225, 255)
         val green = Color.rgb(105, 245, 35)
+        val orange = Color.rgb(255, 160, 25)
 
         val container = FrameLayout(this).apply { setBackgroundColor(bg) }
         val card = LinearLayout(this).apply {
@@ -94,10 +96,16 @@ class OracleMysticActivity : Activity() {
             max = 100; progress = 0; isIndeterminate = false
         }
         card.addView(progressBar, LinearLayout.LayoutParams(dp(220), dp(9)))
-        card.addView(TextView(this).apply {
-            text = "Datele GROWTH se încarcă în fundal."; textSize = 10f; gravity = Gravity.CENTER
-            setTextColor(muted); setPadding(0, dp(14), 0, 0)
-        })
+
+        // Same rotating investor quotes as the GROWTH loader (OracleLoaderQuotes),
+        // just cycling faster since the boot loader only runs for 5s total.
+        val quoteLabel = TextView(this).apply {
+            text = OracleLoaderQuotes.ALL.random()
+            textSize = 12f; gravity = Gravity.CENTER
+            setTextColor(orange); setPadding(0, dp(16), 0, 0)
+            setLineSpacing(0f, 1.15f)
+        }
+        card.addView(quoteLabel)
 
         container.addView(card, FrameLayout.LayoutParams(dp(260), -2, Gravity.CENTER))
         root.addView(container, FrameLayout.LayoutParams(-1, -1))
@@ -112,7 +120,25 @@ class OracleMysticActivity : Activity() {
                 percentLabel.text = "$v%"
             }
         }.start()
-        mainHandler.postDelayed({ if (!isFinishing) showHub() }, bootDurationMs)
+
+        var lastQuote: String = quoteLabel.text.toString()
+        val quoteRunnable = object : Runnable {
+            override fun run() {
+                var next = OracleLoaderQuotes.ALL.random()
+                if (OracleLoaderQuotes.ALL.size > 1) {
+                    while (next == lastQuote) next = OracleLoaderQuotes.ALL.random()
+                }
+                lastQuote = next
+                quoteLabel.text = next
+                mainHandler.postDelayed(this, 1_800L)
+            }
+        }
+        mainHandler.postDelayed(quoteRunnable, 1_800L)
+
+        mainHandler.postDelayed({
+            mainHandler.removeCallbacks(quoteRunnable)
+            if (!isFinishing) showHub()
+        }, bootDurationMs)
     }
 
     private fun showHub() {
