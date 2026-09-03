@@ -4,7 +4,7 @@ on:
     branches: [B541-CLAUDE-EXACT]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,29 +21,23 @@ jobs:
           assert old in s
           s=s.replace(old, old+'import ro.alintudor.oracle.core.OracleLoaderQuotes\n', 1)
           old='''    private val loaderQuotes = listOf(\n        "\\\"Price is what you pay; value is what you get.\\\"\\n— Benjamin Graham",\n        "\\\"Rule No. 1: Never lose money. Rule No. 2: Never forget Rule No. 1.\\\"\\n— Warren Buffett",\n        "\\\"The most important quality for an investor is temperament, not intellect.\\\"\\n— Warren Buffett",\n        "\\\"It's only when the tide goes out that you learn who's been swimming naked.\\\"\\n— Warren Buffett",\n        "\\\"In the short run, the market is a voting machine, but in the long run it is a weighing machine.\\\"\\n— Benjamin Graham",\n        "\\\"The intelligent investor is a realist who sells to optimists and buys from pessimists.\\\"\\n— Benjamin Graham",\n        "\\\"Invert, always invert.\\\"\\n— Charlie Munger",\n        "\\\"Behind every stock is a company. Find out what it's doing.\\\"\\n— Peter Lynch",\n        "\\\"The four most dangerous words in investing are: this time it's different.\\\"\\n— Sir John Templeton"\n    )\n'''
-          new='''    private val loaderQuotes = OracleLoaderQuotes.ALL\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''    private val loaderQuotes = OracleLoaderQuotes.ALL\n''',1)
           old='''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 10).apply { gravity = Gravity.CENTER }\n'''
-          new='''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''        val progressLabel = text("DATE ÎNCĂRCATE: 0 / ${initial.total}", 12f, Typeface.DEFAULT_BOLD, cyan, 0, 6).apply { gravity = Gravity.CENTER }\n''',1)
           old='''        card.addView(progressLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n'''
-          new='''        card.addView(progressLabel)\n        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }\n        card.addView(percentLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''        card.addView(progressLabel)\n        val percentLabel = text("0%", 12f, Typeface.DEFAULT_BOLD, green, 0, 8).apply { gravity = Gravity.CENTER }\n        card.addView(percentLabel)\n        val progressBar = ProgressBar(host.root.context, null, android.R.attr.progressBarStyleHorizontal).apply {\n''',1)
           old='''        val quoteLabel = text(loaderQuotes.first(), 10f, Typeface.DEFAULT, white, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.1f) }\n'''
-          new='''        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''        val quoteLabel = text(loaderQuotes.first(), 12f, Typeface.DEFAULT, orange, 0, 9).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.15f) }\n''',1)
           old='''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(390)).apply { setMargins(0, 0, 0, host.dp(10)) })\n'''
-          new='''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''        host.content.addView(card, LinearLayout.LayoutParams(-1, host.dp(414)).apply { setMargins(0, 0, 0, host.dp(10)) })\n''',1)
           old='''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n'''
-          new='''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n                percentLabel.text = "${(shown * 100 / total)}%"\n'''
           assert old in s
-          s=s.replace(old,new,1)
+          s=s.replace(old,'''                progressLabel.text = "DATE ÎNCĂRCATE: $shown / $total"\n                percentLabel.text = "${(shown * 100 / total)}%"\n''',1)
           p.write_text(s,encoding='utf-8')
           PY
           git diff --check
@@ -74,6 +68,14 @@ jobs:
           grep -q 'bootDurationMs = 5_000L' app/src/main/java/ro/alintudor/oracle/OracleMysticActivity.kt
           grep -q 'text = "▼"' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
           grep -q 'rows.visibility = if (expanded) View.VISIBLE else View.GONE' app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+      - name: Persist exact Claude Growth source
+        run: |
+          set -euo pipefail
+          git config user.name "tudoralin81-hue"
+          git config user.email "tudor.alin81@gmail.com"
+          git add app/src/main/java/ro/alintudor/oracle/nativeui/OracleGrowthModule.kt
+          git diff --cached --quiet || git commit -m "B541: exact Claude Growth source [skip ci]"
+          git push origin HEAD:B541-CLAUDE-EXACT
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
       - name: Verify APK
